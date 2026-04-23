@@ -164,10 +164,16 @@ function listarMantenimientos() {
             {
                 data: null, title: "Acciones", orderable: false, searchable: false,
                 render: function (data, type, row) {
-                    return `<button class="btn btn-sm btn-outline-info"
-                                    onclick="verDetalle(${row.id_mantenimiento}, '${escHtml(row.maquina)}', '${escHtml(row.fecha_mantenimiento)}')">
-                                <i class="bi bi-tools"></i> Ver
-                            </button>`;
+                    return `
+                        <button class="btn btn-sm btn-outline-info me-1"
+                                onclick="verDetalle(${row.id_mantenimiento}, '${escHtml(row.maquina)}', '${escHtml(row.fecha_mantenimiento)}')">
+                            <i class="bi bi-tools"></i> Ver
+                        </button>
+                        <a class="btn btn-sm btn-outline-danger"
+                           href="./modules/Electronicas/Mantenimientos/reporte.php?id=${row.id_mantenimiento}"
+                           target="_blank" title="Imprimir / PDF">
+                            <i class="bi bi-file-earmark-pdf"></i>
+                        </a>`;
                 }
             }
         ],
