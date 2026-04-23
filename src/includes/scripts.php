@@ -86,6 +86,12 @@ if (!empty($_GET['module'])) {
   if ($_GET['module'] == 'mantenimientos') {
     echo '<script src="./modules/Electronicas/Mantenimientos/js/mantenimientos.js"></script>';
   }
+  if ($_GET['module'] == 'marcas') {
+    echo '<script src="./modules/Parametrizacion/Marcas/js/marcas.js"></script>';
+  }
+  if ($_GET['module'] == 'modelos') {
+    echo '<script src="./modules/Parametrizacion/Modelos/js/modelos.js"></script>';
+  }
 
 } else {
   //echo '<script src="/modules/home/"></script>';

@@ -20,6 +20,10 @@ if ($valor != 1) {
         $_GET['module'] == 'mantenimientos' ? include "./modules/Electronicas/Mantenimientos/views/mantenimientos.php" : false;
         //  $_GET['module'] == 'listadoProductores' ? include "./modules/productores/views/listaProductores.php" :false;
 
-        $_GET['module'] == 'dasboard' ? include "./modules/dasboard/views/dash.php" : false ; 
+        $_GET['module'] == 'dasboard' ? include "./modules/dasboard/views/dash.php" : false ;
+
+        // Parametrización
+        $_GET['module'] == 'marcas'   ? include "./modules/Parametrizacion/Marcas/views/vw_marcas.php"     : false;
+        $_GET['module'] == 'modelos'  ? include "./modules/Parametrizacion/Modelos/views/vw_modelos.php"   : false;
     }
 }

@@ -8,9 +8,6 @@ $model = new mdlRepuestos();
 
 $accion = $_POST['accion'] ?? '';
 
-/**
- * 🔧 Helper para responder SIEMPRE JSON válido
- */
 function response($data = [], $error = false, $mensaje = "")
 {
     echo json_encode([
@@ -25,16 +22,20 @@ try {
 
     switch ($accion) {
 
+        //////////////////////////////////////////////////////////
+        // CATÁLOGOS
+        //////////////////////////////////////////////////////////
 
         case 'proveedores':
             response($model->listarProveedores());
             break;
-        //////////////////////////////////////////////////////////
-        // 📊 LISTAR REPUESTOS
-        //////////////////////////////////////////////////////////
 
         case 'tipos':
             response($model->listarTipos());
+            break;
+
+        case 'estados':
+            response($model->listarEstados());
             break;
 
         case 'marcas':
@@ -42,272 +43,241 @@ try {
             break;
 
         case 'modelos':
-
-            $id_marca = $_POST['id_marca'] ?? null;
+            $id_marca       = $_POST['id_marca'] ?? null;
             $id_tipo_modelo = $_POST['id_tipo_modelo'] ?? null;
-
             response($model->listarModelos($id_marca, $id_tipo_modelo));
-
             break;
 
+        //////////////////////////////////////////////////////////
+        // LISTAR
+        //////////////////////////////////////////////////////////
+
         case 'listar':
-
-            $data = $model->listarRepuestos();
-
-            response($data);
+            response($model->listarRepuestos());
             break;
 
         case 'seriesDisponibles':
-
             $id = $_POST["id_repuesto"] ?? 0;
-
-            if (!$id) {
-                response([], true, "ID de repuesto inválido");
-            }
-
-            $resp = $model->obtenerSeriesDisponibles($id);
-            response($resp);
+            if (!$id) response([], true, "ID de repuesto inválido");
+            response($model->obtenerSeriesDisponibles($id));
             break;
 
-
-        case 'salida':
-
-            $data = [
-                "id_repuesto" => $_POST["id_repuesto"] ?? null,
-                "cantidad" => $_POST["cantidad"] ?? 0,
-                "costo" => $_POST["costo"] ?? 0,
-                "id_maquina" => $_POST["id_maquina"] ?? null,
-                "referencia" => $_POST["referencia"] ?? 'MANTENIMIENTO'
-            ];
-
-            $resp = $model->salidaRepuesto($data);
-
-            if (isset($resp["error"]) && $resp["error"] === true) {
-                response([], true, $resp["mensaje"]);
-            }
-
-            response($resp, false, "Salida registrada");
-            break;
-
-
-        case 'salidaSerie':
-
-            $id_repuesto = $_POST["id_repuesto"] ?? null;
-            $id_maquina = $_POST["id_maquina"] ?? null;
-            $referencia = $_POST["referencia"] ?? 'MANTENIMIENTO';
-            $series = $_POST["series"] ?? [];
-
-            // FIX
-            if (!is_array($series)) {
-                $series = explode(",", $series);
-            }
-
-            if (!$id_repuesto || !$id_maquina || empty($series)) {
-                response([], true, "Datos incompletos para salida por serie");
-            }
-
-            $resp = $model->salidaSerie($id_repuesto, $id_maquina, $series, $referencia);
-
-            if (isset($resp["error"]) && $resp["error"] === true) {
-                response([], true, $resp["mensaje"]);
-            }
-
-            response($resp, false, "Salida por serie registrada");
-            break;
         //////////////////////////////////////////////////////////
-        // CATÁLOGO DE REPUESTOS
+        // GUARDAR / EDITAR / ELIMINAR
         //////////////////////////////////////////////////////////
 
         case 'guardar':
-
             $data = [
-                "nombre" => $_POST["nombre"] ?? '',
-                "numero_parte" => $_POST["numero_parte"] ?? '',
+                "nombre"       => trim($_POST["nombre"] ?? ''),
+                "numero_parte" => trim($_POST["numero_parte"] ?? ''),
                 "id_proveedor" => $_POST["id_proveedor"] ?? null,
-                "costo" => $_POST["costo"] ?? 0,
-                "comentarios" => $_POST["comentarios"] ?? '',
-                "id_tipo" => $_POST["id_tipo"] ?? null,
-                "id_marca" => $_POST["id_marca"] ?? null,
-                "id_modelo" => $_POST["id_modelo"] ?? null,
+                "costo"        => $_POST["costo"] ?? 0,
+                "stock_minimo" => $_POST["stock_minimo"] ?? 0,
+                "comentarios"  => trim($_POST["comentarios"] ?? ''),
+                "id_tipo"      => $_POST["id_tipo"] ?? null,
+                "id_marca"     => $_POST["id_marca"] ?? null,
+                "id_modelo"    => $_POST["id_modelo"] ?? null,
                 "maneja_serie" => $_POST["maneja_serie"] ?? 0
             ];
 
-            if (!$data["nombre"]) {
-                response([], true, "Nombre requerido");
-            }
+            if (!$data["nombre"])
+                response([], true, "El nombre es requerido");
+
+            if (!$data["id_proveedor"] || $data["id_proveedor"] == -1)
+                response([], true, "Debes seleccionar un proveedor");
 
             $resp = $model->guardarRepuesto($data);
-
+            if (is_array($resp) && isset($resp["error"])) response([], true, $resp["mensaje"]);
             response($resp, false, "Repuesto creado");
             break;
 
 
         case 'editar':
-
             $data = [
-                "id_repuesto" => $_POST["id_repuesto"] ?? null,
-                "nombre" => $_POST["nombre"] ?? '',
-                "numero_parte" => $_POST["numero_parte"] ?? '',
+                "id_repuesto"  => $_POST["id_repuesto"] ?? null,
+                "nombre"       => trim($_POST["nombre"] ?? ''),
+                "numero_parte" => trim($_POST["numero_parte"] ?? ''),
                 "id_proveedor" => $_POST["id_proveedor"] ?? null,
-                "costo" => $_POST["costo"] ?? 0,
-                "comentarios" => $_POST["comentarios"] ?? '',
-                "id_tipo" => $_POST["id_tipo"] ?? null,
-                "id_marca" => $_POST["id_marca"] ?? null,
-                "id_modelo" => $_POST["id_modelo"] ?? null,
+                "costo"        => $_POST["costo"] ?? 0,
+                "stock_minimo" => $_POST["stock_minimo"] ?? 0,
+                "comentarios"  => trim($_POST["comentarios"] ?? ''),
+                "id_tipo"      => $_POST["id_tipo"] ?? null,
+                "id_marca"     => $_POST["id_marca"] ?? null,
+                "id_modelo"    => $_POST["id_modelo"] ?? null,
                 "maneja_serie" => $_POST["maneja_serie"] ?? 0
             ];
 
-            if (!$data["id_repuesto"]) {
+            if (!$data["id_repuesto"])
                 response([], true, "ID inválido");
-            }
+
+            if (!$data["nombre"])
+                response([], true, "El nombre es requerido");
+
+            if (!$data["id_proveedor"] || $data["id_proveedor"] == -1)
+                response([], true, "Debes seleccionar un proveedor");
 
             $resp = $model->editarRepuesto($data);
+
+            if (isset($resp["error"]) && $resp["error"] === true)
+                response([], true, $resp["mensaje"]);
 
             response($resp, false, "Repuesto actualizado");
             break;
 
 
         case 'eliminar':
-
             $id = $_POST["id_repuesto"] ?? null;
-
-            if (!$id) {
-                response([], true, "ID inválido");
-            }
-
-            $resp = $model->eliminarRepuesto($id);
-
-            response($resp, false, "Repuesto eliminado");
+            if (!$id) response([], true, "ID inválido");
+            response($model->eliminarRepuesto($id), false, "Repuesto eliminado");
             break;
 
         //////////////////////////////////////////////////////////
         // ENTRADA
         //////////////////////////////////////////////////////////
+
         case 'entrada':
+            $id_repuesto = $_POST["id_repuesto"] ?? null;
+            $cantidad    = (int)($_POST["cantidad"] ?? 0);
+            $costo       = (float)($_POST["costo"] ?? 0);
+
+            if (!$id_repuesto)
+                response([], true, "Repuesto inválido");
+
+            if ($cantidad <= 0)
+                response([], true, "La cantidad debe ser mayor a 0");
+
+            if ($costo < 0)
+                response([], true, "El costo no puede ser negativo");
 
             $data = [
-                "id_repuesto" => $_POST["id_repuesto"] ?? null,
-                "cantidad" => $_POST["cantidad"] ?? 0,
-                "costo" => $_POST["costo"] ?? 0,
-                "referencia" => $_POST["referencia"] ?? 'COMPRA'
+                "id_repuesto" => $id_repuesto,
+                "cantidad"    => $cantidad,
+                "costo"       => $costo,
+                "referencia"  => $_POST["referencia"] ?? 'COMPRA'
             ];
 
             $resp = $model->entradaRepuesto($data);
-
+            if (is_array($resp) && isset($resp["error"])) response([], true, $resp["mensaje"]);
             response($resp, false, "Entrada registrada");
             break;
 
+
         case 'entradaSerie':
+            $id_repuesto = $_POST['id_repuesto'] ?? null;
+            $series      = $_POST['series'] ?? [];
 
-            $id = $_POST['id_repuesto'];
-            $series = $_POST['series'];
+            if (!$id_repuesto)
+                response([], true, "Repuesto inválido");
 
-            response($model->entradaSerie($id, $series));
+            if (empty($series))
+                response([], true, "Debes ingresar al menos una serie");
 
+            $resp = $model->entradaSerie($id_repuesto, $series);
+            if (is_array($resp) && isset($resp["error"])) response([], true, $resp["mensaje"]);
+            response($resp);
             break;
 
         //////////////////////////////////////////////////////////
-        // 📤 SALIDA
+        // SALIDA
         //////////////////////////////////////////////////////////
+
         case 'salida':
+            $id_repuesto = $_POST["id_repuesto"] ?? null;
+            $cantidad    = (int)($_POST["cantidad"] ?? 0);
+            $id_maquina  = $_POST["id_maquina"] ?? null;
+
+            if (!$id_repuesto)
+                response([], true, "Repuesto inválido");
+
+            if ($cantidad <= 0)
+                response([], true, "La cantidad debe ser mayor a 0");
+
+            if (!$id_maquina)
+                response([], true, "Debes indicar la máquina destino");
 
             $data = [
-                "id_repuesto" => $_POST["id_repuesto"] ?? null,
-                "cantidad" => $_POST["cantidad"] ?? 0,
-                "costo" => $_POST["costo"] ?? 0,
-                "id_maquina" => $_POST["id_maquina"] ?? null
+                "id_repuesto" => $id_repuesto,
+                "cantidad"    => $cantidad,
+                "costo"       => $_POST["costo"] ?? 0,
+                "id_maquina"  => $id_maquina,
+                "referencia"  => $_POST["referencia"] ?? 'MANTENIMIENTO'
             ];
 
             $resp = $model->salidaRepuesto($data);
+
+            if (isset($resp["error"]) && $resp["error"] === true)
+                response([], true, $resp["mensaje"]);
 
             response($resp, false, "Salida registrada");
             break;
 
 
+        case 'salidaSerie':
+            $id_repuesto = $_POST["id_repuesto"] ?? null;
+            $id_maquina  = $_POST["id_maquina"] ?? null;
+            $referencia  = $_POST["referencia"] ?? 'MANTENIMIENTO';
+            $series      = $_POST["series"] ?? [];
+
+            if (!is_array($series)) {
+                $series = explode(",", $series);
+            }
+
+            if (!$id_repuesto || !$id_maquina || empty($series))
+                response([], true, "Datos incompletos para salida por serie");
+
+            $resp = $model->salidaSerie($id_repuesto, $id_maquina, $series, $referencia);
+
+            if (isset($resp["error"]) && $resp["error"] === true)
+                response([], true, $resp["mensaje"]);
+
+            response($resp, false, "Salida por serie registrada");
+            break;
+
         //////////////////////////////////////////////////////////
-        // 📊 KARDEX
+        // KARDEX
         //////////////////////////////////////////////////////////
+
         case 'kardex':
-
             $id = $_POST["id_repuesto"] ?? 0;
-
-            $data = $model->obtenerKardex($id);
-
-            response($data);
+            response($model->obtenerKardex($id));
             break;
 
-
         //////////////////////////////////////////////////////////
-        //  EDITAR REPUESTO
+        // DETALLE (SERIE)
         //////////////////////////////////////////////////////////
-        case 'editar':
 
-            $data = [
-                "id_repuesto" => $_POST["id_repuesto"] ?? null,
-                "nombre" => $_POST["nombre"] ?? '',
-                "numero_parte" => $_POST["numero_parte"] ?? '',
-                "id_proveedor" => $_POST["id_proveedor"] ?? null,
-                "costo" => $_POST["costo"] ?? 0,
-                "comentarios" => $_POST["comentarios"] ?? ''
-            ];
-
-            $resp = $model->editarRepuesto($data);
-
-            response($resp, false, "Repuesto actualizado");
-            break;
-
-
-        //////////////////////////////////////////////////////////
-        // 📦 DETALLE
-        //////////////////////////////////////////////////////////
         case 'listarDetalle':
-
             $id = $_POST["id_repuesto"] ?? 0;
-
-            $data = $model->obtenerDetalle($id);
-
-            response($data);
+            response($model->obtenerDetalle($id));
             break;
-
 
         case 'editarDetalle':
-
             $data = [
-                "id" => $_POST["id_detalle_repuesto"] ?? null,
-                "serie" => $_POST["serie"] ?? '',
+                "id"     => $_POST["id_detalle_repuesto"] ?? null,
+                "serie"  => $_POST["serie"] ?? '',
                 "estado" => $_POST["id_estado_repuesto"] ?? null,
-                "maquina" => $_POST["id_maquina_actual"] ?? null
+                "maquina"=> $_POST["id_maquina_actual"] ?? null
             ];
-
-            $resp = $model->editarDetalle($data);
-
-            response($resp, false, "Detalle actualizado");
+            response($model->editarDetalle($data), false, "Detalle actualizado");
             break;
-
 
         case 'cambiarEstadoDetalle':
-
             $data = [
-                "id" => $_POST["id_detalle_repuesto"] ?? null,
+                "id"     => $_POST["id_detalle_repuesto"] ?? null,
                 "estado" => $_POST["id_estado_repuesto"] ?? null,
-                "maquina" => $_POST["id_maquina_actual"] ?? null
+                "maquina"=> $_POST["id_maquina_actual"] ?? null
             ];
-
-            $resp = $model->cambiarEstadoDetalle($data);
-
-            response($resp, false, "Estado actualizado");
+            response($model->cambiarEstadoDetalle($data), false, "Estado actualizado");
             break;
-
 
         //////////////////////////////////////////////////////////
         // DEFAULT
         //////////////////////////////////////////////////////////
-        default:
 
+        default:
             response([], true, "Acción no válida: " . $accion);
             break;
     }
 } catch (Throwable $e) {
-
     response([], true, $e->getMessage());
 }
