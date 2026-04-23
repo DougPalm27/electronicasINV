@@ -24,6 +24,8 @@ if ($valor != 1) {
 
         // Parametrización
         $_GET['module'] == 'marcas'   ? include "./modules/Parametrizacion/Marcas/views/vw_marcas.php"     : false;
-        $_GET['module'] == 'modelos'  ? include "./modules/Parametrizacion/Modelos/views/vw_modelos.php"   : false;
+        $_GET['module'] == 'modelos'      ? include "./modules/Parametrizacion/Modelos/views/vw_modelos.php"       : false;
+        $_GET['module'] == 'proveedores'  ? include "./modules/Parametrizacion/Proveedores/views/vw_proveedores.php" : false;
+        $_GET['module'] == 'tiposRepuestos'  ? include "./modules/Parametrizacion/TiposRepuestos/views/vw_tiposRepuestos.php" : false;
     }
 }

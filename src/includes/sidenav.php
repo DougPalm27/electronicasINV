@@ -72,8 +72,8 @@
         </a>
         <ul id="tables-nav" class="nav-content collapse " data-bs-parent="#sidebar-nav">
           <li>
-            <a href='?module=categorias'>
-              <i class="bi bi-circle"></i><span>Categorias</span>
+            <a href='?module=proveedores'>
+              <i class="bi bi-circle"></i><span>Proveedores</span>
             </a>
           </li>
           <li>
@@ -84,6 +84,11 @@
           <li>
             <a href='?module=modelos'>
               <i class="bi bi-circle"></i><span>Modelos</span>
+            </a>
+          </li>
+          <li>
+            <a href='?module=tiposRepuestos'>
+              <i class="bi bi-circle"></i><span>Tipos de Repuestos</span>
             </a>
           </li>
         </ul>

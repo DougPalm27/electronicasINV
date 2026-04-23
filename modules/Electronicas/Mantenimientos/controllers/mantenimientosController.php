@@ -4,18 +4,12 @@ header('Content-Type: application/json');
 
 include_once "../models/mdlMantenimientos.php";
 
-$model = new mdlMantenimientos();
-
-// Soporta POST y GET para compatibilidad con los controladores legacy
+$model  = new mdlMantenimientos();
 $accion = $_POST['accion'] ?? $_GET['accion'] ?? '';
 
 function response($data = [], $error = false, $mensaje = "")
 {
-    echo json_encode([
-        "ok"      => !$error,
-        "data"    => $data,
-        "mensaje" => $mensaje
-    ]);
+    echo json_encode(["ok" => !$error, "data" => $data, "mensaje" => $mensaje]);
     exit;
 }
 
@@ -23,25 +17,19 @@ try {
 
     switch ($accion) {
 
-        //////////////////////////////////////////////////////////
-        // TABLA PRINCIPAL
-        //////////////////////////////////////////////////////////
         case 'listar':
             response($model->listarMantenimientos());
             break;
 
-        //////////////////////////////////////////////////////////
-        // DETALLE DE UN MANTENIMIENTO (repuestos usados)
-        //////////////////////////////////////////////////////////
         case 'detalle':
             $id = $_POST['id_mantenimiento'] ?? null;
             if (!$id) response([], true, "ID de mantenimiento inválido");
-            response($model->obtenerDetalleMantenimiento($id));
+            response([
+                "instalados" => $model->obtenerDetalleMantenimiento($id),
+                "retiros"    => $model->obtenerRetirosMantenimiento($id)
+            ]);
             break;
 
-        //////////////////////////////////////////////////////////
-        // SELECTS
-        //////////////////////////////////////////////////////////
         case 'maquinas':
             response($model->listarMaquinas());
             break;
@@ -64,9 +52,6 @@ try {
             response($model->obtenerSeriesDisponibles($id_repuesto));
             break;
 
-        //////////////////////////////////////////////////////////
-        // VALIDAR STOCK ANTES DE AGREGAR AL DETALLE
-        //////////////////////////////////////////////////////////
         case 'validarStock':
             $id_repuesto  = $_POST['id_repuesto']  ?? null;
             $maneja_serie = $_POST['maneja_serie']  ?? 0;
@@ -75,27 +60,25 @@ try {
             if (!$id_repuesto) response([], true, "ID de repuesto inválido");
 
             if ((int)$maneja_serie === 1) {
-                // Para series el stock es la cantidad de series disponibles
                 $series = $model->obtenerSeriesDisponibles($id_repuesto);
                 $stock  = count($series);
             } else {
                 $stock = $model->obtenerStockPublico($id_repuesto);
             }
 
-            if ($stock <= 0) {
-                response(["stock" => $stock], true, "Sin stock disponible para este repuesto");
-            }
-
+            if ($stock <= 0) response(["stock" => $stock], true, "Sin stock disponible");
             if ((int)$maneja_serie === 0 && (int)$cantidad > $stock) {
                 response(["stock" => $stock], true, "Stock insuficiente. Disponible: {$stock}");
             }
-
             response(["stock" => $stock], false, "Stock disponible: {$stock}");
             break;
 
-        //////////////////////////////////////////////////////////
-        // GUARDAR MANTENIMIENTO
-        //////////////////////////////////////////////////////////
+        case 'instalados':
+            $id_maquina = $_POST['id_maquina'] ?? null;
+            if (!$id_maquina) response([], true, "ID de máquina inválido");
+            response($model->obtenerInstalados($id_maquina));
+            break;
+
         case 'guardar':
             $payload = $_POST["losDatos"] ?? null;
             if (!$payload) response([], true, "No se recibieron datos");
@@ -108,13 +91,11 @@ try {
             if (isset($resp["error"]) && $resp["error"] === true) {
                 response([], true, $resp["mensaje"]);
             }
-
             response($resp, false, "Mantenimiento guardado correctamente");
             break;
 
         default:
             response([], true, "Acción no válida: " . $accion);
-            break;
     }
 
 } catch (Throwable $e) {

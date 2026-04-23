@@ -92,6 +92,12 @@ if (!empty($_GET['module'])) {
   if ($_GET['module'] == 'modelos') {
     echo '<script src="./modules/Parametrizacion/Modelos/js/modelos.js"></script>';
   }
+  if ($_GET['module'] == 'proveedores') {
+    echo '<script src="./modules/Parametrizacion/Proveedores/js/proveedores.js"></script>';
+  }
+  if ($_GET['module'] == 'tiposRepuestos') {
+    echo '<script src="./modules/Parametrizacion/TiposRepuestos/js/tiposRepuestos.js"></script>';
+  }
 
 } else {
   //echo '<script src="/modules/home/"></script>';
