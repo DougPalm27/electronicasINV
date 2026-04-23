@@ -1,0 +1,10 @@
+<?php
+    include_once "../../../config/Connection.php";
+    include_once "../models/mdl_kit.php";
+
+   // Obtener los datos para almacenar
+   $registro = isset($_POST['recio']) ? $_POST['recio'] : null;
+    // Instanciamos el modelo y llamamos al método correspondiente
+    $conexion = new mdlKit();
+    $proyecto = $conexion->EliminarKitAsignacion($registro);
+?>

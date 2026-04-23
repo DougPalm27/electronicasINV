@@ -1,0 +1,25 @@
+<?php
+
+/**
+ * Descripction....: direcciones para el control de las rutas del sistema
+ * Autor : Marcos 
+ */
+$valor = 1;
+if ($valor != 1) {
+    echo "<meta http-equiv='refresh' content='0; url=https://simfcoh.com/'>";
+} else {
+    if (empty($_GET['module'])) {
+        
+    } else {
+        /**
+         * Description : rutas
+         * **/
+
+        $_GET['module'] == 'repuestos' ? include "./modules/Electronicas/Repuestos/views/vw_repuestos.php" : false;
+        $_GET['module'] == 'maquinas' ? include "./modules/Electronicas/Maquinas/views/maquinas.php" : false;
+        $_GET['module'] == 'mantenimientos' ? include "./modules/Electronicas/Mantenimientos/views/mantenimientos.php" : false;
+        //  $_GET['module'] == 'listadoProductores' ? include "./modules/productores/views/listaProductores.php" :false;
+
+        $_GET['module'] == 'dasboard' ? include "./modules/dasboard/views/dash.php" : false ; 
+    }
+}
