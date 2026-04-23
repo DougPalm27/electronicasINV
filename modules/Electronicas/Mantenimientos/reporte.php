@@ -4,6 +4,9 @@
  * URL: ./modules/Electronicas/Mantenimientos/reporte.php?id=X
  */
 
+require_once '../../../config/auth.php';
+requireLogin();
+
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if (!$id) { http_response_code(400); die('ID de mantenimiento requerido.'); }
 

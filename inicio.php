@@ -9,7 +9,11 @@
 </head>
 
 <body>
-    <?php include "./src/includes/links.php"?>
+    <?php
+require_once './config/auth.php';
+requireLogin();
+?>
+<?php include "./src/includes/links.php"?>
 
     <?php include "./src/includes/topnav.php"?>
     <?php include "./src/includes/sidenav.php"?>

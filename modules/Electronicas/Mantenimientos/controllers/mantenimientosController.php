@@ -1,5 +1,8 @@
 <?php
 
+require_once '../../../../config/auth.php';
+requireLogin(true);
+
 header('Content-Type: application/json');
 
 include_once "../models/mdlMantenimientos.php";

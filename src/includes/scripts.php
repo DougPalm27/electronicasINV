@@ -34,6 +34,25 @@ mar -->
 
 
 <script>
+  // Interceptor global: si cualquier respuesta AJAX indica sesión expirada, redirige al login
+  $(document).ajaxComplete(function (event, xhr) {
+    try {
+      var resp = JSON.parse(xhr.responseText);
+      if (resp && resp.session === false) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Sesión expirada',
+          text: 'Tu sesión ha terminado. Serás redirigido al login.',
+          timer: 2500,
+          showConfirmButton: false,
+          allowOutsideClick: false
+        }).then(function () {
+          window.location.href = '/Electronicas/index.php';
+        });
+      }
+    } catch (e) {}
+  });
+
   function capitalizeText(text) {
     return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 

@@ -1,36 +1,39 @@
-<header>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.28/dist/sweetalert2.all.min.js"></script>
-</header>
-
 <?php
+if (session_status() === PHP_SESSION_NONE) session_start();
 
-$username=$_POST['username'];
-$contra=$_POST['password'];
+$usuarios = [
+    'msorto'    => ['password' => 'proDuX10n_03', 'nombre' => 'M. Sorto'],
+    'dpalma'    => ['password' => 'Hpo051!',       'nombre' => 'D. Palma'],
+    'Sania' => ['password' => '$plan2024',     'nombre' => 'Sania Alvarenga'],
+];
 
-if( ($username == "msorto" && $contra == "proDuX10n_03") || 
-    ($username == "dpalma" && $contra == "Hpo051!") || 
-    ($username == "mramirez1" && $contra == "\$plan2024")) { // Escapa el signo $
-    header("Location: ../../../inicio.php");
-    exit(); // O die();
-} else {?>
+$username = trim($_POST['username'] ?? '');
+$password = $_POST['password'] ?? '';
 
-
-<script type="text/javascript">
-            Swal.fire({
-                title: "Control de Inventrio",
-                text: "Credenciales incorrectas",
-                icon: 'error',
-                confirmButtonColor: "#3085d6",
-                confirmButtonText: "Volver a intentar",
-            }).then((result) => {
-                if (result) {
-                    window.location = '../../../index.php';
-                }
-            })
-</script>
-
-
-<?php
-
+if (isset($usuarios[$username]) && $usuarios[$username]['password'] === $password) {
+    $_SESSION['logueado'] = true;
+    $_SESSION['usuario']  = $username;
+    $_SESSION['nombre']   = $usuarios[$username]['nombre'];
+    header('Location: ../../../inicio.php');
+    exit;
 }
 ?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Acceso denegado</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.28/dist/sweetalert2.all.min.js"></script>
+</head>
+<body>
+<script>
+    Swal.fire({
+        title: 'Control de Inventario',
+        text:  'Credenciales incorrectas',
+        icon:  'error',
+        confirmButtonColor: '#3085d6',
+        confirmButtonText:  'Volver a intentar'
+    }).then(() => { window.location = '../../../index.php'; });
+</script>
+</body>
+</html>
