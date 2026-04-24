@@ -14,6 +14,7 @@ function init() {
   initSelect2();
   cargarTipos();
   cargarMarcas();
+  cargarDivisas();
 
   $("#modalSalida").on("shown.bs.modal", function () {
     $("#series_salida").select2({
@@ -52,6 +53,12 @@ function init() {
 
   $("#modalRepuesto").on("shown.bs.modal", function () {
     $("#maneja_serie").trigger("change");
+  });
+
+  // Actualizar símbolo al cambiar divisa
+  $("#id_divisa").on("change", function () {
+    const simbolo = $(this).find("option:selected").data("simbolo") || "L.";
+    $("#simbolo_divisa").text(simbolo);
   });
 }
 
@@ -92,7 +99,7 @@ function listarRepuestos() {
       },
       {
         data: "costo_promedio",
-        render: (d) => parseFloat(d || 0).toFixed(2),
+        render: (d, t, row) => `${row.divisa_simbolo ?? window.DIVISA?.simbolo ?? 'L.'} ${parseFloat(d || 0).toFixed(2)}`,
       },
       {
         data: null,
@@ -141,6 +148,37 @@ function listarRepuestos() {
 }
 
 //////////////////////////////////////////////////////////
+// DIVISAS
+//////////////////////////////////////////////////////////
+
+function cargarDivisas() {
+  $.post(
+    "./modules/Parametrizacion/Divisas/controllers/divisasController.php",
+    { accion: "listar" },
+    function (resp) {
+      if (!resp.ok) return;
+
+      const activas = resp.data.filter(d => d.activo == 1);
+      let html = '<option value="">— Selecciona —</option>';
+      activas.forEach(d => {
+        html += `<option value="${d.id_divisa}" data-simbolo="${d.simbolo}">
+                   ${d.simbolo} ${d.codigo}
+                 </option>`;
+      });
+
+      $("#id_divisa").html(html);
+
+      // Seleccionar la predeterminada por defecto
+      const pred = activas.find(d => d.predeterminada == 1);
+      if (pred) {
+        $("#id_divisa").val(pred.id_divisa).trigger("change");
+      }
+    },
+    "json"
+  );
+}
+
+//////////////////////////////////////////////////////////
 // PROVEEDORES
 //////////////////////////////////////////////////////////
 
@@ -179,6 +217,7 @@ function obtenerDatosFormulario() {
     id_marca:     $("#id_marca").val(),
     id_modelo:    $("#id_modelo").val(),
     maneja_serie: $("#maneja_serie").val(),
+    id_divisa:    $("#id_divisa").val(),
   };
 }
 
@@ -292,6 +331,11 @@ function cargarEditarRepuesto(row) {
   $("#comentarios").val(row.comentarios);
   $("#id_tipo").val(row.id_tipo).trigger("change");
   $("#id_marca").val(row.id_marca).trigger("change");
+
+  // Divisa del repuesto
+  if (row.id_divisa) {
+    $("#id_divisa").val(row.id_divisa).trigger("change");
+  }
 
   setTimeout(() => {
     $("#id_modelo").val(row.id_modelo).trigger("change");
@@ -813,4 +857,87 @@ function limpiarErrores(contenedor) {
   $(contenedor).find(".is-invalid").removeClass("is-invalid");
   $(contenedor).find(".invalid-feedback").remove();
   $(contenedor).find(".select2-selection").removeClass("border border-danger");
+}
+
+//////////////////////////////////////////////////////////
+// 📥 IMPORTAR DESDE PLANTILLA CSV
+//////////////////////////////////////////////////////////
+
+function importarRepuestos() {
+  const archivo = document.getElementById('archivoImport').files[0];
+
+  if (!archivo) {
+    Swal.fire('Atención', 'Selecciona un archivo CSV antes de importar.', 'warning');
+    return;
+  }
+
+  const ext = archivo.name.split('.').pop().toLowerCase();
+  if (!['csv', 'txt'].includes(ext)) {
+    Swal.fire('Formato inválido', 'Solo se aceptan archivos .csv', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btnImportar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Procesando...';
+
+  $('#resultadoImport').hide();
+
+  const formData = new FormData();
+  formData.append('archivo', archivo);
+
+  $.ajax({
+    url: './modules/Electronicas/Repuestos/Controllers/importarRepuestos.php',
+    type: 'POST',
+    data: formData,
+    processData: false,
+    contentType: false,
+    dataType: 'json',
+    success: function (resp) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-upload me-1"></i> Importar';
+
+      if (!resp.ok) {
+        $('#resultadoImport')
+          .html(`<div class="alert alert-danger"><i class="bi bi-x-circle me-1"></i>${resp.mensaje}</div>`)
+          .show();
+        return;
+      }
+
+      // Construir resumen
+      let html = '';
+
+      if (resp.insertados > 0) {
+        html += `<div class="alert alert-success mb-2">
+                   <i class="bi bi-check-circle me-1"></i>
+                   <strong>${resp.insertados}</strong> repuesto(s) importado(s) correctamente.
+                 </div>`;
+      }
+
+      if (resp.errores && resp.errores.length > 0) {
+        const items = resp.errores.map(e => `<li>${e}</li>`).join('');
+        html += `<div class="alert alert-warning mb-0">
+                   <strong><i class="bi bi-exclamation-triangle me-1"></i>${resp.errores.length} advertencia(s):</strong>
+                   <ul class="mb-0 mt-1 ps-3" style="font-size:13px">${items}</ul>
+                 </div>`;
+      }
+
+      if (resp.insertados === 0 && (!resp.errores || resp.errores.length === 0)) {
+        html = `<div class="alert alert-info"><i class="bi bi-info-circle me-1"></i>No se encontraron filas para importar.</div>`;
+      }
+
+      $('#resultadoImport').html(html).show();
+
+      // Recargar tabla si hubo inserciones
+      if (resp.insertados > 0) {
+        listarRepuestos();
+        document.getElementById('archivoImport').value = '';
+      }
+    },
+    error: function () {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-upload me-1"></i> Importar';
+      Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+    }
+  });
 }

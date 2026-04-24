@@ -1,24 +1,8 @@
 <!-- Vendor JS Files -->
-<script src="./assets/vendor/apexcharts/apexcharts.min.js"></script>
-<script src="./assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="./assets/vendor/chart.js/chart.umd.js"></script>
-<script src="./assets/vendor/echarts/echarts.min.js"></script>
-<script src="./assets/vendor/quill/quill.min.js"></script>
-<script src="./assets/vendor/simple-datatables/simple-datatables.js"></script>
-<script src="./assets/vendor/tinymce/tinymce.min.js"></script>
-<script src="./assets/vendor/php-email-form/validate.js"></script>
 <script src="./assets/js/jquery.js"></script>
-<!-- 
-mar -->
-<script src="./assets/vendor/apexcharts/apexcharts.min.js"></script>
 <script src="./assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="./assets/vendor/chart.js/chart.umd.js"></script>
-<script src="./assets/vendor/echarts/echarts.min.js"></script>
-<script src="./assets/vendor/quill/quill.min.js"></script>
-<script src="./assets/vendor/simple-datatables/simple-datatables.js"></script>
-<script src="./assets/vendor/tinymce/tinymce.min.js"></script>
-<script src="./assets/vendor/php-email-form/validate.js"></script>
-
+<script src="./assets/vendor/apexcharts/apexcharts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.28/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <!-- DataTables -->
@@ -26,11 +10,7 @@ mar -->
 <script src="./assets/vendor/datatables.net-bs4/js/dataTables.bootstrap4.min.js"></script>
 <script src="./assets/vendor/datatables.net-buttons/js/dataTables.buttons.min.js"></script>
 <script src="./assets/vendor/datatables.net-buttons-bs4/js/buttons.bootstrap4.min.js"></script>
-<script src="./assets/vendor/datatables.net-buttons/js/buttons.html5.min.js"></script>
-<script src="./assets/vendor/datatables.net-buttons/js/buttons.flash.min.js"></script>
-<script src="./assets/vendor/datatables.net-buttons/js/buttons.print.min.js"></script>
 <script src="./assets/vendor/datatables.net-select/js/dataTables.select.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.28/dist/sweetalert2.all.min.js"></script>
 
 
 <script>
@@ -87,8 +67,29 @@ mar -->
 <!-- Template Main JS File -->
 <script src="./assets/js/main.js"></script>
 
-
-
+<?php
+// ── Divisa predeterminada (global para toda la app) ────────
+$simbolo_divisa = 'L.';
+$codigo_divisa  = 'HNL';
+try {
+    require_once './config/Connection.php';
+    $__conn = (new Connection())->dbConnect();
+    $__stmt = $__conn->query(
+        "SELECT simbolo, codigo FROM electronicas.Divisas WHERE predeterminada = 1 AND activo = 1"
+    );
+    $__div = $__stmt->fetch(PDO::FETCH_ASSOC);
+    if ($__div) {
+        $simbolo_divisa = $__div['simbolo'];
+        $codigo_divisa  = $__div['codigo'];
+    }
+} catch (Exception $e) { /* usa defaults */ }
+?>
+<script>
+    window.DIVISA = {
+        simbolo: '<?= htmlspecialchars($simbolo_divisa, ENT_QUOTES) ?>',
+        codigo:  '<?= htmlspecialchars($codigo_divisa,  ENT_QUOTES) ?>'
+    };
+</script>
 
 <!-- Carga de  js según el módulo-->
 <?php
@@ -116,6 +117,12 @@ if (!empty($_GET['module'])) {
   }
   if ($_GET['module'] == 'tiposRepuestos') {
     echo '<script src="./modules/Parametrizacion/TiposRepuestos/js/tiposRepuestos.js"></script>';
+  }
+  if ($_GET['module'] == 'usuarios') {
+    echo '<script src="./modules/Usuarios/js/usuarios.js"></script>';
+  }
+  if ($_GET['module'] == 'divisas') {
+    echo '<script src="./modules/Parametrizacion/Divisas/js/divisas.js"></script>';
   }
 
 } else {

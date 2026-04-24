@@ -8,6 +8,9 @@
                 <button id="btnNuevoRepuesto" class="btn btn-primary">
                     <i class="bi bi-plus-circle"></i> Nuevo Repuesto
                 </button>
+                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalImportarRepuestos">
+                    <i class="bi bi-file-earmark-arrow-up me-1"></i> Importar desde plantilla
+                </button>
             </div>
 
             <div class="table-responsive">
@@ -104,14 +107,24 @@
 
                         <!-- BLOQUE STOCK -->
                         <div class="row" id="bloqueStock">
-                            <div class="col-md-6 mb-3">
+                            <div class="col-md-4 mb-3">
                                 <label for="stock_minimo" class="form-label">Stock mínimo</label>
                                 <input type="number" class="form-control" id="stock_minimo" placeholder="Ej: 5" min="0">
                             </div>
 
-                            <div class="col-md-6 mb-3">
+                            <div class="col-md-4 mb-3">
+                                <label for="id_divisa" class="form-label">Divisa <span class="text-danger">*</span></label>
+                                <select class="form-select" id="id_divisa">
+                                    <option value="">Cargando...</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4 mb-3">
                                 <label for="costo" class="form-label">Costo promedio</label>
-                                <input type="number" step="0.01" class="form-control" id="costo" placeholder="0.00" min="0">
+                                <div class="input-group">
+                                    <span class="input-group-text" id="simbolo_divisa">L.</span>
+                                    <input type="number" step="0.01" class="form-control" id="costo" placeholder="0.00" min="0">
+                                </div>
                             </div>
                         </div>
 
@@ -379,6 +392,99 @@
                     <i class="bi bi-save"></i> Guardar
                 </button>
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- ============================= -->
+<!-- MODAL IMPORTAR REPUESTOS     -->
+<!-- ============================= -->
+<div class="modal fade" id="modalImportarRepuestos" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-arrow-up me-2"></i>Importar Repuestos</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+
+                <!-- Paso 1: instrucciones + descarga -->
+                <div class="alert alert-info d-flex gap-3 align-items-start mb-4">
+                    <i class="bi bi-info-circle-fill fs-5 mt-1 flex-shrink-0"></i>
+                    <div>
+                        <strong>¿Cómo funciona?</strong>
+                        <ol class="mb-1 mt-1">
+                            <li>Descarga la plantilla CSV haciendo clic en el botón de abajo.</li>
+                            <li>Completa los datos en Excel u otro editor (no cambies los encabezados).</li>
+                            <li>Guarda el archivo como <strong>CSV (delimitado por comas)</strong>.</li>
+                            <li>Selecciónalo aquí y haz clic en <strong>Importar</strong>.</li>
+                        </ol>
+                        <a href="./modules/Electronicas/Repuestos/Controllers/downloadPlantillaRepuestos.php"
+                           class="btn btn-sm btn-outline-primary mt-1">
+                            <i class="bi bi-download me-1"></i> Descargar plantilla
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Columnas de referencia -->
+                <div class="mb-3">
+                    <p class="text-muted small mb-1 fw-semibold">Columnas de la plantilla:</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered mb-0" style="font-size:12px">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>nombre <span class="text-danger">*</span></th>
+                                    <th>numero_parte</th>
+                                    <th>tipo</th>
+                                    <th>marca</th>
+                                    <th>modelo</th>
+                                    <th>proveedor <span class="text-danger">*</span></th>
+                                    <th>maneja_serie</th>
+                                    <th>stock_minimo</th>
+                                    <th>divisa_codigo</th>
+                                    <th>costo_promedio</th>
+                                    <th>comentarios</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="text-muted">
+                                    <td>Nombre del repuesto</td>
+                                    <td>Opcional</td>
+                                    <td>Nombre exacto</td>
+                                    <td>Nombre exacto</td>
+                                    <td>Nombre exacto</td>
+                                    <td>Nombre exacto</td>
+                                    <td>0 = cantidad<br>1 = serie</td>
+                                    <td>Número</td>
+                                    <td>HNL / USD / EUR</td>
+                                    <td>Decimal</td>
+                                    <td>Texto libre</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Selector de archivo -->
+                <div class="mb-3">
+                    <label for="archivoImport" class="form-label fw-semibold">Seleccionar archivo CSV</label>
+                    <input type="file" class="form-control" id="archivoImport" accept=".csv,.txt">
+                </div>
+
+                <!-- Resultados -->
+                <div id="resultadoImport" style="display:none;"></div>
+
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-success" id="btnImportar" onclick="importarRepuestos()">
+                    <i class="bi bi-upload me-1"></i> Importar
+                </button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
             </div>
 
         </div>

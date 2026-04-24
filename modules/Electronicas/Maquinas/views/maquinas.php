@@ -1,29 +1,3 @@
-<div class="row mb-3">
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h6 class="text-muted">Máquinas activas</h6>
-                <h3 id="cardActivas">0</h3>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h6 class="text-muted">En mantenimiento</h6>
-                <h3 id="cardMantenimiento">0</h3>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h6 class="text-muted">De baja</h6>
-                <h3 id="cardBaja">0</h3>
-            </div>
-        </div>
-    </div>
-</div>
 
 <div class="card shadow-sm border-0">
     <div class="card-body">
@@ -149,6 +123,32 @@
                 <button type="button" class="btn btn-primary" id="btnGuardarMaquina">Guardar</button>
                 <button type="button" class="btn btn-success" id="btnEditarMaquina" style="display:none;">Editar</button>
                 <button type="button" class="btn btn-secondary" onclick="limpiarModalMaquina()">Limpiar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Modal: Historial de mantenimientos ─────────────────── -->
+<div class="modal fade" id="modalHistorialMaquina" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-clock-history me-2"></i>
+                    Historial — <span id="histMaquinaNombre" class="fw-bold"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="contenidoHistorial" style="min-height:200px">
+                <div class="text-center py-5">
+                    <span class="spinner-border text-primary"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="btnImprimirHistorial" onclick="imprimirHistorial()">
+                    <i class="bi bi-printer me-1"></i>Imprimir reporte
+                </button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
     </div>

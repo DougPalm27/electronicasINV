@@ -27,14 +27,14 @@ $(document).ready(function () {
                             data-id="${row.id_tipo_repuesto}"
                             data-nombre="${row.nombre}"
                             title="Editar">
-                        <i class="bi bi-pencil-square"></i>
+                        <i class="bi bi-pencil"></i>
                     </button>
                     <button class="btn btn-sm btn-danger btn-eliminar"
                             data-id="${row.id_tipo_repuesto}"
                             data-nombre="${row.nombre}"
                             data-repuestos="${row.total_repuestos}"
                             title="Eliminar">
-                        <i class="bi bi-trash3"></i>
+                        <i class="bi bi-trash"></i>
                     </button>`
             }
         ],

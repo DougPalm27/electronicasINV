@@ -38,9 +38,12 @@ class mdlRepuestos
                 r.maneja_serie,
                 r.id_proveedor,
                 r.comentarios,
-                t.nombre AS tipo,
-                m.nombre AS marca,
-                mo.nombre AS modelo
+                t.nombre  AS tipo,
+                m.nombre  AS marca,
+                mo.nombre AS modelo,
+                r.id_divisa,
+                ISNULL(dv.simbolo, dpred.simbolo) AS divisa_simbolo,
+                ISNULL(dv.codigo,  dpred.codigo)  AS divisa_codigo
             FROM electronicas.Repuestos r
             INNER JOIN electronicas.Proveedores p
                 ON r.id_proveedor = p.id_proveedor
@@ -50,6 +53,13 @@ class mdlRepuestos
                 ON r.id_marca = m.id_marca
             LEFT JOIN electronicas.Modelos mo
                 ON r.id_modelo = mo.id_modelo
+            LEFT JOIN electronicas.Divisas dv
+                ON dv.id_divisa = r.id_divisa
+            CROSS APPLY (
+                SELECT TOP 1 simbolo, codigo
+                FROM electronicas.Divisas
+                WHERE predeterminada = 1 AND activo = 1
+            ) dpred
             WHERE r.id_estado != 5";
 
         $stmt = $this->conn->prepare($sql);
@@ -77,8 +87,8 @@ class mdlRepuestos
 
         $sql = "INSERT INTO electronicas.Repuestos
                     (nombre, numero_parte, id_proveedor, costo_promedio, stock_minimo, comentarios,
-                     id_tipo, id_marca, id_modelo, maneja_serie, stock)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
+                     id_tipo, id_marca, id_modelo, maneja_serie, id_divisa, stock)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
 
         $stmt = $this->conn->prepare($sql);
 
@@ -92,7 +102,8 @@ class mdlRepuestos
             $data["id_tipo"],
             $data["id_marca"],
             $data["id_modelo"],
-            $data["maneja_serie"]
+            $data["maneja_serie"],
+            $data["id_divisa"] ?: null
         ]);
     }
 
@@ -148,7 +159,8 @@ class mdlRepuestos
                     id_tipo        = ?,
                     id_marca       = ?,
                     id_modelo      = ?,
-                    maneja_serie   = ?
+                    maneja_serie   = ?,
+                    id_divisa      = ?
                 WHERE id_repuesto = ?";
 
         $stmt = $this->conn->prepare($sql);
@@ -164,6 +176,7 @@ class mdlRepuestos
             $data["id_marca"],
             $data["id_modelo"],
             $data["maneja_serie"],
+            $data["id_divisa"] ?: null,
             $data["id_repuesto"]
         ]);
     }

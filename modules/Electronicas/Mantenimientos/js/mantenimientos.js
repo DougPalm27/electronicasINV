@@ -165,11 +165,12 @@ function listarMantenimientos() {
                 data: null, title: "Acciones", orderable: false, searchable: false,
                 render: function (data, type, row) {
                     return `
-                        <button class="btn btn-sm btn-outline-info me-1"
-                                onclick="verDetalle(${row.id_mantenimiento}, '${escHtml(row.maquina)}', '${escHtml(row.fecha_mantenimiento)}')">
-                            <i class="bi bi-tools"></i> Ver
+                        <button class="btn btn-sm btn-info me-1"
+                                onclick="verDetalle(${row.id_mantenimiento}, '${escHtml(row.maquina)}', '${escHtml(row.fecha_mantenimiento)}')"
+                                title="Ver detalle">
+                            <i class="bi bi-tools"></i>
                         </button>
-                        <a class="btn btn-sm btn-outline-danger"
+                        <a class="btn btn-sm btn-danger"
                            href="./modules/Electronicas/Mantenimientos/reporte.php?id=${row.id_mantenimiento}"
                            target="_blank" title="Imprimir / PDF">
                             <i class="bi bi-file-earmark-pdf"></i>
@@ -235,9 +236,9 @@ function renderInstalados() {
                 <td class="text-center">${badge}</td>
                 <td class="text-muted" style="font-size:.8rem">${p.fecha_instalacion}</td>
                 <td class="text-center">
-                    <button type="button" class="btn btn-sm btn-outline-danger btn-retirar-pieza"
-                            data-idx="${i}" ${yaEnLista ? 'disabled' : ''}>
-                        <i class="bi bi-arrow-return-left"></i> Retirar
+                    <button type="button" class="btn btn-sm btn-danger btn-retirar-pieza"
+                            data-idx="${i}" ${yaEnLista ? 'disabled' : ''} title="Retirar pieza">
+                        <i class="bi bi-arrow-return-left"></i>
                     </button>
                 </td>
             </tr>`;
@@ -271,7 +272,7 @@ function renderRetiros() {
                 <td class="text-center">${tipoBadge}</td>
                 <td>${escHtml(r.observaciones || "—")}</td>
                 <td class="text-center">
-                    <button type="button" class="btn btn-sm btn-outline-secondary btn-quitar-retiro"
+                    <button type="button" class="btn btn-sm btn-secondary btn-quitar-retiro"
                             data-idx="${i}" title="Quitar">
                         <i class="bi bi-x"></i>
                     </button>

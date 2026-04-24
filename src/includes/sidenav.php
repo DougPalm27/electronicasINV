@@ -1,96 +1,101 @@
+<?php
+$mod = $_GET['module'] ?? '';
+
+// Helpers para clases activas
+function navLink(string $modulo, string $actual): string {
+    return $modulo === $actual ? 'nav-link' : 'nav-link collapsed';
+}
+function navSubItem(string $modulo, string $actual): string {
+    return $modulo === $actual ? 'active' : '';
+}
+// El grupo "Parametrización" debe estar abierto si el módulo activo pertenece a él
+$parametrizacion = ['proveedores','marcas','modelos','tiposRepuestos','divisas'];
+$paraOpen = in_array($mod, $parametrizacion);
+?>
   <!-- ======= Sidebar ======= -->
   <aside id="sidebar" class="sidebar">
 
     <ul class="sidebar-nav" id="sidebar-nav">
+
+      <!-- Dashboard -->
       <li class="nav-item">
-        <a class="nav-link " href="?module=dasboard">
+        <a class="<?= ($mod === '' || $mod === 'dasboard') ? 'nav-link' : 'nav-link collapsed' ?>"
+           href="?module=dasboard">
           <i class="bi bi-grid"></i>
           <span>Dashboard</span>
         </a>
       </li>
 
-      <li hidden class="nav-item">
-        <a class="nav-link collapsed" href="?module=asignacion">
-          <i class="bi bi-arrow-up-right-square-fill"></i>
-          <span>Asignar equipo</span>
+      <!-- Mantenimientos -->
+      <li class="nav-item">
+        <a class="<?= navLink('mantenimientos', $mod) ?>" href="?module=mantenimientos">
+          <i class="bi bi-laptop"></i>
+          <span>Mantenimiento</span>
         </a>
       </li>
+
+      <!-- Máquinas -->
       <li class="nav-item">
-        <a class="nav-link collapsed" href="?module=mantenimientos">
-          <i class="bi bi-laptop"></i>
-          <span>Matenimiento</span>
+        <a class="<?= navLink('maquinas', $mod) ?>" href="?module=maquinas">
+          <i class="bi bi-cpu"></i>
+          <span>Máquinas</span>
         </a>
-      </li><!-- End Profile Page Nav -->
+      </li>
+
+      <!-- Repuestos -->
       <li class="nav-item">
-        <a class="nav-link collapsed" href="?module=maquinas">
-          <i class="bi bi-phone"></i>
-          <span>Maquinas</span>
-        </a>
-      </li><!-- End Profile Page Nav -->
-      <li class="nav-item">
-        <a class="nav-link collapsed" href="?module=repuestos">
-          <i class="bi bi-palette2"></i>
+        <a class="<?= navLink('repuestos', $mod) ?>" href="?module=repuestos">
+          <i class="bi bi-box-seam"></i>
           <span>Repuestos</span>
         </a>
-      </li><!-- End Profile Page Nav -->
-      <li class="nav-item" hidden>
-        <a class="nav-link collapsed" data-bs-target="#forms-nav" data-bs-toggle="collapse" href="#">
-          <i class="bi bi-journal-text"></i><span>Reportes</span><i class="bi bi-chevron-down ms-auto"></i>
-        </a>
-        <ul id="forms-nav" class="nav-content " data-bs-parent="#sidebar-nav">
+      </li>
 
-          <li>
-            <a href="?module=r1" class="listaProductor">
-              <i class="bi bi-circle"></i><span>Reporte de Inventario General</span>
-            </a>
-          </li>
-          <li>
-            <a href="?module=r2" class="listaProductor">
-              <i class="bi bi-circle"></i><span>Reporte de Inventario Historico</span>
-            </a>
-          </li>
-          <li>
-            <a href="?module=r3" class="listaProductor">
-              <i class="bi bi-circle"></i><span>Reporte de Equipo Total por categoria y Estado</span>
-            </a>
-          </li>
-          <li>
-            <a href="?module=r4" class="listaProductor">
-              <i class="bi bi-circle"></i><span>Reporte de Asignaciones</span>
-            </a>
-          </li>
-          <li>
-            <a href="?module=r5" class="listaProductor">
-              <i class="bi bi-circle"></i><span>Equipo Dañado o Reparación</span>
-            </a>
-          </li>
-        </ul>
-      </li><!-- End Forms Nav -->
+      <!-- Parametrización (grupo colapsable) -->
       <li class="nav-item">
-        <a class="nav-link collapsed" data-bs-target="#tables-nav" data-bs-toggle="collapse" href="#">
-          <i class="bi bi-layout-text-window-reverse"></i><span>Formularios de parametrizacion</span><i class="bi bi-chevron-down ms-auto"></i>
+        <a class="nav-link <?= $paraOpen ? '' : 'collapsed' ?>"
+           data-bs-target="#tables-nav" data-bs-toggle="collapse" href="#">
+          <i class="bi bi-layout-text-window-reverse"></i>
+          <span>Parametrización</span>
+          <i class="bi bi-chevron-down ms-auto"></i>
         </a>
-        <ul id="tables-nav" class="nav-content collapse " data-bs-parent="#sidebar-nav">
+        <ul id="tables-nav"
+            class="nav-content collapse <?= $paraOpen ? 'show' : '' ?>"
+            data-bs-parent="#sidebar-nav">
           <li>
-            <a href='?module=proveedores'>
+            <a href="?module=proveedores" class="<?= navSubItem('proveedores', $mod) ?>">
               <i class="bi bi-circle"></i><span>Proveedores</span>
             </a>
           </li>
           <li>
-            <a href='?module=marcas'>
+            <a href="?module=marcas" class="<?= navSubItem('marcas', $mod) ?>">
               <i class="bi bi-circle"></i><span>Marcas</span>
             </a>
           </li>
           <li>
-            <a href='?module=modelos'>
+            <a href="?module=modelos" class="<?= navSubItem('modelos', $mod) ?>">
               <i class="bi bi-circle"></i><span>Modelos</span>
             </a>
           </li>
           <li>
-            <a href='?module=tiposRepuestos'>
+            <a href="?module=tiposRepuestos" class="<?= navSubItem('tiposRepuestos', $mod) ?>">
               <i class="bi bi-circle"></i><span>Tipos de Repuestos</span>
+            </a>
+          </li>
+          <li>
+            <a href="?module=divisas" class="<?= navSubItem('divisas', $mod) ?>">
+              <i class="bi bi-circle"></i><span>Divisas</span>
             </a>
           </li>
         </ul>
       </li>
+
+      <!-- Usuarios -->
+      <li class="nav-item">
+        <a class="<?= navLink('usuarios', $mod) ?>" href="?module=usuarios">
+          <i class="bi bi-people"></i>
+          <span>Usuarios</span>
+        </a>
+      </li>
+
+    </ul>
   </aside><!-- End Sidebar-->

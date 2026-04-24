@@ -1,19 +1,32 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) session_start();
 
-$usuarios = [
-    'msorto'    => ['password' => 'proDuX10n_03', 'nombre' => 'M. Sorto'],
-    'dpalma'    => ['password' => 'Hpo051!',       'nombre' => 'D. Palma'],
-    'Sania' => ['password' => '$plan2024',     'nombre' => 'Sania Alvarenga'],
-];
+require_once '../model/mdlLogin.php';
 
 $username = trim($_POST['username'] ?? '');
 $password = $_POST['password'] ?? '';
 
-if (isset($usuarios[$username]) && $usuarios[$username]['password'] === $password) {
-    $_SESSION['logueado'] = true;
-    $_SESSION['usuario']  = $username;
-    $_SESSION['nombre']   = $usuarios[$username]['nombre'];
+$acceso = false;
+
+if ($username !== '' && $password !== '') {
+    try {
+        $model   = new mdlLogin();
+        $usuario = $model->buscarUsuario($username);
+
+        if ($usuario && password_verify($password, $usuario['password_hash'])) {
+            $_SESSION['logueado']   = true;
+            $_SESSION['usuario']    = $usuario['username'];
+            $_SESSION['nombre']     = $usuario['nombre'];
+            $_SESSION['id_usuario'] = (int)$usuario['id_usuario'];
+            $acceso = true;
+        }
+    } catch (Throwable $e) {
+        // Error de BD: tratarlo como credenciales inválidas (no exponer detalle)
+        $acceso = false;
+    }
+}
+
+if ($acceso) {
     header('Location: ../../../inicio.php');
     exit;
 }

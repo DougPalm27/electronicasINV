@@ -387,19 +387,19 @@ $folio = str_pad($id, 6, '0', STR_PAD_LEFT);
         <div class="firmas">
             <div class="firma-box">
                 <div class="linea">
-                    <div class="rol">Técnico que realizó</div>
+                    <div class="rol">Solicitado por</div>
                     <div class="nombre"><?= e($mant['tecnico']) ?></div>
                 </div>
             </div>
             <div class="firma-box">
                 <div class="linea">
-                    <div class="rol">Supervisó / Autorizó</div>
+                    <div class="rol">Entregado por</div>
                     <div class="nombre">&nbsp;</div>
                 </div>
             </div>
             <div class="firma-box">
                 <div class="linea">
-                    <div class="rol">Recibido conforme</div>
+                    <div class="rol">Autorizado por</div>
                     <div class="nombre">&nbsp;</div>
                 </div>
             </div>
