@@ -56,7 +56,11 @@ $sqlRep = "SELECT
                ISNULL(dv.simbolo,
                    (SELECT TOP 1 simbolo FROM electronicas.Divisas
                     WHERE predeterminada = 1 AND activo = 1)
-               )                                        AS divisa_simbolo
+               )                                        AS divisa_simbolo,
+               ISNULL(dv.tipo_cambio,
+                   (SELECT TOP 1 tipo_cambio FROM electronicas.Divisas
+                    WHERE predeterminada = 1 AND activo = 1)
+               )                                        AS tipo_cambio
            FROM electronicas.MantenimientoRepuestos mr
            INNER JOIN electronicas.Repuestos r  ON r.id_repuesto = mr.id_repuesto
            LEFT  JOIN electronicas.Divisas   dv ON dv.id_divisa  = r.id_divisa

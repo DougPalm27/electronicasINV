@@ -18,6 +18,16 @@ if ($username !== '' && $password !== '') {
             $_SESSION['usuario']    = $usuario['username'];
             $_SESSION['nombre']     = $usuario['nombre'];
             $_SESSION['id_usuario'] = (int)$usuario['id_usuario'];
+            $_SESSION['id_rol']     = $usuario['id_rol']     ? (int)$usuario['id_rol'] : null;
+            $_SESSION['nombre_rol'] = $usuario['nombre_rol'] ?? null;
+
+            // Cargar módulos permitidos según el rol asignado
+            if (!empty($usuario['id_rol'])) {
+                $_SESSION['modulos'] = $model->obtenerModulosRol((int)$usuario['id_rol']);
+            } else {
+                $_SESSION['modulos'] = null; // sin restricción (usuario legacy)
+            }
+
             $acceso = true;
         }
     } catch (Throwable $e) {

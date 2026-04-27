@@ -416,8 +416,8 @@ function verHistorial(id_maquina) {
         // Tabla de repuestos si tiene
         let repHtml = '';
         if (m.repuestos.length > 0) {
-          const totalGeneral = m.repuestos.reduce((s, r) => s + parseFloat(r.total || 0), 0);
-          const simbolo      = m.repuestos[0].divisa_simbolo || 'L.';
+          const totalGeneral = m.repuestos.reduce((s, r) =>
+            s + parseFloat(r.total || 0) * parseFloat(r.tipo_cambio || 1), 0);
 
           repHtml = `
             <div class="mt-2">
@@ -429,23 +429,32 @@ function verHistorial(id_maquina) {
                   <tr>
                     <th>Repuesto</th>
                     <th class="text-center" style="width:80px">Cant.</th>
-                    <th class="text-end"  style="width:120px">Costo unit.</th>
-                    <th class="text-end"  style="width:120px">Total</th>
+                    <th class="text-end" style="width:130px">Costo unit.</th>
+                    <th class="text-end" style="width:130px">Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${m.repuestos.map(r => `
+                  ${m.repuestos.map(r => {
+                    const tc      = parseFloat(r.tipo_cambio || 1);
+                    const costoLps = parseFloat(r.costo_unitario || 0) * tc;
+                    const totalLps = parseFloat(r.total || 0) * tc;
+                    const esLps    = r.divisa_simbolo === 'L.' || tc === 1;
+                    const nota     = !esLps
+                      ? `<br><small class="text-muted">${r.divisa_simbolo} ${parseFloat(r.costo_unitario).toFixed(2)}</small>`
+                      : '';
+                    return `
                     <tr>
                       <td>${r.repuesto}</td>
                       <td class="text-center">${r.cantidad}</td>
-                      <td class="text-end">${r.divisa_simbolo} ${parseFloat(r.costo_unitario).toFixed(2)}</td>
-                      <td class="text-end fw-semibold">${r.divisa_simbolo} ${parseFloat(r.total).toFixed(2)}</td>
-                    </tr>`).join('')}
+                      <td class="text-end">L. ${costoLps.toFixed(2)}${nota}</td>
+                      <td class="text-end fw-semibold">L. ${totalLps.toFixed(2)}</td>
+                    </tr>`;
+                  }).join('')}
                 </tbody>
                 <tfoot class="table-light">
                   <tr>
                     <td colspan="3" class="text-end fw-bold">Total mantenimiento:</td>
-                    <td class="text-end fw-bold">${simbolo} ${totalGeneral.toFixed(2)}</td>
+                    <td class="text-end fw-bold">L. ${totalGeneral.toFixed(2)}</td>
                   </tr>
                 </tfoot>
               </table>

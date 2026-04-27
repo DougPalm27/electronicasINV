@@ -3,6 +3,19 @@ const CTRL_USR = './modules/Usuarios/controllers/usuariosController.php';
 $(document).ready(function () {
     if (!document.getElementById('tblUsuarios')) return;
 
+    // ── Cargar roles en el select ──────────────────────────
+    function cargarRoles(valorActual = '') {
+        $.post(CTRL_USR, { accion: 'listarRoles' }, function (r) {
+            if (!r.ok) return;
+            let opts = '<option value="">— Sin rol asignado —</option>';
+            r.data.forEach(rol => {
+                const sel = String(rol.id_rol) === String(valorActual) ? 'selected' : '';
+                opts += `<option value="${rol.id_rol}" ${sel}>${rol.nombre}</option>`;
+            });
+            $('#u_rol').html(opts);
+        }, 'json');
+    }
+
     // ── DataTable ─────────────────────────────────────────
     const tabla = $('#tblUsuarios').DataTable({
         ajax: {
@@ -15,6 +28,12 @@ $(document).ready(function () {
             { data: null, render: (d, t, r, m) => m.row + 1 },
             { data: 'username' },
             { data: 'nombre' },
+            {
+                data: 'nombre_rol',
+                render: v => v
+                    ? `<span class="badge bg-primary">${v}</span>`
+                    : '<span class="text-muted small">Sin rol</span>'
+            },
             {
                 data: 'activo',
                 className: 'text-center',
@@ -29,8 +48,10 @@ $(document).ready(function () {
                 orderable: false,
                 render: (d, t, r) => `
                     <button class="btn btn-sm btn-warning btn-editar me-1"
-                            data-id="${r.id_usuario}" data-nombre="${r.nombre}"
-                            title="Editar nombre">
+                            data-id="${r.id_usuario}"
+                            data-nombre="${r.nombre}"
+                            data-rol="${r.id_rol || ''}"
+                            title="Editar usuario">
                         <i class="bi bi-pencil"></i>
                     </button>
                     <button class="btn btn-sm btn-primary btn-reset me-1"
@@ -58,13 +79,15 @@ $(document).ready(function () {
         $('#u_id').val('');
         $('#bloque_username').show();
         $('#u_username, #u_password, #u_confirmar').prop('required', true);
+        cargarRoles('');
         abrirModal('#modalUsuario');
     });
 
-    // ── Abrir modal editar nombre ─────────────────────────
+    // ── Abrir modal editar ────────────────────────────────
     $('#tblUsuarios').on('click', '.btn-editar', function () {
         const id     = $(this).data('id');
         const nombre = $(this).data('nombre');
+        const rol    = $(this).data('rol');
 
         $('#modalUsuarioTitulo').text('Editar usuario');
         $('#frmUsuario')[0].reset();
@@ -73,19 +96,20 @@ $(document).ready(function () {
         $('#u_nombre').val(nombre);
         $('#bloque_username').hide();
         $('#u_username, #u_password, #u_confirmar').prop('required', false);
+        cargarRoles(rol);
         abrirModal('#modalUsuario');
     });
 
     // ── Guardar (crear o editar) ──────────────────────────
     $('#btnGuardarUsuario').on('click', function () {
-        const id       = $('#u_id').val();
-        const esNuevo  = !id;
-        const nombre   = $('#u_nombre').val().trim();
-        const username = $('#u_username').val().trim();
-        const password = $('#u_password').val();
+        const id        = $('#u_id').val();
+        const esNuevo   = !id;
+        const nombre    = $('#u_nombre').val().trim();
+        const username  = $('#u_username').val().trim();
+        const password  = $('#u_password').val();
         const confirmar = $('#u_confirmar').val();
+        const id_rol    = $('#u_rol').val();
 
-        // Validación
         let valido = true;
 
         toggleInvalid('#u_nombre', !nombre);
@@ -107,8 +131,8 @@ $(document).ready(function () {
 
         const accion = esNuevo ? 'crear' : 'editarNombre';
         const datos  = esNuevo
-            ? { accion, nombre, username, password }
-            : { accion, id_usuario: id, nombre };
+            ? { accion, nombre, username, password, id_rol }
+            : { accion, id_usuario: id, nombre, id_rol };
 
         $.post(CTRL_USR, datos, function (resp) {
             if (!resp.ok) {

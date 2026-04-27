@@ -39,20 +39,33 @@ if (!$mant) { http_response_code(404); die('Mantenimiento no encontrado.'); }
 /* ── Repuestos instalados ───────────────────────────────── */
 $stmtR = $conn->prepare("
     SELECT
-        r.nombre                            AS repuesto,
+        r.nombre                                                AS repuesto,
         mr.cantidad,
         mr.costo_unitario,
-        (mr.cantidad * mr.costo_unitario)   AS subtotal,
-        CASE WHEN r.maneja_serie = 1 THEN rd.serie ELSE NULL END AS serie
+        (mr.cantidad * mr.costo_unitario)                       AS subtotal,
+        CASE WHEN r.maneja_serie = 1 THEN rd.serie ELSE NULL END AS serie,
+        ISNULL(dv.simbolo,      dpred.simbolo)                  AS divisa_simbolo,
+        ISNULL(dv.codigo,       dpred.codigo)                   AS divisa_codigo,
+        ISNULL(dv.tipo_cambio,  dpred.tipo_cambio)              AS tipo_cambio
     FROM electronicas.MantenimientoRepuestos mr
     INNER JOIN electronicas.Repuestos r ON mr.id_repuesto = r.id_repuesto
     LEFT  JOIN electronicas.RepuestosDetalle rd ON mr.id_detalle_repuesto = rd.id_detalle_repuesto
+    LEFT  JOIN electronicas.Divisas dv ON dv.id_divisa = r.id_divisa
+    CROSS APPLY (
+        SELECT TOP 1 simbolo, codigo, tipo_cambio
+        FROM electronicas.Divisas WHERE predeterminada = 1 AND activo = 1
+    ) dpred
     WHERE mr.id_mantenimiento = ?
     ORDER BY r.nombre
 ");
 $stmtR->execute([$id]);
-$repuestos = $stmtR->fetchAll(PDO::FETCH_ASSOC);
-$totalCosto = array_sum(array_column($repuestos, 'subtotal'));
+$repuestos  = $stmtR->fetchAll(PDO::FETCH_ASSOC);
+
+// Total convertido a Lempiras
+$totalCosto = array_sum(array_map(
+    fn($r) => floatval($r['subtotal']) * floatval($r['tipo_cambio'] ?: 1),
+    $repuestos
+));
 
 /* ── Piezas retiradas ───────────────────────────────────── */
 $stmtRet = $conn->prepare("
@@ -326,25 +339,38 @@ $folio = str_pad($id, 6, '0', STR_PAD_LEFT);
                 <th>Repuesto</th>
                 <th class="text-center" style="width:55px">Cant.</th>
                 <th class="text-center" style="width:120px">N° Serie</th>
-                <th class="text-right"  style="width:100px">Costo unit.</th>
-                <th class="text-right"  style="width:100px">Subtotal</th>
+                <th class="text-right" style="width:110px">Costo unit. (L.)</th>
+                <th class="text-right" style="width:110px">Subtotal (L.)</th>
             </tr>
         </thead>
         <tbody>
             <?php if ($repuestos): ?>
-                <?php foreach ($repuestos as $r): ?>
+                <?php foreach ($repuestos as $r):
+                    $tc       = floatval($r['tipo_cambio'] ?: 1);
+                    $costoLps = floatval($r['costo_unitario']) * $tc;
+                    $subLps   = floatval($r['subtotal']) * $tc;
+                    $esLps    = $r['divisa_codigo'] === 'HNL' || $tc == 1.0;
+                ?>
                 <tr>
-                    <td><?= e($r['repuesto']) ?></td>
+                    <td>
+                        <?= e($r['repuesto']) ?>
+                        <?php if (!$esLps): ?>
+                            <br><small style="color:#888">
+                                <?= e($r['divisa_simbolo']) ?> <?= number_format($r['costo_unitario'], 2) ?>
+                                &times; <?= number_format($tc, 4) ?>
+                            </small>
+                        <?php endif; ?>
+                    </td>
                     <td class="text-center"><?= $r['cantidad'] ?></td>
                     <td class="text-center"><?= $r['serie'] ? e($r['serie']) : '—' ?></td>
-                    <td class="text-right">Q <?= number_format($r['costo_unitario'], 2) ?></td>
-                    <td class="text-right">Q <?= number_format($r['subtotal'], 2) ?></td>
+                    <td class="text-right">L. <?= number_format($costoLps, 2) ?></td>
+                    <td class="text-right">L. <?= number_format($subLps, 2) ?></td>
                 </tr>
                 <?php endforeach; ?>
                 <tr class="total-row">
                     <td colspan="3"></td>
                     <td class="text-right">TOTAL</td>
-                    <td class="text-right">Q <?= number_format($totalCosto, 2) ?></td>
+                    <td class="text-right">L. <?= number_format($totalCosto, 2) ?></td>
                 </tr>
             <?php else: ?>
                 <tr class="sin-datos"><td colspan="5">Sin repuestos registrados en este mantenimiento.</td></tr>

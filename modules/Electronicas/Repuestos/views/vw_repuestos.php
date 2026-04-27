@@ -182,6 +182,32 @@
                 <input type="hidden" id="id_repuesto_mov">
                 <input type="hidden" id="maneja_serie_mov">
 
+                <!-- Campos comunes a ambos modos -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">
+                            <i class="bi bi-tag me-1"></i>Tipo de entrada <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="tipo_entrada_mov">
+                            <option value="Compra">Compra</option>
+                            <option value="Garantía">Garantía</option>
+                            <option value="Devolución">Devolución</option>
+                            <option value="Donación">Donación</option>
+                            <option value="Ajuste">Ajuste de inventario</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">
+                            <i class="bi bi-truck me-1"></i>Proveedor
+                        </label>
+                        <select class="form-select" id="id_proveedor_mov">
+                            <option value="">— Sin especificar —</option>
+                        </select>
+                    </div>
+                </div>
+
+                <hr class="my-2">
+
                 <!-- MODO STOCK -->
                 <div id="entradaStock">
                     <div class="mb-3">
@@ -283,32 +309,52 @@
 <!-- ============================= -->
 
 <div class="modal fade" id="modalKardex">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
 
             <div class="modal-header">
-                <h5>Kardex del Repuesto</h5>
-                <button class="btn-close" data-bs-dismiss="modal"></button>
+                <div>
+                    <h5 class="mb-0">
+                        <i class="bi bi-journal-text me-2"></i>Kardex —
+                        <span id="kardexTituloNombre" class="fw-bold"></span>
+                    </h5>
+                    <small id="kardexTituloMeta" class="text-muted"></small>
+                </div>
+                <button class="btn-close ms-auto" data-bs-dismiss="modal"></button>
             </div>
 
             <div class="modal-body">
-                <table class="table table-sm table-striped" id="tablaKardex">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Tipo</th>
-                            <th>Cantidad</th>
-                            <th>Stock Antes</th>
-                            <th>Stock Después</th>
-                            <th>Costo</th>
-                            <th>Referencia</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle" id="tablaKardex">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-nowrap">Fecha</th>
+                                <th>Descripción</th>
+                                <th class="text-center" style="width:90px">
+                                    <i class="bi bi-box-arrow-in-down me-1"></i>Entradas
+                                </th>
+                                <th class="text-center" style="width:90px">
+                                    <i class="bi bi-box-arrow-up me-1"></i>Salidas
+                                </th>
+                                <th class="text-end" style="width:100px">Costo unit.</th>
+                                <th class="text-end" style="width:90px">Saldo</th>
+                                <th class="text-center" style="width:80px">Anular</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="d-flex gap-3 mt-2 small text-muted">
+                    <span><span class="badge bg-primary me-1">Punto de partida</span> Primer movimiento registrado</span>
+                    <span><span class="badge bg-secondary me-1">Anulado</span> Movimiento revertido</span>
+                    <span><span class="badge bg-warning text-dark me-1">Ajuste</span> Movimiento de corrección</span>
+                </div>
             </div>
 
             <div class="modal-footer">
+                <button class="btn btn-primary" onclick="imprimirKardex()">
+                    <i class="bi bi-printer me-1"></i> Imprimir
+                </button>
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
             </div>
 

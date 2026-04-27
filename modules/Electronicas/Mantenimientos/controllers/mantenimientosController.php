@@ -25,9 +25,10 @@ try {
             break;
 
         case 'detalle':
-            $id = $_POST['id_mantenimiento'] ?? null;
+            $id = (int)($_POST['id_mantenimiento'] ?? 0);
             if (!$id) response([], true, "ID de mantenimiento inválido");
             response([
+                "tareas"     => $model->obtenerTareas($id),
                 "instalados" => $model->obtenerDetalleMantenimiento($id),
                 "retiros"    => $model->obtenerRetirosMantenimiento($id)
             ]);
@@ -45,55 +46,33 @@ try {
             response($model->listarTecnicos());
             break;
 
-        case 'repuestosDisponibles':
-            response($model->listarRepuestosDisponibles());
-            break;
-
-        case 'seriesDisponibles':
-            $id_repuesto = $_POST["id_repuesto"] ?? null;
-            if (!$id_repuesto) response([], true, "ID de repuesto inválido");
-            response($model->obtenerSeriesDisponibles($id_repuesto));
-            break;
-
-        case 'validarStock':
-            $id_repuesto  = $_POST['id_repuesto']  ?? null;
-            $maneja_serie = $_POST['maneja_serie']  ?? 0;
-            $cantidad     = $_POST['cantidad']      ?? 1;
-
-            if (!$id_repuesto) response([], true, "ID de repuesto inválido");
-
-            if ((int)$maneja_serie === 1) {
-                $series = $model->obtenerSeriesDisponibles($id_repuesto);
-                $stock  = count($series);
-            } else {
-                $stock = $model->obtenerStockPublico($id_repuesto);
-            }
-
-            if ($stock <= 0) response(["stock" => $stock], true, "Sin stock disponible");
-            if ((int)$maneja_serie === 0 && (int)$cantidad > $stock) {
-                response(["stock" => $stock], true, "Stock insuficiente. Disponible: {$stock}");
-            }
-            response(["stock" => $stock], false, "Stock disponible: {$stock}");
-            break;
-
-        case 'instalados':
-            $id_maquina = $_POST['id_maquina'] ?? null;
-            if (!$id_maquina) response([], true, "ID de máquina inválido");
-            response($model->obtenerInstalados($id_maquina));
-            break;
-
         case 'guardar':
             $payload = $_POST["losDatos"] ?? null;
             if (!$payload) response([], true, "No se recibieron datos");
 
-            $payload = is_string($payload) ? json_decode($payload) : json_decode(json_encode($payload));
-            if (!$payload) response([], true, "Payload inválido");
+            $obj = json_decode($payload);
+            if (!$obj) response([], true, "Payload inválido");
 
-            $resp = $model->guardarMantenimiento($payload);
+            // Extraer tareas antes de pasar el objeto al modelo
+            $tareas = isset($obj->tareas) ? (array)$obj->tareas : [];
+            unset($obj->tareas);
+
+            // guardarMantenimiento solo necesita máquina/tipo/técnico/fecha/descripción
+            // Forzar arrays vacíos para repuestos/retiros (no se usan desde la UI)
+            $obj->repuestos = [];
+            $obj->retiros   = [];
+
+            $resp = $model->guardarMantenimiento($obj);
 
             if (isset($resp["error"]) && $resp["error"] === true) {
                 response([], true, $resp["mensaje"]);
             }
+
+            // Guardar tareas vinculadas al mantenimiento recién creado
+            if (!empty($tareas)) {
+                $model->guardarTareas((int)$resp["id_mantenimiento"], $tareas);
+            }
+
             response($resp, false, "Mantenimiento guardado correctamente");
             break;
 

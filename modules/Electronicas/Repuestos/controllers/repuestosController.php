@@ -80,7 +80,8 @@ try {
                 "id_tipo"      => $_POST["id_tipo"] ?? null,
                 "id_marca"     => $_POST["id_marca"] ?? null,
                 "id_modelo"    => $_POST["id_modelo"] ?? null,
-                "maneja_serie" => $_POST["maneja_serie"] ?? 0
+                "maneja_serie" => $_POST["maneja_serie"] ?? 0,
+                "id_divisa"    => $_POST["id_divisa"] ?? null,
             ];
 
             if (!$data["nombre"])
@@ -107,7 +108,8 @@ try {
                 "id_tipo"      => $_POST["id_tipo"] ?? null,
                 "id_marca"     => $_POST["id_marca"] ?? null,
                 "id_modelo"    => $_POST["id_modelo"] ?? null,
-                "maneja_serie" => $_POST["maneja_serie"] ?? 0
+                "maneja_serie" => $_POST["maneja_serie"] ?? 0,
+                "id_divisa"    => $_POST["id_divisa"] ?? null,
             ];
 
             if (!$data["id_repuesto"])
@@ -153,10 +155,12 @@ try {
                 response([], true, "El costo no puede ser negativo");
 
             $data = [
-                "id_repuesto" => $id_repuesto,
-                "cantidad"    => $cantidad,
-                "costo"       => $costo,
-                "referencia"  => $_POST["referencia"] ?? 'COMPRA'
+                "id_repuesto"  => $id_repuesto,
+                "cantidad"     => $cantidad,
+                "costo"        => $costo,
+                "referencia"   => 'COMPRA',
+                "id_proveedor" => $_POST["id_proveedor"] ?? null,
+                "tipo_entrada" => $_POST["tipo_entrada"] ?? 'Compra',
             ];
 
             $resp = $model->entradaRepuesto($data);
@@ -243,6 +247,14 @@ try {
         case 'kardex':
             $id = $_POST["id_repuesto"] ?? 0;
             response($model->obtenerKardex($id));
+            break;
+
+        case 'anularMovimiento':
+            $id_movimiento = (int)($_POST['id_movimiento'] ?? 0);
+            if (!$id_movimiento) response([], true, 'ID de movimiento inválido.');
+            $resp = $model->anularMovimiento($id_movimiento);
+            if (isset($resp['error'])) response([], true, $resp['mensaje']);
+            response($resp, false, 'Movimiento anulado correctamente.');
             break;
 
         //////////////////////////////////////////////////////////

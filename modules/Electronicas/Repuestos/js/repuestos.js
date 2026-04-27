@@ -25,6 +25,17 @@ function init() {
     });
   });
 
+  // Kardex — delegación para capturar botones generados por DataTable
+  $(document).on("click", ".btn-ver-kardex", function () {
+    const btn = $(this);
+    verKardex(
+      btn.data("id"),
+      btn.data("nombre"),
+      btn.data("marca"),
+      btn.data("modelo")
+    );
+  });
+
   $("#btnNuevoRepuesto").click(() => {
     limpiarModalRepuesto();
     $("#btnGuardarRepuesto").show();
@@ -124,8 +135,13 @@ function listarRepuestos() {
               </button>`;
           } else {
             botones += `
-              <button class="btn btn-info btn-sm" onclick="verKardex(${row.id_repuesto})" title="Ver kardex">
-                <i class="bi bi-list-ul"></i>
+              <button class="btn btn-info btn-sm btn-ver-kardex"
+                data-id="${row.id_repuesto}"
+                data-nombre="${(row.nombre  || '').replace(/"/g, '&quot;')}"
+                data-marca="${(row.marca    || '—').replace(/"/g, '&quot;')}"
+                data-modelo="${(row.modelo  || '—').replace(/"/g, '&quot;')}"
+                title="Ver kardex">
+                <i class="bi bi-journal-text"></i>
               </button>
               <button class="btn btn-success btn-sm" onclick="abrirEntrada(${row.id_repuesto}, 0)" title="Registrar entrada por cantidad">
                 <i class="bi bi-plus-circle"></i>
@@ -357,6 +373,7 @@ function abrirEntrada(id, manejaSerie) {
   limpiarEntrada();
   $("#id_repuesto_mov").val(id);
   $("#maneja_serie_mov").val(manejaSerie);
+  $("#tipo_entrada_mov").val("Compra");
 
   if (manejaSerie == 1) {
     $("#entradaStock").hide();
@@ -365,6 +382,22 @@ function abrirEntrada(id, manejaSerie) {
     $("#entradaSerie").hide();
     $("#entradaStock").show();
   }
+
+  // Cargar proveedores en el select de la entrada
+  $.post(
+    "./modules/Electronicas/Repuestos/Controllers/repuestosController.php",
+    { accion: "proveedores" },
+    function (resp) {
+      let html = '<option value="">— Sin especificar —</option>';
+      if (resp.ok && resp.data) {
+        resp.data.forEach(p => {
+          html += `<option value="${p.id_proveedor}">${p.nombre}</option>`;
+        });
+      }
+      $("#id_proveedor_mov").html(html);
+    },
+    "json"
+  );
 
   abrirModal("#modalEntrada");
 }
@@ -445,7 +478,14 @@ function guardarEntrada() {
       url: "./modules/Electronicas/Repuestos/Controllers/repuestosController.php",
       type: "POST",
       dataType: "json",
-      data: { accion: "entrada", id_repuesto: id, cantidad: cantidad, costo: costo, referencia: "COMPRA" },
+      data: {
+        accion:        "entrada",
+        id_repuesto:   id,
+        cantidad:      cantidad,
+        costo:         costo,
+        id_proveedor:  $("#id_proveedor_mov").val(),
+        tipo_entrada:  $("#tipo_entrada_mov").val(),
+      },
       success: function (resp) {
         if (!resp.ok) {
           Swal.fire("Error", resp.mensaje || "Error al guardar", "error");
@@ -599,7 +639,23 @@ function guardarSalida() {
 // KARDEX
 //////////////////////////////////////////////////////////
 
-function verKardex(id) {
+// Datos del repuesto activo en el kardex
+let _kardexIdRepuesto = null;
+let _kardexInfo       = { nombre: '', marca: '', modelo: '' };
+
+function verKardex(id, nombre, marca, modelo) {
+  _kardexIdRepuesto = id;
+  _kardexInfo       = { nombre, marca, modelo };
+
+  // Título del modal
+  $('#kardexTituloNombre').text(nombre);
+  $('#kardexTituloMeta').text([marca, modelo].filter(v => v && v !== '—').join(' · '));
+
+  cargarKardex(id);
+  abrirModal("#modalKardex");
+}
+
+function cargarKardex(id) {
   $.post(
     "./modules/Electronicas/Repuestos/Controllers/repuestosController.php",
     { accion: "kardex", id_repuesto: id },
@@ -609,25 +665,245 @@ function verKardex(id) {
         return;
       }
 
+      if (!resp.data || resp.data.length === 0) {
+        $("#tablaKardex tbody").html(
+          `<tr><td colspan="7" class="text-center text-muted py-3">Sin movimientos registrados</td></tr>`
+        );
+        return;
+      }
+
+      // Los datos vienen ASC (más antiguo primero).
+      // El primer elemento del array es el más antiguo → "Punto de partida".
+      const idxPrimero = 0;
+
       let html = "";
-      resp.data.forEach((m) => {
+      resp.data.forEach((m, idx) => {
+        const anulado     = parseInt(m.anulado) === 1;
+        const esAnulacion = m.referencia && m.referencia.startsWith('ANULACION');
+        const esPrimero   = idx === idxPrimero;
+        const esEntrada   = parseInt(m.id_tipo_movimiento) === 1;
+
+        // ── Clase de fila ──────────────────────────────────────
+        let trClass = '';
+        if (esPrimero)     trClass = 'table-primary';
+        else if (anulado)  trClass = 'table-secondary';
+
+        const strikeStyle = anulado ? 'style="text-decoration:line-through;opacity:.6"' : '';
+
+        // ── Columna Descripción ────────────────────────────────
+        let descripcion = '';
+        if (esPrimero) {
+          descripcion = `<span class="badge bg-primary me-1">
+                           <i class="bi bi-flag me-1"></i>Punto de partida
+                         </span>`;
+        } else if (esAnulacion) {
+          descripcion = `<span class="badge bg-warning text-dark me-1">
+                           <i class="bi bi-arrow-counterclockwise me-1"></i>Ajuste por anulación
+                         </span>
+                         <small class="text-muted">${m.referencia}</small>`;
+        } else if (anulado) {
+          descripcion = `<span class="badge bg-secondary me-1">
+                           <i class="bi bi-slash-circle me-1"></i>Anulado
+                         </span>`;
+        } else {
+          descripcion = `<span class="badge ${esEntrada ? 'bg-success' : 'bg-danger'} me-1">
+                           <i class="bi ${esEntrada ? 'bi-box-arrow-in-down' : 'bi-box-arrow-up'} me-1"></i>
+                           ${m.tipo}
+                         </span>`;
+        }
+        if (!esAnulacion && !esPrimero && !anulado) {
+          if (m.tipo_entrada && m.tipo_entrada !== 'Compra') {
+            descripcion += ` <span class="badge bg-warning text-dark">${m.tipo_entrada}</span>`;
+          }
+          if (m.proveedor) {
+            descripcion += ` <small class="text-muted"><i class="bi bi-truck me-1"></i>${m.proveedor}</small>`;
+          } else if (m.referencia && m.referencia !== 'COMPRA' && m.referencia !== 'MANTENIMIENTO') {
+            descripcion += `<small class="text-muted ms-1">${m.referencia}</small>`;
+          }
+        }
+
+        // ── Entradas / Salidas (columnas separadas) ────────────
+        const cantEntrada = (!anulado && esEntrada)
+          ? `<span class="fw-semibold">${m.cantidad}</span>`
+          : `<span class="text-muted">—</span>`;
+        const cantSalida  = (!anulado && !esEntrada)
+          ? `<span class="fw-semibold">${m.cantidad}</span>`
+          : `<span class="text-muted">—</span>`;
+
+        const cantEntradaFinal = anulado
+          ? `<span class="text-muted" ${strikeStyle}>${esEntrada ? m.cantidad : '—'}</span>`
+          : cantEntrada;
+        const cantSalidaFinal  = anulado
+          ? `<span class="text-muted" ${strikeStyle}>${!esEntrada ? m.cantidad : '—'}</span>`
+          : cantSalida;
+
+        // ── Saldo (stock_nuevo) ────────────────────────────────
+        const saldo = anulado
+          ? `<span class="text-muted" ${strikeStyle}>${parseInt(m.stock_nuevo)}</span>`
+          : `<strong>${parseInt(m.stock_nuevo)}</strong>`;
+
+        // ── Botón anular ───────────────────────────────────────
+        let btnAnular = '';
+        if (!anulado && !esAnulacion && !esPrimero) {
+          btnAnular = `<button class="btn btn-sm btn-danger"
+                         onclick="confirmarAnulacion(${m.id_movimiento})"
+                         title="Anular este movimiento">
+                         <i class="bi bi-slash-circle"></i>
+                       </button>`;
+        }
+
         html += `
-          <tr>
-            <td>${m.fecha_movimiento}</td>
-            <td>${m.tipo}</td>
-            <td>${m.cantidad}</td>
-            <td>${m.stock_anterior}</td>
-            <td>${m.stock_nuevo}</td>
-            <td>${parseFloat(m.costo_unitario || 0).toFixed(2)}</td>
-            <td>${m.referencia}</td>
+          <tr class="${trClass}">
+            <td class="text-nowrap small" ${strikeStyle}>${m.fecha_movimiento}</td>
+            <td>${descripcion}</td>
+            <td class="text-center">${cantEntradaFinal}</td>
+            <td class="text-center">${cantSalidaFinal}</td>
+            <td class="text-end small" ${strikeStyle}>${parseFloat(m.costo_unitario || 0).toFixed(2)}</td>
+            <td class="text-end">${saldo}</td>
+            <td class="text-center">${btnAnular}</td>
           </tr>`;
       });
 
-      $("#tablaKardex tbody").html(html || `<tr><td colspan="7" class="text-center text-muted">Sin movimientos</td></tr>`);
-      abrirModal("#modalKardex");
+      $("#tablaKardex tbody").html(html);
     },
     "json"
   );
+}
+
+function confirmarAnulacion(id_movimiento) {
+  Swal.fire({
+    title: '¿Anular este movimiento?',
+    html: 'Se generará un movimiento inverso y el stock quedará corregido.<br><br>' +
+          '<strong>Esta acción queda registrada en el kardex.</strong>',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#dc3545',
+    confirmButtonText: 'Sí, anular',
+    cancelButtonText: 'Cancelar',
+  }).then((result) => {
+    if (!result.isConfirmed) return;
+
+    $.post(
+      "./modules/Electronicas/Repuestos/Controllers/repuestosController.php",
+      { accion: "anularMovimiento", id_movimiento },
+      function (resp) {
+        if (!resp.ok) {
+          Swal.fire("Error", resp.mensaje, "error");
+          return;
+        }
+        Swal.fire({
+          icon: "success",
+          title: "Movimiento anulado",
+          text: `Stock actualizado a ${resp.data.stock_nuevo}.`,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+        // Recargar kardex y tabla principal
+        cargarKardex(_kardexIdRepuesto);
+        listarRepuestos();
+      },
+      "json"
+    );
+  });
+}
+
+function imprimirKardex() {
+  const { nombre, marca, modelo } = _kardexInfo;
+  const meta    = [marca, modelo].filter(v => v && v !== '—').join(' · ');
+  const fecha   = new Date().toLocaleDateString('es-HN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const hora    = new Date().toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' });
+  const usuario = window.USUARIO_NOMBRE || 'Usuario';
+
+  // Clonar la tabla del kardex sin los botones de anular
+  const tablaOrig = document.getElementById('tablaKardex');
+  const tablaClone = tablaOrig.cloneNode(true);
+
+  // Eliminar la última columna (Anular) del encabezado y filas clonadas
+  tablaClone.querySelectorAll('tr').forEach(tr => {
+    const ultima = tr.lastElementChild;
+    if (ultima) ultima.remove();
+  });
+
+  const tablaHtml = tablaClone.outerHTML;
+
+  const ventana = window.open('', '_blank', 'width=950,height=750');
+  ventana.document.write(`
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <title>Kardex — ${nombre}</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #212529; padding: 28px 36px; }
+
+        .header { border-bottom: 2px solid #0d6efd; padding-bottom: 10px; margin-bottom: 16px;
+                  display: flex; justify-content: space-between; align-items: flex-end; }
+        .header .left h1 { font-size: 16px; color: #0d6efd; margin-bottom: 2px; }
+        .header .left p  { font-size: 12px; color: #555; margin: 0; }
+        .header .right   { text-align: right; font-size: 11px; color: #555; line-height: 1.6; }
+        .header .right strong { color: #212529; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
+        thead th { background: #f1f3f5; border: 1px solid #dee2e6; padding: 5px 7px;
+                   font-weight: 600; color: #495057; }
+        tbody td { border: 1px solid #dee2e6; padding: 4px 7px; }
+        tfoot td { border: 1px solid #dee2e6; padding: 4px 7px; }
+
+        /* colores de fila Bootstrap clonados → reinterpretados */
+        .table-primary td { background: #cfe2ff !important; }
+        .table-secondary td { background: #e2e3e5 !important; color: #6c757d; }
+
+        .badge { display: inline-block; padding: 1px 6px; border-radius: 3px;
+                 font-size: 10px; font-weight: 600; }
+        .bg-success   { background:#198754; color:#fff; }
+        .bg-danger    { background:#dc3545; color:#fff; }
+        .bg-primary   { background:#0d6efd; color:#fff; }
+        .bg-secondary { background:#6c757d; color:#fff; }
+        .bg-warning   { background:#ffc107; color:#212529; }
+
+        .text-end    { text-align: right; }
+        .text-center { text-align: center; }
+        .text-muted  { color: #6c757d; }
+        .fw-semibold { font-weight: 600; }
+        .fw-bold     { font-weight: 700; }
+        .small       { font-size: 10px; }
+        .text-nowrap { white-space: nowrap; }
+        .me-1        { margin-right: 3px; }
+        .bi::before  { display: none; }
+
+        .footer-print { margin-top: 14px; font-size: 11px; color: #555;
+                        border-top: 1px solid #dee2e6; padding-top: 8px;
+                        display: flex; justify-content: space-between; }
+
+        @media print { body { padding: 15mm 18mm; } @page { margin: 0; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="left">
+          <h1><i class="bi bi-journal-text"></i> Kardex de Repuesto</h1>
+          <p><strong>${nombre}</strong>${meta ? ' &nbsp;·&nbsp; ' + meta : ''}</p>
+        </div>
+        <div class="right">
+          <div>Fecha de impresión: <strong>${fecha} ${hora}</strong></div>
+          <div>Impreso por: <strong>${usuario}</strong></div>
+          <div>Sistema Electronicas — Honducafe</div>
+        </div>
+      </div>
+
+      ${tablaHtml}
+
+      <div class="footer-print">
+        <span>Honducafe — Sistema de Control de Inventario</span>
+        <span>Generado el ${fecha} a las ${hora} por ${usuario}</span>
+      </div>
+
+      <script>window.onload = function(){ window.print(); };<\/script>
+    </body>
+    </html>
+  `);
+  ventana.document.close();
 }
 
 //////////////////////////////////////////////////////////

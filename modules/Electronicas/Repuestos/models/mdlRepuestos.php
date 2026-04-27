@@ -86,8 +86,8 @@ class mdlRepuestos
         }
 
         $sql = "INSERT INTO electronicas.Repuestos
-                    (nombre, numero_parte, id_proveedor, costo_promedio, stock_minimo, comentarios,
-                     id_tipo, id_marca, id_modelo, maneja_serie, id_divisa, stock)
+                    (nombre, numero_parte, id_proveedor, costo_promedio, stock_minimo,
+                     comentarios, id_tipo, id_marca, id_modelo, maneja_serie, id_divisa, stock)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
 
         $stmt = $this->conn->prepare($sql);
@@ -209,8 +209,9 @@ class mdlRepuestos
         $nuevoStock  = $stockActual + (int)$data["cantidad"];
 
         $sql = "INSERT INTO electronicas.MovimientosRepuestos
-                    (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario, stock_anterior, stock_nuevo, referencia)
-                VALUES (?, 1, ?, ?, ?, ?, ?)";
+                    (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
+                     stock_anterior, stock_nuevo, referencia, id_proveedor, tipo_entrada)
+                VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([
@@ -219,7 +220,9 @@ class mdlRepuestos
             $data["costo"],
             $stockActual,
             $nuevoStock,
-            $data["referencia"]
+            $data["referencia"],
+            $data["id_proveedor"] ?: null,
+            $data["tipo_entrada"]  ?? 'Compra',
         ]);
 
         $this->actualizarStock($data["id_repuesto"], $nuevoStock);
@@ -392,23 +395,107 @@ class mdlRepuestos
     public function obtenerKardex($id)
     {
         $sql = "SELECT
-                    m.fecha_movimiento,
-                    t.nombre AS tipo,
+                    m.id_movimiento,
+                    FORMAT(m.fecha_movimiento, 'dd/MM/yyyy HH:mm') AS fecha_movimiento,
+                    t.nombre                           AS tipo,
+                    m.id_tipo_movimiento,
                     m.cantidad,
                     m.stock_anterior,
                     m.stock_nuevo,
                     m.costo_unitario,
-                    m.referencia
+                    m.referencia,
+                    m.anulado,
+                    ISNULL(m.tipo_entrada, '')         AS tipo_entrada,
+                    ISNULL(p.nombre, '')               AS proveedor
                 FROM electronicas.MovimientosRepuestos m
                 INNER JOIN electronicas.TiposMovimientoRepuesto t
                     ON m.id_tipo_movimiento = t.id_tipo_movimiento
+                LEFT  JOIN electronicas.Proveedores p
+                    ON p.id_proveedor = m.id_proveedor
                 WHERE m.id_repuesto = ?
-                ORDER BY m.fecha_movimiento DESC";
+                ORDER BY m.fecha_movimiento ASC";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([$id]);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    //////////////////////////////////////////////////////////
+    // ANULAR MOVIMIENTO
+    //////////////////////////////////////////////////////////
+    public function anularMovimiento(int $id_movimiento): array
+    {
+        // 1. Obtener el movimiento original
+        $sqlGet = "SELECT m.id_movimiento, m.id_repuesto, m.id_tipo_movimiento,
+                          m.cantidad, m.costo_unitario, m.anulado,
+                          r.stock, r.maneja_serie
+                   FROM electronicas.MovimientosRepuestos m
+                   INNER JOIN electronicas.Repuestos r ON r.id_repuesto = m.id_repuesto
+                   WHERE m.id_movimiento = ?";
+        $stmt = $this->conn->prepare($sqlGet);
+        $stmt->execute([$id_movimiento]);
+        $mov = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$mov) {
+            return ['error' => true, 'mensaje' => 'Movimiento no encontrado.'];
+        }
+        if ((int)$mov['anulado'] === 1) {
+            return ['error' => true, 'mensaje' => 'Este movimiento ya fue anulado.'];
+        }
+        // Solo se permite anular entradas (1) y salidas (2)
+        if (!in_array((int)$mov['id_tipo_movimiento'], [1, 2])) {
+            return ['error' => true, 'mensaje' => 'Solo se pueden anular movimientos de Entrada o Salida.'];
+        }
+        if ((int)$mov['maneja_serie'] === 1) {
+            return ['error' => true, 'mensaje' => 'Los movimientos por serie no se pueden anular desde aquí.'];
+        }
+
+        $stockActual  = (int)$mov['stock'];
+        $cantidad     = (int)$mov['cantidad'];
+        $id_repuesto  = (int)$mov['id_repuesto'];
+        $esEntrada    = (int)$mov['id_tipo_movimiento'] === 1;
+
+        // 2. Verificar que el stock resultante no quede negativo
+        if ($esEntrada) {
+            // Anular una entrada = restar del stock
+            if ($stockActual < $cantidad) {
+                return [
+                    'error'  => true,
+                    'mensaje' => "No se puede anular: el stock actual ($stockActual) es menor que la cantidad del movimiento ($cantidad)."
+                ];
+            }
+            $nuevoStock      = $stockActual - $cantidad;
+            $tipoInverso     = 2; // salida
+        } else {
+            // Anular una salida = sumar al stock
+            $nuevoStock      = $stockActual + $cantidad;
+            $tipoInverso     = 1; // entrada
+        }
+
+        // 3. Marcar original como anulado
+        $sqlAnul = "UPDATE electronicas.MovimientosRepuestos SET anulado = 1 WHERE id_movimiento = ?";
+        $this->conn->prepare($sqlAnul)->execute([$id_movimiento]);
+
+        // 4. Insertar movimiento inverso
+        $sqlInv = "INSERT INTO electronicas.MovimientosRepuestos
+                       (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
+                        stock_anterior, stock_nuevo, referencia, anulado)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 0)";
+        $this->conn->prepare($sqlInv)->execute([
+            $id_repuesto,
+            $tipoInverso,
+            $cantidad,
+            $mov['costo_unitario'],
+            $stockActual,
+            $nuevoStock,
+            'ANULACION #' . $id_movimiento,
+        ]);
+
+        // 5. Actualizar stock
+        $this->actualizarStock($id_repuesto, $nuevoStock);
+
+        return ['ok' => true, 'stock_nuevo' => $nuevoStock];
     }
 
     //////////////////////////////////////////////////////////

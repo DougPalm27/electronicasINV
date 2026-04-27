@@ -48,12 +48,20 @@ class mdlMantenimientos
                     CASE
                         WHEN r.maneja_serie = 1 THEN rd.serie
                         ELSE NULL
-                    END                                         AS serie
+                    END                                         AS serie,
+                    ISNULL(dv.simbolo,      dpred.simbolo)      AS divisa_simbolo,
+                    ISNULL(dv.tipo_cambio,  dpred.tipo_cambio)  AS tipo_cambio
                 FROM electronicas.MantenimientoRepuestos mr
                 INNER JOIN electronicas.Repuestos r
                         ON mr.id_repuesto = r.id_repuesto
                 LEFT  JOIN electronicas.RepuestosDetalle rd
                         ON mr.id_detalle_repuesto = rd.id_detalle_repuesto
+                LEFT  JOIN electronicas.Divisas dv
+                        ON dv.id_divisa = r.id_divisa
+                CROSS APPLY (
+                    SELECT TOP 1 simbolo, tipo_cambio FROM electronicas.Divisas
+                    WHERE predeterminada = 1 AND activo = 1
+                ) dpred
                 WHERE mr.id_mantenimiento = ?
                 ORDER BY r.nombre";
 
@@ -159,8 +167,15 @@ class mdlMantenimientos
                               AND d.id_estado_repuesto = 1
                         )
                         ELSE r.stock
-                    END AS stock
+                    END AS stock,
+                    ISNULL(dv.simbolo,     dpred.simbolo)     AS divisa_simbolo,
+                    ISNULL(dv.tipo_cambio, dpred.tipo_cambio) AS tipo_cambio
                 FROM electronicas.Repuestos r
+                LEFT  JOIN electronicas.Divisas dv ON dv.id_divisa = r.id_divisa
+                CROSS APPLY (
+                    SELECT TOP 1 simbolo, tipo_cambio FROM electronicas.Divisas
+                    WHERE predeterminada = 1 AND activo = 1
+                ) dpred
                 WHERE r.id_estado = 1
                 ORDER BY r.nombre";
 
@@ -188,7 +203,41 @@ class mdlMantenimientos
     }
 
     // ══════════════════════════════════════════════════════════════
+    // TAREAS DE MANTENIMIENTO
+    // ══════════════════════════════════════════════════════════════
+
+    public function guardarTareas(int $id_mantenimiento, array $tareas): void
+    {
+        $this->conn->prepare(
+            "DELETE FROM electronicas.MantenimientoTareas WHERE id_mantenimiento = ?"
+        )->execute([$id_mantenimiento]);
+
+        $stmt = $this->conn->prepare(
+            "INSERT INTO electronicas.MantenimientoTareas (id_mantenimiento, descripcion, orden)
+             VALUES (?, ?, ?)"
+        );
+        foreach ($tareas as $i => $tarea) {
+            $desc = is_string($tarea) ? trim($tarea) : trim($tarea['descripcion'] ?? '');
+            if ($desc !== '') {
+                $stmt->execute([$id_mantenimiento, $desc, $i]);
+            }
+        }
+    }
+
+    public function obtenerTareas(int $id_mantenimiento): array
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT descripcion FROM electronicas.MantenimientoTareas
+             WHERE id_mantenimiento = ?
+             ORDER BY orden"
+        );
+        $stmt->execute([$id_mantenimiento]);
+        return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'descripcion');
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // GUARDAR MANTENIMIENTO + INSTALACIONES + RETIROS
+    // (usado también por aprobarSolicitud — no modificar firma)
     // ══════════════════════════════════════════════════════════════
     public function guardarMantenimiento($d)
     {

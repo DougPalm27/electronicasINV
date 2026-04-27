@@ -13,17 +13,29 @@ class mdlUsuarios
     // ── Listar ─────────────────────────────────────────────
     public function listar(): array
     {
-        $sql = "SELECT id_usuario, username, nombre, activo,
-                       FORMAT(fecha_registro,'dd/MM/yyyy') AS fecha_registro
-                FROM electronicas.Usuarios
-                ORDER BY nombre";
+        $sql = "SELECT u.id_usuario, u.username, u.nombre, u.activo,
+                       FORMAT(u.fecha_registro,'dd/MM/yyyy') AS fecha_registro,
+                       u.id_rol, r.nombre AS nombre_rol
+                FROM electronicas.Usuarios u
+                LEFT JOIN electronicas.Roles r ON r.id_rol = u.id_rol
+                ORDER BY u.nombre";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ── Listar roles disponibles (para select) ─────────────
+    public function listarRoles(): array
+    {
+        $sql = "SELECT id_rol, nombre FROM electronicas.Roles
+                WHERE activo = 1 ORDER BY nombre";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     // ── Crear ──────────────────────────────────────────────
-    public function crear(string $username, string $password, string $nombre): void
+    public function crear(string $username, string $password, string $nombre, ?int $id_rol = null): void
     {
         // Verificar username único
         $chk = $this->conn->prepare(
@@ -37,19 +49,28 @@ class mdlUsuarios
         $hash = password_hash($password, PASSWORD_BCRYPT);
 
         $stmt = $this->conn->prepare(
-            "INSERT INTO electronicas.Usuarios (username, password_hash, nombre)
-             VALUES (?, ?, ?)"
+            "INSERT INTO electronicas.Usuarios (username, password_hash, nombre, id_rol)
+             VALUES (?, ?, ?, ?)"
         );
-        $stmt->execute([$username, $hash, $nombre]);
+        $stmt->execute([$username, $hash, $nombre, $id_rol]);
     }
 
-    // ── Editar nombre ──────────────────────────────────────
-    public function editarNombre(int $id, string $nombre): void
+    // ── Editar usuario (nombre + rol) ─────────────────────
+    public function editarNombre(int $id, string $nombre, ?int $id_rol = null): void
     {
         $stmt = $this->conn->prepare(
-            "UPDATE electronicas.Usuarios SET nombre = ? WHERE id_usuario = ?"
+            "UPDATE electronicas.Usuarios SET nombre = ?, id_rol = ? WHERE id_usuario = ?"
         );
-        $stmt->execute([$nombre, $id]);
+        $stmt->execute([$nombre, $id_rol, $id]);
+    }
+
+    // ── Asignar rol ────────────────────────────────────────
+    public function asignarRol(int $id_usuario, ?int $id_rol): void
+    {
+        $stmt = $this->conn->prepare(
+            "UPDATE electronicas.Usuarios SET id_rol = ? WHERE id_usuario = ?"
+        );
+        $stmt->execute([$id_rol, $id_usuario]);
     }
 
     // ── Resetear contraseña (admin) ────────────────────────

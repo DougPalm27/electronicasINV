@@ -21,10 +21,16 @@ try {
             resp($model->listar());
             break;
 
+        case 'listarRoles':
+            resp($model->listarRoles());
+            break;
+
         case 'crear':
             $username = trim($_POST['username'] ?? '');
             $password = $_POST['password']        ?? '';
             $nombre   = trim($_POST['nombre']     ?? '');
+            $id_rol   = $_POST['id_rol'] ?? null;
+            $id_rol   = ($id_rol !== null && $id_rol !== '') ? (int)$id_rol : null;
 
             if (!$username || !$password || !$nombre) {
                 resp([], true, 'Todos los campos son obligatorios.');
@@ -33,18 +39,30 @@ try {
                 resp([], true, 'La contraseña debe tener al menos 6 caracteres.');
             }
 
-            $model->crear($username, $password, $nombre);
+            $model->crear($username, $password, $nombre, $id_rol);
             resp([], false, 'Usuario creado correctamente.');
             break;
 
         case 'editarNombre':
             $id     = (int)($_POST['id_usuario'] ?? 0);
             $nombre = trim($_POST['nombre']      ?? '');
+            $id_rol = $_POST['id_rol'] ?? null;
+            $id_rol = ($id_rol !== null && $id_rol !== '') ? (int)$id_rol : null;
 
             if (!$id || !$nombre) resp([], true, 'Datos incompletos.');
 
-            $model->editarNombre($id, $nombre);
-            resp([], false, 'Nombre actualizado.');
+            $model->editarNombre($id, $nombre, $id_rol);
+            resp([], false, 'Usuario actualizado.');
+            break;
+
+        case 'asignarRol':
+            $id     = (int)($_POST['id_usuario'] ?? 0);
+            $id_rol = $_POST['id_rol'] ?? null;
+            $id_rol = ($id_rol !== null && $id_rol !== '') ? (int)$id_rol : null;
+
+            if (!$id) resp([], true, 'ID inválido.');
+            $model->asignarRol($id, $id_rol);
+            resp([], false, 'Rol asignado.');
             break;
 
         case 'resetPassword':

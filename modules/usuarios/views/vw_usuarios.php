@@ -19,6 +19,7 @@
                                     <th>#</th>
                                     <th>Usuario</th>
                                     <th>Nombre</th>
+                                    <th>Rol</th>
                                     <th class="text-center">Estado</th>
                                     <th>Registro</th>
                                     <th class="text-center">Acciones</th>
@@ -51,6 +52,18 @@
                         <label for="u_nombre" class="form-label">Nombre completo <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="u_nombre" maxlength="150" required>
                         <div class="invalid-feedback">Ingresa el nombre completo.</div>
+                    </div>
+
+                    <!-- Rol -->
+                    <div class="mb-3">
+                        <label for="u_rol" class="form-label">Rol</label>
+                        <select class="form-select" id="u_rol">
+                            <option value="">— Sin rol asignado —</option>
+                        </select>
+                        <div class="form-text text-muted">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Define qué módulos podrá ver este usuario.
+                        </div>
                     </div>
 
                     <div id="bloque_username">

@@ -17,15 +17,32 @@ class mdlLogin
      */
     public function buscarUsuario(string $username): ?array
     {
-        $sql = "SELECT id_usuario, username, password_hash, nombre
-                FROM electronicas.Usuarios
-                WHERE username = ?
-                  AND activo   = 1";
+        $sql = "SELECT u.id_usuario, u.username, u.password_hash, u.nombre,
+                       u.id_rol, r.nombre AS nombre_rol
+                FROM electronicas.Usuarios u
+                LEFT JOIN electronicas.Roles r ON r.id_rol = u.id_rol
+                WHERE u.username = ?
+                  AND u.activo   = 1";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([$username]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return $row ?: null;
+    }
+
+    /**
+     * Devuelve las claves de módulos permitidos para un rol.
+     * Retorna null si no se pasan ID (sin restricción).
+     */
+    public function obtenerModulosRol(int $id_rol): array
+    {
+        $sql = "SELECT m.clave
+                FROM electronicas.RolModulos rm
+                INNER JOIN electronicas.Modulos m ON m.id_modulo = rm.id_modulo
+                WHERE rm.id_rol = ? AND m.activo = 1";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([$id_rol]);
+        return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'clave');
     }
 }
