@@ -204,10 +204,10 @@
             </div>
 
             <!-- Tabla de repuestos -->
-            <table class="table table-sm table-bordered mb-2 tbl-repuestos">
+            <table class="table table-sm table-bordered mb-2 tbl-repuestos" style="table-layout:fixed;width:100%">
                 <thead class="table-light">
                     <tr>
-                        <th>Repuesto</th>
+                        <th>Repuesto <span class="text-muted fw-normal small">(nombre — marca / modelo)</span></th>
                         <th style="width:110px">Cantidad</th>
                         <th style="width:90px" class="text-center">Stock</th>
                         <th style="width:40px"></th>
@@ -237,6 +237,6 @@
     .badge-stock-warn { background: #fef3c7; color:#92400e; }
     .badge-stock-bad  { background: #fee2e2; color:#991b1b; }
 
-    /* scrollable select in repuesto row */
-    .sel-repuesto { min-width: 0; }
+    /* select de repuesto: ocupa todo el ancho de la celda */
+    .sel-repuesto { min-width: 0; width: 100%; }
 </style>

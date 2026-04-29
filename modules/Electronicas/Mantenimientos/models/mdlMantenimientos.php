@@ -27,7 +27,7 @@ class mdlMantenimientos
                 FROM electronicas.Mantenimientos m
                 INNER JOIN electronicas.Maquinas          mq ON m.id_maquina = mq.id_maquina
                 INNER JOIN electronicas.TipoMantenimiento tm ON m.id_tipo    = tm.id_tipo
-                LEFT  JOIN electronicas.Tecnicos           t ON m.id_tecnico = t.id_tecnico
+                LEFT  JOIN electronicas.Usuarios           t ON m.id_tecnico = t.id_usuario
                 ORDER BY m.fecha_mantenimiento DESC";
 
         $stmt = $this->conn->prepare($sql);
@@ -146,7 +146,11 @@ class mdlMantenimientos
     public function listarTecnicos()
     {
         $stmt = $this->conn->prepare(
-            "SELECT id_tecnico, nombre FROM electronicas.Tecnicos"
+            "SELECT u.id_usuario, u.nombre
+             FROM electronicas.Usuarios u
+             INNER JOIN electronicas.Roles r ON r.id_rol = u.id_rol
+             WHERE r.nombre = 'Técnico' AND u.activo = 1
+             ORDER BY u.nombre"
         );
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);

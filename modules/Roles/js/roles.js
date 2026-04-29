@@ -143,6 +143,9 @@ $(document).ready(function () {
     });
 
     function renderPermisos(modulos, asignados) {
+        // Normalize to numbers so strict equality works regardless of what the server returns
+        const asignadosNum = asignados.map(Number);
+
         // Agrupar por grupo
         const grupos = {};
         modulos.forEach(m => {
@@ -166,7 +169,7 @@ $(document).ready(function () {
                 <div class="row">`;
 
             grupos[grupo].forEach(m => {
-                const checked = asignados.includes(parseInt(m.id_modulo)) ? 'checked' : '';
+                const checked = asignadosNum.includes(Number(m.id_modulo)) ? 'checked' : '';
                 html += `
                     <div class="col-md-6 col-lg-4">
                         <div class="form-check modulo-item">
@@ -193,11 +196,12 @@ $(document).ready(function () {
             actualizarEstadoGrupos();
         });
 
-        // Click en "Todos" del grupo
+        // Click en "Todos" del grupo — prop('checked') no dispara 'change', así que actualizamos manualmente
         $(document).on('change.permisos', '.chk-grupo-all', function () {
             const grupo   = $(this).data('grupo');
             const checked = $(this).prop('checked');
             $(`.chk-modulo[data-grupo="${grupo}"]`).prop('checked', checked);
+            actualizarEstadoGrupos();
         });
     }
 

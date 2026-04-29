@@ -97,7 +97,7 @@ function listarMantenimientos() {
 function cargarSelects() {
     cargarSelect("maquinas", "#id_maquina", "id_maquina");
     cargarSelect("tipos",    "#id_tipo",    "id_tipo");
-    cargarSelect("tecnicos", "#id_tecnico", "id_tecnico");
+    cargarSelectTecnicos();
 }
 
 function cargarSelect(accion, selector, valueKey) {
@@ -108,6 +108,25 @@ function cargarSelect(accion, selector, valueKey) {
             html += `<option value="${e[valueKey]}">${escHtml(e.nombre)}</option>`;
         });
         $(selector).html(html);
+    }, "json");
+}
+
+function cargarSelectTecnicos() {
+    $.post(CTRL, { accion: "tecnicos" }, function (resp) {
+        if (!resp.ok) { console.error(resp.mensaje); return; }
+
+        let html = '<option value="-1">Seleccione</option>';
+        resp.data.forEach(e => {
+            html += `<option value="${e.id_usuario}">${escHtml(e.nombre)}</option>`;
+        });
+        $("#id_tecnico").html(html);
+
+        // Si el usuario logueado es Técnico: pre-seleccionar y bloquear el select
+        if (window.USUARIO_ROL === "Técnico") {
+            $("#id_tecnico")
+                .val(window.USUARIO_ID)
+                .prop("disabled", true);
+        }
     }, "json");
 }
 
@@ -172,10 +191,15 @@ function guardar() {
         return;
     }
 
+    // .val() devuelve null en selects disabled; usamos el atributo directo
+    const id_tecnico = $("#id_tecnico").prop("disabled")
+        ? $("#id_tecnico option:selected").val()
+        : $("#id_tecnico").val();
+
     const payload = {
         id_maquina,
         id_tipo,
-        id_tecnico:            $("#id_tecnico").val(),
+        id_tecnico,
         fecha_mantenimiento:   fecha,
         proximo_mantenimiento: $("#proximo_mantenimiento").val() || null,
         descripcion:           $("#descripcion").val().trim(),
@@ -335,6 +359,13 @@ function limpiarModal() {
     _tareas = [];
     renderTareas();
     $("#emptyTareas").show();
+
+    // Restaurar estado del select de técnico según el rol de la sesión
+    if (window.USUARIO_ROL === "Técnico") {
+        $("#id_tecnico").val(window.USUARIO_ID).prop("disabled", true);
+    } else {
+        $("#id_tecnico").prop("disabled", false).val("-1");
+    }
 }
 
 function abrirModal(sel) {

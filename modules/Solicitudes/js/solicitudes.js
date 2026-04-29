@@ -92,6 +92,15 @@ $(document).ready(function () {
             _tecnicos.forEach(t => optsTec += `<option value="${t.id_tecnico}">${t.nombre}</option>`);
             $('#sol_tecnico').html(optsTec);
 
+            // Si el usuario logueado es Técnico: pre-seleccionar y bloquear
+            if (window.USUARIO_ROL === 'Técnico') {
+                $('#sol_tecnico')
+                    .val(window.USUARIO_ID)
+                    .prop('disabled', true);
+            } else {
+                $('#sol_tecnico').prop('disabled', false);
+            }
+
             abrirModal('#modalNuevaSolicitud');
         });
     });
@@ -132,17 +141,26 @@ $(document).ready(function () {
 
     function agregarFilaRepuesto($tbody) {
         const optsRep = _repuestos.map(r => {
-            const serie = r.maneja_serie == 1 ? ' [serie]' : '';
+            // Construir texto enriquecido: Nombre — Marca / Modelo [serie]
+            let detalle = '';
+            if (r.marca && r.modelo) detalle = ` — ${r.marca} / ${r.modelo}`;
+            else if (r.marca)        detalle = ` — ${r.marca}`;
+            else if (r.modelo)       detalle = ` — ${r.modelo}`;
+            const serieTag = r.maneja_serie == 1 ? ' [serie]' : '';
+
             return `<option value="${r.id_repuesto}"
                             data-stock="${r.stock}"
-                            data-serie="${r.maneja_serie}">${r.nombre}${serie}</option>`;
+                            data-serie="${r.maneja_serie}"
+                            data-marca="${r.marca  || ''}"
+                            data-modelo="${r.modelo || ''}"
+                    >${r.nombre}${detalle}${serieTag}</option>`;
         }).join('');
 
         const fila = $(`
         <tr>
             <td>
                 <select class="form-select form-select-sm sel-repuesto">
-                    <option value="">— Selecciona —</option>
+                    <option value="">— Selecciona repuesto —</option>
                     ${optsRep}
                 </select>
             </td>
@@ -256,11 +274,16 @@ $(document).ready(function () {
         if (errorMaquinas) { Swal.fire({ icon: 'warning', title: 'Atención', text: errorMaquinas }); ok = false; }
         if (!ok) return;
 
+        // Leer técnico aunque el select esté disabled
+        const id_tecnico_sel = $('#sol_tecnico').prop('disabled')
+            ? $('#sol_tecnico option:selected').val()
+            : $('#sol_tecnico').val();
+
         const payload = {
             descripcion,
             id_tipo,
             fecha_programada,
-            id_tecnico: $('#sol_tecnico').val() || null,
+            id_tecnico: id_tecnico_sel || null,
             maquinas
         };
 

@@ -57,16 +57,20 @@ class mdlSolicitudes
                         ELSE r.stock
                     END AS stock,
                     r.costo_promedio,
+                    ma.nombre  AS marca,
+                    mo.nombre  AS modelo,
                     ISNULL(dv.simbolo, dpred.simbolo) AS divisa_simbolo,
                     ISNULL(dv.tipo_cambio, dpred.tipo_cambio) AS tipo_cambio
                 FROM electronicas.Repuestos r
-                LEFT JOIN electronicas.Divisas dv ON dv.id_divisa = r.id_divisa
+                LEFT JOIN electronicas.Marcas   ma ON ma.id_marca  = r.id_marca
+                LEFT JOIN electronicas.Modelos  mo ON mo.id_modelo = r.id_modelo
+                LEFT JOIN electronicas.Divisas  dv ON dv.id_divisa = r.id_divisa
                 CROSS APPLY (
                     SELECT TOP 1 simbolo, tipo_cambio FROM electronicas.Divisas
                     WHERE predeterminada = 1 AND activo = 1
                 ) dpred
                 WHERE r.stock > 0 OR r.maneja_serie = 1
-                ORDER BY r.nombre";
+                ORDER BY ma.nombre, mo.nombre, r.nombre";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);

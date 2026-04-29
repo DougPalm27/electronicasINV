@@ -88,23 +88,32 @@ class mdlRoles
             "SELECT id_modulo FROM electronicas.RolModulos WHERE id_rol = ?"
         );
         $stmt->execute([$id_rol]);
-        return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id_modulo');
+        // array_map('intval',...) ensures integers even when pdo_sqlsrv returns strings
+        return array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id_modulo'));
     }
 
     public function guardarPermisosRol(int $id_rol, array $ids_modulos): void
     {
-        $del = $this->conn->prepare(
-            "DELETE FROM electronicas.RolModulos WHERE id_rol = ?"
-        );
-        $del->execute([$id_rol]);
+        $this->conn->beginTransaction();
+        try {
+            $del = $this->conn->prepare(
+                "DELETE FROM electronicas.RolModulos WHERE id_rol = ?"
+            );
+            $del->execute([$id_rol]);
 
-        if (empty($ids_modulos)) return;
+            if (!empty($ids_modulos)) {
+                $ins = $this->conn->prepare(
+                    "INSERT INTO electronicas.RolModulos (id_rol, id_modulo) VALUES (?, ?)"
+                );
+                foreach ($ids_modulos as $id_modulo) {
+                    $ins->execute([$id_rol, (int)$id_modulo]);
+                }
+            }
 
-        $ins = $this->conn->prepare(
-            "INSERT INTO electronicas.RolModulos (id_rol, id_modulo) VALUES (?, ?)"
-        );
-        foreach ($ids_modulos as $id_modulo) {
-            $ins->execute([$id_rol, (int)$id_modulo]);
+            $this->conn->commit();
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            throw $e;
         }
     }
 

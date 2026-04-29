@@ -53,8 +53,9 @@ try {
         codigo:      <?= json_encode($codigo_divisa)  ?>,
         tipo_cambio: <?= json_encode($tc_divisa)      ?>
     };
+    window.USUARIO_ID     = <?= json_encode((int)($_SESSION['id_usuario'] ?? 0)) ?>;
     window.USUARIO_NOMBRE = <?= json_encode($_SESSION['nombre']     ?? 'Usuario') ?>;
-    window.USUARIO_ROL   = <?= json_encode($_SESSION['nombre_rol'] ?? null)     ?>;
+    window.USUARIO_ROL    = <?= json_encode($_SESSION['nombre_rol'] ?? null)     ?>;
 
     /* ── Convertir cualquier monto a Lempiras ── */
     window.aLempiras = function(monto, tipo_cambio) {
