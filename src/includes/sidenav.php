@@ -21,6 +21,7 @@ function navSubItem(string $modulo, string $actual): string {
 
 // El grupo "Parametrización" debe estar abierto si el módulo activo pertenece a él
 $parametrizacion = ['proveedores','marcas','modelos','tiposRepuestos','divisas'];
+$gpsModulos      = ['gpsCredenciales','gpsTransportes'];
 $paraOpen = in_array($mod, $parametrizacion);
 
 // Verificar si hay al menos un módulo de parametrización visible
@@ -164,6 +165,35 @@ foreach ($parametrizacion as $p) {
           <span>Roles y Permisos</span>
         </a>
       </li>
+      <?php endif; ?>
+
+      <!-- ── GPS ─────────────────────────────────────────── -->
+      <?php
+      $gpsVisible = false;
+      foreach ($gpsModulos as $g) {
+          if (puedeVer($g)) { $gpsVisible = true; break; }
+      }
+      ?>
+      <?php if ($gpsVisible): ?>
+      <li class="nav-heading">GPS</li>
+
+      <?php if (puedeVer('gpsCredenciales')): ?>
+      <li class="nav-item">
+        <a class="<?= navLink('gpsCredenciales', $mod) ?>" href="?module=gpsCredenciales">
+          <i class="bi bi-geo-alt-fill"></i>
+          <span>Credenciales GPS</span>
+        </a>
+      </li>
+      <?php endif; ?>
+
+      <?php if (puedeVer('gpsTransportes')): ?>
+      <li class="nav-item">
+        <a class="<?= navLink('gpsTransportes', $mod) ?>" href="?module=gpsTransportes">
+          <i class="bi bi-truck"></i>
+          <span>Transportes</span>
+        </a>
+      </li>
+      <?php endif; ?>
       <?php endif; ?>
 
     </ul>

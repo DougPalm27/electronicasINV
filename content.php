@@ -61,9 +61,12 @@ if (empty($_GET['module'])) {
         'tiposRepuestos' => './modules/Parametrizacion/TiposRepuestos/views/vw_tiposRepuestos.php',
         'usuarios'       => './modules/Usuarios/views/vw_usuarios.php',
         'divisas'        => './modules/Parametrizacion/Divisas/views/vw_divisas.php',
-        'roles'          => './modules/Roles/views/vw_roles.php',
-        'solicitudes'    => './modules/Solicitudes/views/vw_solicitudes.php',
-        'compras'        => './modules/SolicitudesCompra/views/vw_solicitudesCompra.php',
+        'roles'            => './modules/Roles/views/vw_roles.php',
+        'solicitudes'      => './modules/Solicitudes/views/vw_solicitudes.php',
+        'compras'          => './modules/SolicitudesCompra/views/vw_solicitudesCompra.php',
+        // ── GPS ──────────────────────────────────────────────
+        'gpsCredenciales'  => './modules/GPS/GPS/views/vw_gps.php',
+        'gpsTransportes'   => './modules/GPS/Transportes/views/vw_transportes.php',
     ];
 
     if (isset($rutas[$module])) {
