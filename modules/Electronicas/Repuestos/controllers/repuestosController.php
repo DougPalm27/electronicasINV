@@ -29,6 +29,10 @@ try {
         // CATÁLOGOS
         //////////////////////////////////////////////////////////
 
+        case 'ubicaciones':
+            response($model->listarUbicaciones());
+            break;
+
         case 'proveedores':
             response($model->listarProveedores());
             break;
@@ -82,6 +86,7 @@ try {
                 "id_modelo"    => $_POST["id_modelo"] ?? null,
                 "maneja_serie" => $_POST["maneja_serie"] ?? 0,
                 "id_divisa"    => $_POST["id_divisa"] ?? null,
+                "id_ubicacion" => $_POST["id_ubicacion"] ?? null,
             ];
 
             if (!$data["nombre"])
@@ -110,6 +115,7 @@ try {
                 "id_modelo"    => $_POST["id_modelo"] ?? null,
                 "maneja_serie" => $_POST["maneja_serie"] ?? 0,
                 "id_divisa"    => $_POST["id_divisa"] ?? null,
+                "id_ubicacion" => $_POST["id_ubicacion"] ?? null,
             ];
 
             if (!$data["id_repuesto"])

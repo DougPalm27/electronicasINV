@@ -115,6 +115,7 @@ if (!empty($_GET['module'])) {
         'divisas'        => './modules/Parametrizacion/Divisas/js/divisas.js',
         'roles'          => './modules/Roles/js/roles.js',
         'solicitudes'    => './modules/Solicitudes/js/solicitudes.js',
+        'compras'        => './modules/SolicitudesCompra/js/solicitudesCompra.js',
     ];
     if (isset($map[$mod])) {
         echo '<script src="' . $map[$mod] . '"></script>';

@@ -59,3 +59,4 @@ SELECT 1, id_modulo FROM electronicas.Modulos WHERE clave = 'solicitudes';
 -- Asignar a Técnico (id_rol = 2)
 INSERT INTO electronicas.RolModulos (id_rol, id_modulo)
 SELECT 2, id_modulo FROM electronicas.Modulos WHERE clave = 'solicitudes';
+

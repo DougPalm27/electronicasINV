@@ -85,6 +85,16 @@ foreach ($parametrizacion as $p) {
       </li>
       <?php endif; ?>
 
+      <!-- Solicitudes de Compra -->
+      <?php if (puedeVer('compras')): ?>
+      <li class="nav-item">
+        <a class="<?= navLink('compras', $mod) ?>" href="?module=compras">
+          <i class="bi bi-cart-check"></i>
+          <span>Compras</span>
+        </a>
+      </li>
+      <?php endif; ?>
+
       <!-- Parametrización (grupo colapsable) -->
       <?php if ($paraVisible): ?>
       <li class="nav-item">

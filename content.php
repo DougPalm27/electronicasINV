@@ -63,6 +63,7 @@ if (empty($_GET['module'])) {
         'divisas'        => './modules/Parametrizacion/Divisas/views/vw_divisas.php',
         'roles'          => './modules/Roles/views/vw_roles.php',
         'solicitudes'    => './modules/Solicitudes/views/vw_solicitudes.php',
+        'compras'        => './modules/SolicitudesCompra/views/vw_solicitudesCompra.php',
     ];
 
     if (isset($rutas[$module])) {

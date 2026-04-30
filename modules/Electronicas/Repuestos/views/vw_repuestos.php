@@ -18,8 +18,9 @@
                     <thead>
                         <tr>
                             <th>Nombre</th>
-                            <th>N° Parte</th>
-                            <th>Proveedor</th>
+                            <th>Marca</th>
+                            <th>Modelo</th>
+                            <th>Ubicación</th>
                             <th>Stock</th>
                             <th>Costo</th>
                             <th>Acciones</th>
@@ -69,19 +70,24 @@
                         <h6 class="text-muted mb-3">Clasificación</h6>
 
                         <div class="row">
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-3 mb-3">
                                 <label for="id_tipo" class="form-label">Tipo</label>
                                 <select class="form-select select2" id="id_tipo"></select>
                             </div>
 
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-3 mb-3">
                                 <label for="id_marca" class="form-label">Marca</label>
                                 <select class="form-select select2" id="id_marca"></select>
                             </div>
 
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-3 mb-3">
                                 <label for="id_modelo" class="form-label">Modelo</label>
                                 <select class="form-select select2" id="id_modelo"></select>
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <label for="id_ubicacion" class="form-label">Ubicación</label>
+                                <select class="form-select select2" id="id_ubicacion"></select>
                             </div>
                         </div>
                     </div>
@@ -149,10 +155,10 @@
             </div>
 
             <div class="modal-footer">
-                <button class="btn btn-primary" id="btnGuardarRepuesto">
+                <button type="button" class="btn btn-primary" id="btnGuardarRepuesto">
                     <i class="bi bi-save"></i> Guardar
                 </button>
-                <button class="btn btn-success d-none" id="btnEditarRepuesto">
+                <button type="button" class="btn btn-success d-none" id="btnEditarRepuesto">
                     <i class="bi bi-pencil-square"></i> Actualizar
                 </button>
                 <button class="btn btn-secondary" data-bs-dismiss="modal">

@@ -11,6 +11,7 @@ $(document).ready(function () {
 function init() {
   listarRepuestos();
   listarProveedores();
+  cargarUbicaciones();
   initSelect2();
   cargarTipos();
   cargarMarcas();
@@ -99,8 +100,15 @@ function listarRepuestos() {
 
     columns: [
       { data: "nombre" },
-      { data: "numero_parte" },
-      { data: "proveedor" },
+      { data: "marca",  defaultContent: "—" },
+      { data: "modelo", defaultContent: "—" },
+      {
+        data: "ubicacion",
+        defaultContent: "—",
+        render: v => v
+          ? `<span class="badge bg-secondary">${v}</span>`
+          : '<span class="text-muted small">—</span>',
+      },
       {
         data: "stock",
         render: function (d, type, row) {
@@ -212,7 +220,7 @@ function listarProveedores() {
         html += `<option value="${p.id_proveedor}">${p.nombre}</option>`;
       });
 
-      $("#id_proveedor").html(html);
+      $("#id_proveedor").html(html).trigger("change");
     },
   });
 }
@@ -234,6 +242,7 @@ function obtenerDatosFormulario() {
     id_modelo:    $("#id_modelo").val(),
     maneja_serie: $("#maneja_serie").val(),
     id_divisa:    $("#id_divisa").val(),
+    id_ubicacion: $("#id_ubicacion").val() || null,
   };
 }
 
@@ -352,6 +361,9 @@ function cargarEditarRepuesto(row) {
   if (row.id_divisa) {
     $("#id_divisa").val(row.id_divisa).trigger("change");
   }
+
+  // Ubicación del repuesto
+  $("#id_ubicacion").val(row.id_ubicacion || null).trigger("change");
 
   setTimeout(() => {
     $("#id_modelo").val(row.id_modelo).trigger("change");
@@ -1065,6 +1077,24 @@ function cargarModelos(id_marca) {
   );
 }
 
+function cargarUbicaciones() {
+  $.post(
+    "./modules/Electronicas/Repuestos/Controllers/repuestosController.php",
+    { accion: "ubicaciones" },
+    function (resp) {
+      if (!resp.ok) return;
+
+      let html = `<option value="">-- Sin ubicación --</option>`;
+      resp.data.forEach((u) => {
+        html += `<option value="${u.id_ubicacion}">${u.nombre}</option>`;
+      });
+
+      $("#id_ubicacion").html(html).trigger("change");
+    },
+    "json"
+  );
+}
+
 //////////////////////////////////////////////////////////
 // UTILIDADES — MODALES
 //////////////////////////////////////////////////////////
@@ -1093,6 +1123,9 @@ function initSelect2() {
 function limpiarModalRepuesto() {
   $("#formRepuesto")[0].reset();
   $("#id_repuesto").val("");
+  // Resetear todos los Select2 del modal explícitamente
+  $("#id_proveedor, #id_tipo, #id_marca, #id_modelo, #id_ubicacion")
+    .val(null).trigger("change");
   limpiarErrores("#formRepuesto");
 }
 
