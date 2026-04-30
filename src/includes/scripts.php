@@ -114,7 +114,10 @@ if (!empty($_GET['module'])) {
         'usuarios'       => './modules/Usuarios/js/usuarios.js',
         'divisas'        => './modules/Parametrizacion/Divisas/js/divisas.js',
         'roles'          => './modules/Roles/js/roles.js',
-        'solicitudes'    => './modules/Solicitudes/js/solicitudes.js',
+        'solicitudes'     => './modules/Solicitudes/js/solicitudes.js',
+        // ── GPS ──────────────────────────────────────────────
+        'gpsCredenciales' => './modules/GPS/GPS/js/gps.js',
+        'gpsTransportes'  => './modules/GPS/Transportes/js/transportes.js',
     ];
     if (isset($map[$mod])) {
         echo '<script src="' . $map[$mod] . '"></script>';

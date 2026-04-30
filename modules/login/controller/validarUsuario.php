@@ -37,7 +37,7 @@ if ($username !== '' && $password !== '') {
 }
 
 if ($acceso) {
-    header('Location: ../../../inicio.php');
+    header('Location: ../../../selector.php');
     exit;
 }
 ?>
