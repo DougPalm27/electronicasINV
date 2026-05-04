@@ -22,6 +22,10 @@
                                     <th>Empresa</th>
                                     <th>Contacto</th>
                                     <th>Teléfono</th>
+                                    <th>Fecha creación</th>
+                                    <th>Creado por</th>
+                                    <th>Últ. actualización</th>
+                                    <th>Actualizado por</th>
                                     <th class="text-center">Estado</th>
                                     <th class="text-center">Acciones</th>
                                 </tr>

@@ -21,7 +21,7 @@ function navSubItem(string $modulo, string $actual): string {
 
 // El grupo "Parametrización" debe estar abierto si el módulo activo pertenece a él
 $parametrizacion = ['proveedores','marcas','modelos','tiposRepuestos','divisas'];
-$gpsModulos      = ['gpsCredenciales','gpsTransportes'];
+$gpsModulos      = ['gpsCredenciales','gpsTransportes','gpsCuentas','gpsTiposVehiculo','gpsDestinos','gpsPlataformas'];
 $paraOpen = in_array($mod, $parametrizacion);
 
 // Verificar si hay al menos un módulo de parametrización visible
@@ -192,6 +192,57 @@ foreach ($parametrizacion as $p) {
           <i class="bi bi-truck"></i>
           <span>Transportes</span>
         </a>
+      </li>
+      <?php endif; ?>
+
+      <?php if (puedeVer('gpsCuentas')): ?>
+      <li class="nav-item">
+        <a class="<?= navLink('gpsCuentas', $mod) ?>" href="?module=gpsCuentas">
+          <i class="bi bi-key-fill"></i>
+          <span>Cuentas GPS</span>
+        </a>
+      </li>
+      <?php endif; ?>
+
+      <?php
+      $gpsParamModulos  = ['gpsTiposVehiculo','gpsDestinos','gpsPlataformas'];
+      $gpsParamOpen     = in_array($mod, $gpsParamModulos);
+      $gpsParamVisible  = false;
+      foreach ($gpsParamModulos as $gp) { if (puedeVer($gp)) { $gpsParamVisible = true; break; } }
+      ?>
+      <?php if ($gpsParamVisible): ?>
+      <li class="nav-item">
+        <a class="nav-link <?= $gpsParamOpen ? '' : 'collapsed' ?>"
+           data-bs-target="#gps-param-nav" data-bs-toggle="collapse" href="#">
+          <i class="bi bi-sliders"></i>
+          <span>Parametrización GPS</span>
+          <i class="bi bi-chevron-down ms-auto"></i>
+        </a>
+        <ul id="gps-param-nav"
+            class="nav-content collapse <?= $gpsParamOpen ? 'show' : '' ?>"
+            data-bs-parent="#sidebar-nav">
+          <?php if (puedeVer('gpsTiposVehiculo')): ?>
+          <li>
+            <a href="?module=gpsTiposVehiculo" class="<?= navSubItem('gpsTiposVehiculo', $mod) ?>">
+              <i class="bi bi-circle"></i><span>Tipos de Vehículo</span>
+            </a>
+          </li>
+          <?php endif; ?>
+          <?php if (puedeVer('gpsDestinos')): ?>
+          <li>
+            <a href="?module=gpsDestinos" class="<?= navSubItem('gpsDestinos', $mod) ?>">
+              <i class="bi bi-circle"></i><span>Destinos</span>
+            </a>
+          </li>
+          <?php endif; ?>
+          <?php if (puedeVer('gpsPlataformas')): ?>
+          <li>
+            <a href="?module=gpsPlataformas" class="<?= navSubItem('gpsPlataformas', $mod) ?>">
+              <i class="bi bi-circle"></i><span>Plataformas</span>
+            </a>
+          </li>
+          <?php endif; ?>
+        </ul>
       </li>
       <?php endif; ?>
       <?php endif; ?>

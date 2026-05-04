@@ -16,6 +16,10 @@ $(document).ready(function () {
             { data: 'nombre', render: v => `<strong>${v}</strong>` },
             { data: 'contacto', defaultContent: '<span class="text-muted">—</span>' },
             { data: 'telefono', defaultContent: '<span class="text-muted">—</span>' },
+            { data: 'fecha_creacion',      render: v => v ? v.substring(0, 10) : '—' },
+            { data: 'creado_por_nombre',   defaultContent: '<span class="text-muted">—</span>' },
+            { data: 'fecha_actualizacion', render: v => v ? v.substring(0, 10) : '—' },
+            { data: 'actualizado_por_nombre', defaultContent: '<span class="text-muted">—</span>' },
             {
                 data: 'activo',
                 className: 'text-center',
@@ -45,7 +49,8 @@ $(document).ready(function () {
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
         order: [[1, 'asc']],
-        pageLength: 10
+        pageLength: 15,
+        scrollX: true
     });
 
     // ── Nuevo ──────────────────────────────────────────────

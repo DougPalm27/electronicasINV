@@ -7,6 +7,7 @@ include_once '../models/mdlTransportes.php';
 
 $model  = new mdlTransportes();
 $accion = $_POST['accion'] ?? '';
+$uid    = (int)($_SESSION['id_usuario'] ?? 0);
 
 function respT($data = [], bool $error = false, string $msg = ''): void
 {
@@ -32,7 +33,7 @@ try {
 
             if (!$nombre) respT([], true, 'El nombre es requerido.');
 
-            $id = $model->crear($nombre, $contacto, $telefono);
+            $id = $model->crear($nombre, $contacto, $telefono, $uid);
             respT(['id_transporte' => $id], false, "Transporte '$nombre' creado.");
             break;
 
@@ -45,14 +46,14 @@ try {
             if (!$id)     respT([], true, 'ID inválido.');
             if (!$nombre) respT([], true, 'El nombre es requerido.');
 
-            $model->editar($id, $nombre, $contacto, $telefono);
+            $model->editar($id, $nombre, $contacto, $telefono, $uid);
             respT([], false, 'Transporte actualizado.');
             break;
 
         case 'toggleActivo':
             $id = (int)($_POST['id_transporte'] ?? 0);
             if (!$id) respT([], true, 'ID inválido.');
-            $model->toggleActivo($id);
+            $model->toggleActivo($id, $uid);
             respT([], false, 'Estado actualizado.');
             break;
 
