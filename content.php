@@ -66,6 +66,10 @@ if (empty($_GET['module'])) {
         // ── GPS ──────────────────────────────────────────────
         'gpsCredenciales'  => './modules/GPS/GPS/views/vw_gps.php',
         'gpsTransportes'   => './modules/GPS/Transportes/views/vw_transportes.php',
+        'gpsCuentas'       => './modules/GPS/CuentasGPS/views/vw_cuentasGPS.php',
+        'gpsTiposVehiculo' => './modules/GPS/Parametrizacion/TiposVehiculo/views/vw_tiposVehiculo.php',
+        'gpsDestinos'      => './modules/GPS/Parametrizacion/Destinos/views/vw_destinos.php',
+        'gpsPlataformas'   => './modules/GPS/Parametrizacion/Plataformas/views/vw_plataformas.php',
     ];
 
     if (isset($rutas[$module])) {

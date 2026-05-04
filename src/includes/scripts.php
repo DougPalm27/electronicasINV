@@ -118,6 +118,10 @@ if (!empty($_GET['module'])) {
         // ── GPS ──────────────────────────────────────────────
         'gpsCredenciales' => './modules/GPS/GPS/js/gps.js',
         'gpsTransportes'  => './modules/GPS/Transportes/js/transportes.js',
+        'gpsCuentas'      => './modules/GPS/CuentasGPS/js/cuentasGPS.js',
+        'gpsTiposVehiculo'=> './modules/GPS/Parametrizacion/TiposVehiculo/js/tiposVehiculo.js',
+        'gpsDestinos'     => './modules/GPS/Parametrizacion/Destinos/js/destinos.js',
+        'gpsPlataformas'  => './modules/GPS/Parametrizacion/Plataformas/js/plataformas.js',
     ];
     if (isset($map[$mod])) {
         echo '<script src="' . $map[$mod] . '"></script>';
