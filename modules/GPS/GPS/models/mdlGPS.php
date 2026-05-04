@@ -13,11 +13,25 @@ class mdlGPS
     public function listar(): array
     {
         $stmt = $this->conn->prepare(
-            "SELECT g.id_gps, g.placa, g.tipo_vehiculo, g.plataforma,
-                    g.destino, g.usuario, g.contrasena, g.estado,
-                    g.id_transporte, t.nombre AS transporte
+            "SELECT g.id_gps, g.placa, g.estado,
+                    g.id_cuenta, g.id_tipo_vehiculo, g.id_destino,
+                    g.fecha_creacion, g.fecha_actualizacion,
+                    tv.nombre AS tipo_vehiculo,
+                    d.nombre  AS destino,
+                    t.nombre  AS transporte,
+                    p.nombre  AS plataforma,
+                    p.url_base,
+                    c.usuario, c.contrasena,
+                    uc.nombre AS creado_por_nombre,
+                    ua.nombre AS actualizado_por_nombre
              FROM gps.GPS g
-             LEFT JOIN gps.Transportes t ON t.id_transporte = g.id_transporte
+             INNER JOIN gps.CuentasGPS   c  ON c.id_cuenta      = g.id_cuenta
+             INNER JOIN gps.Transportes  t  ON t.id_transporte  = c.id_transporte
+             INNER JOIN gps.Plataformas  p  ON p.id_plataforma  = c.id_plataforma
+             LEFT  JOIN gps.TiposVehiculo tv ON tv.id_tipo_vehiculo = g.id_tipo_vehiculo
+             LEFT  JOIN gps.Destinos      d  ON d.id_destino        = g.id_destino
+             LEFT  JOIN electronicas.Usuarios uc ON uc.id_usuario = g.creado_por
+             LEFT  JOIN electronicas.Usuarios ua ON ua.id_usuario = g.actualizado_por
              ORDER BY g.placa"
         );
         $stmt->execute();
@@ -27,18 +41,16 @@ class mdlGPS
     public function crear(array $d): int
     {
         $stmt = $this->conn->prepare(
-            "INSERT INTO gps.GPS (id_transporte, tipo_vehiculo, placa, plataforma, destino, usuario, contrasena)
+            "INSERT INTO gps.GPS (id_cuenta, id_tipo_vehiculo, id_destino, placa, creado_por)
              OUTPUT INSERTED.id_gps
-             VALUES (?, ?, ?, ?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?, ?)"
         );
         $stmt->execute([
-            $d['id_transporte'] ?: null,
-            $d['tipo_vehiculo'],
+            $d['id_cuenta'],
+            $d['id_tipo_vehiculo'] ?: null,
+            $d['id_destino']       ?: null,
             $d['placa'],
-            $d['plataforma'],
-            $d['destino'],
-            $d['usuario'],
-            $d['contrasena'],
+            $d['creado_por'],
         ]);
         return (int)$stmt->fetchColumn();
     }
@@ -47,28 +59,28 @@ class mdlGPS
     {
         $stmt = $this->conn->prepare(
             "UPDATE gps.GPS
-             SET id_transporte = ?, tipo_vehiculo = ?, placa = ?,
-                 plataforma = ?, destino = ?, usuario = ?, contrasena = ?,
-                 updated_at = GETDATE()
+             SET id_cuenta = ?, id_tipo_vehiculo = ?, id_destino = ?,
+                 placa = ?, fecha_actualizacion = GETDATE(), actualizado_por = ?
              WHERE id_gps = ?"
         );
         $stmt->execute([
-            $d['id_transporte'] ?: null,
-            $d['tipo_vehiculo'],
+            $d['id_cuenta'],
+            $d['id_tipo_vehiculo'] ?: null,
+            $d['id_destino']       ?: null,
             $d['placa'],
-            $d['plataforma'],
-            $d['destino'],
-            $d['usuario'],
-            $d['contrasena'],
+            $d['actualizado_por'],
             $d['id_gps'],
         ]);
     }
 
-    public function toggleEstado(int $id): void
+    public function toggleEstado(int $id, int $uid): void
     {
         $stmt = $this->conn->prepare(
-            "UPDATE gps.GPS SET estado = 1 - estado WHERE id_gps = ?"
+            "UPDATE gps.GPS
+             SET estado = 1 - estado,
+                 fecha_actualizacion = GETDATE(), actualizado_por = ?
+             WHERE id_gps = ?"
         );
-        $stmt->execute([$id]);
+        $stmt->execute([$uid, $id]);
     }
 }
