@@ -1,31 +1,31 @@
-<section class="section">
-  <div class="row"><div class="col-12">
-    <div class="card">
-      <div class="card-body pt-3">
-        <div class="d-flex justify-content-between align-items-center mb-3 mt-2">
-          <h5 class="card-title mb-0">
-            <i class="bi bi-broadcast me-2 text-success"></i>Plataformas GPS
-          </h5>
-          <button class="btn btn-success btn-sm" id="btnNuevaPlataforma">
-            <i class="bi bi-plus-circle me-1"></i> Nueva plataforma
-          </button>
-        </div>
-        <div class="table-responsive">
-          <table id="tblPlataformas" class="table table-hover table-striped table-sm align-middle">
-            <thead class="table-success">
-              <tr>
-                <th>#</th><th>Nombre</th><th>URL base</th><th>Fecha creación</th>
-                <th>Creado por</th><th class="text-center">Estado</th>
-                <th class="text-center">Acciones</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
+<div class="col-lg-12">
+  <div class="card">
+    <div class="card-body">
+
+      <h5 class="card-title">Plataformas GPS</h5>
+
+      <div class="d-flex justify-content-between mb-3">
+        <button class="btn btn-primary" id="btnNuevaPlataforma">
+          <i class="bi bi-plus-circle me-1"></i> Nueva plataforma
+        </button>
       </div>
+
+      <div class="table-responsive">
+        <table id="tblPlataformas" class="table table-striped">
+          <thead>
+            <tr>
+              <th>#</th><th>Nombre</th><th>URL base</th><th>Fecha creación</th>
+              <th>Creado por</th><th class="text-center">Estado</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
     </div>
-  </div></div>
-</section>
+  </div>
+</div>
 
 <div class="modal fade" id="modalPlataforma" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
@@ -50,12 +50,17 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button class="btn btn-success" id="btnGuardarPlataforma">
+        <button class="btn btn-primary" id="btnGuardarPlataforma">
           <i class="bi bi-save me-1"></i> Guardar
         </button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
       </div>
     </div>
   </div>
 </div>
-<style>.is-invalid~.invalid-feedback{display:block!important}.is-invalid{border-color:#dc3545!important}</style>
+
+<style>
+  .is-invalid ~ .invalid-feedback { display: block !important; }
+  .form-control.is-invalid,
+  .form-select.is-invalid { border-color: #dc3545 !important; box-shadow: 0 0 0 0.2rem rgba(220,53,69,.2) !important; }
+</style>
