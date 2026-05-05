@@ -38,25 +38,7 @@ if ($username !== '' && $password !== '') {
 
 if ($acceso) {
     header('Location: ../../../selector.php');
-    exit;
+} else {
+    header('Location: ../../../index.php?error=invalid');
 }
-?>
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Acceso denegado</title>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.28/dist/sweetalert2.all.min.js"></script>
-</head>
-<body>
-<script>
-    Swal.fire({
-        title: 'Control de Inventario',
-        text:  'Credenciales incorrectas',
-        icon:  'error',
-        confirmButtonColor: '#3085d6',
-        confirmButtonText:  'Volver a intentar'
-    }).then(() => { window.location = '../../../index.php'; });
-</script>
-</body>
-</html>
+exit;
