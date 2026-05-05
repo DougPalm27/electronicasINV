@@ -295,6 +295,30 @@ $(document).ready(function () {
         if (errorMaquinas)    { Swal.fire({ icon: 'warning', title: 'Atención', text: errorMaquinas }); ok = false; }
         if (!ok) return;
 
+        // Validar stock antes de enviar
+        let errorStock = '';
+        $('.maquina-card').each(function () {
+            $(this).find('.rep-item').each(function () {
+                const $sel  = $(this).find('.sel-repuesto');
+                if (!$sel.val()) return;
+                const opt   = $sel.find('option:selected');
+                const serie = parseInt(opt.data('serie') || 0);
+                if (serie) return; // serie: no se valida aquí
+                const stock = parseInt(opt.data('stock') || 0);
+                const cant  = parseInt($(this).find('.inp-cantidad').val() || 0);
+                const nombre = opt.text().split(' —')[0].trim();
+                if (cant > stock) {
+                    errorStock = `Stock insuficiente para "${nombre}". Disponible: ${stock}, solicitado: ${cant}.`;
+                    return false;
+                }
+            });
+            if (errorStock) return false;
+        });
+        if (errorStock) {
+            Swal.fire({ icon: 'error', title: 'Stock insuficiente', text: errorStock });
+            return;
+        }
+
         // Leer técnico (puede estar disabled)
         const id_tecnico_val = $('#sol_tecnico').prop('disabled')
             ? $('#sol_tecnico option:selected').val()

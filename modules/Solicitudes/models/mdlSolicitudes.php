@@ -176,6 +176,32 @@ class mdlSolicitudes
 
     public function crearSolicitud(array $d): int
     {
+        // Validar stock antes de abrir la transacción
+        foreach ($d['maquinas'] as $maq) {
+            foreach ($maq['repuestos'] ?? [] as $rep) {
+                $stmtV = $this->conn->prepare(
+                    "SELECT nombre, maneja_serie,
+                            CASE WHEN maneja_serie = 1
+                                THEN (SELECT COUNT(*) FROM electronicas.RepuestosDetalle rd
+                                      WHERE rd.id_repuesto = r.id_repuesto
+                                        AND rd.id_estado_repuesto = 1)
+                                ELSE stock
+                            END AS stock_disponible
+                     FROM electronicas.Repuestos r
+                     WHERE id_repuesto = ?"
+                );
+                $stmtV->execute([$rep['id_repuesto']]);
+                $r = $stmtV->fetch(PDO::FETCH_ASSOC);
+                if (!$r) throw new RuntimeException("Repuesto no encontrado (id: {$rep['id_repuesto']}).");
+                if ((int)$r['maneja_serie'] === 0 && (int)$r['stock_disponible'] < (int)$rep['cantidad']) {
+                    throw new RuntimeException(
+                        "Stock insuficiente para \"{$r['nombre']}\". " .
+                        "Disponible: {$r['stock_disponible']}, solicitado: {$rep['cantidad']}."
+                    );
+                }
+            }
+        }
+
         $this->conn->beginTransaction();
         try {
             // Cabecera
