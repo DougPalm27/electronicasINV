@@ -8,6 +8,7 @@ $(document).ready(function () {
     if (!document.getElementById('tblGPS')) return;
 
     let cuentasCache = [];
+    let modoEdicion  = false;
 
     // ── Poblar selects fijos del modal ─────────────────────
     $.post(CTRL_TV,   { accion: 'listarActivos' },  r => poblar('#gps_id_tipo_vehiculo', r.data, 'id_tipo_vehiculo', 'nombre'), 'json');
@@ -18,8 +19,7 @@ $(document).ready(function () {
     $('#gps_id_transporte').on('change', function () {
         const idTr = $(this).val();
         const $cu  = $('#gps_id_cuenta');
-        $cu.prop('disabled', true)
-           .find('option:not(:first)').remove();
+        $cu.prop('disabled', true).find('option:not(:first)').remove();
         $('#gps_id_cuenta option:first').text('— Primero selecciona transporte —');
         limpiarInfoCuenta();
         if (!idTr) return;
@@ -73,9 +73,9 @@ $(document).ready(function () {
                         <button class="btn btn-link btn-reveal-pwd p-0 ms-1" data-visible="0" title="Mostrar / ocultar">
                             <i class="bi bi-eye text-secondary"></i></button>`;
             }},
-            { data: 'fecha_creacion',      render: v => v ? v.substring(0, 10) : '—' },
-            { data: 'creado_por_nombre',   defaultContent: '<span class="text-muted">—</span>' },
-            { data: 'fecha_actualizacion', render: v => v ? v.substring(0, 10) : '—' },
+            { data: 'fecha_creacion',         render: v => v ? v.substring(0, 10) : '—' },
+            { data: 'creado_por_nombre',      defaultContent: '<span class="text-muted">—</span>' },
+            { data: 'fecha_actualizacion',    render: v => v ? v.substring(0, 10) : '—' },
             { data: 'actualizado_por_nombre', defaultContent: '<span class="text-muted">—</span>' },
             { data: 'estado', className: 'text-center',
               render: v => v == 1 ? '<span class="badge bg-success">Activo</span>'
@@ -108,24 +108,61 @@ $(document).ready(function () {
         $btn.data('visible', vis ? 0 : 1).find('i').toggleClass('bi-eye', vis).toggleClass('bi-eye-slash', !vis);
     });
 
+    // ── Agregar fila de placa ──────────────────────────────
+    function agregarFilaPlaca(valor = '', soloLectura = false) {
+        const $lista  = $('#gps_placas_lista');
+        const index   = $lista.find('.placa-row').length;
+        const roAttr  = soloLectura ? 'readonly' : '';
+        const $fila   = $(`
+            <div class="input-group mb-2 placa-row">
+                <span class="input-group-text">${index + 1}</span>
+                <input type="text" class="form-control inp-placa text-uppercase"
+                       placeholder="Ej. ABC-123" maxlength="20" ${roAttr}
+                       value="${esc(valor)}">
+                ${soloLectura ? '' : '<button type="button" class="btn btn-outline-danger btn-quitar-placa" title="Quitar"><i class="bi bi-trash"></i></button>'}
+            </div>`);
+        $lista.append($fila);
+    }
+
+    // ── Botón agregar placa ────────────────────────────────
+    $('#btnAgregarPlaca').on('click', () => agregarFilaPlaca());
+
+    // ── Quitar fila de placa (delegado) ───────────────────
+    $('#gps_placas_lista').on('click', '.btn-quitar-placa', function () {
+        const $lista = $('#gps_placas_lista');
+        if ($lista.find('.placa-row').length <= 1) return;
+        $(this).closest('.placa-row').remove();
+        // Renumerar
+        $lista.find('.placa-row').each(function (i) {
+            $(this).find('.input-group-text').text(i + 1);
+        });
+    });
+
     // ── Nuevo ──────────────────────────────────────────────
-    $('#btnNuevoGPS').on('click', () => { reset('Nuevo vehículo GPS'); abrir('#modalGPS'); });
+    $('#btnNuevoGPS').on('click', function () {
+        modoEdicion = false;
+        reset('Nuevo vehículo GPS');
+        agregarFilaPlaca();
+        abrir('#modalGPS');
+    });
 
     // ── Editar ─────────────────────────────────────────────
     $('#tblGPS').on('click', '.btn-editar-gps', function () {
         const $b = $(this);
+        modoEdicion = true;
         reset('Editar vehículo GPS');
+
         $('#gps_id').val($b.data('id'));
-        $('#gps_placa').val($b.data('placa'));
         $('#gps_id_tipo_vehiculo').val($b.data('id-tipo'));
         $('#gps_id_destino').val($b.data('id-destino'));
 
-        const idTr    = $b.data('id-transporte');
+        agregarFilaPlaca($b.data('placa'), true);
+
+        const idTr     = $b.data('id-transporte');
         const idCuenta = $b.data('id-cuenta');
 
         if (idTr) {
             $('#gps_id_transporte').val(idTr);
-            // Load cuentas then select the right one
             $.post(CTRL_CU, { accion: 'listarPorTransporte', id_transporte: idTr }, function (r) {
                 const $cu = $('#gps_id_cuenta');
                 $cu.find('option:not(:first)').remove();
@@ -145,7 +182,6 @@ $(document).ready(function () {
                 }
             }, 'json');
         } else {
-            // Fallback: show stored info even without cascading
             $('#gps_info_plataforma').val($b.data('plataforma'));
             $('#gps_info_usuario').val($b.data('usuario'));
             $('#gps_info_contrasena').val($b.data('contrasena'));
@@ -157,25 +193,51 @@ $(document).ready(function () {
     // ── Guardar ────────────────────────────────────────────
     $('#btnGuardarGPS').on('click', function () {
         const id       = $('#gps_id').val();
-        const placa    = $('#gps_placa').val().trim().toUpperCase();
         const idCuenta = $('#gps_id_cuenta').val();
         let ok = true;
 
-        $('#gps_placa').toggleClass('is-invalid', !placa);       if (!placa)    ok = false;
-        $('#gps_id_cuenta').toggleClass('is-invalid', !idCuenta); if (!idCuenta) ok = false;
+        $('#gps_id_cuenta').toggleClass('is-invalid', !idCuenta);
+        if (!idCuenta) ok = false;
+
+        // Recolectar placas
+        const placas = [];
+        let placaVacia = false;
+        $('#gps_placas_lista .inp-placa').each(function () {
+            const v = $(this).val().trim().toUpperCase();
+            if (!v) { placaVacia = true; $(this).addClass('is-invalid'); }
+            else      { $(this).removeClass('is-invalid'); placas.push(v); }
+        });
+        if (placaVacia) ok = false;
+
+        // Duplicados dentro del formulario
+        if (ok && !modoEdicion && placas.length !== new Set(placas).size) {
+            $('#gps_placas_error').text('Hay placas repetidas en el listado.').show();
+            ok = false;
+        } else {
+            $('#gps_placas_error').hide();
+        }
+
         if (!ok) return;
 
-        $.post(CTRL_GPS, {
-            accion:           id ? 'editar' : 'crear',
-            id_gps:           id,
-            placa,
+        const datos = {
+            accion:           modoEdicion ? 'editar' : 'crear',
             id_cuenta:        idCuenta,
             id_tipo_vehiculo: $('#gps_id_tipo_vehiculo').val(),
-            id_destino:       $('#gps_id_destino').val()
-        }, function (r) {
+            id_destino:       $('#gps_id_destino').val(),
+        };
+
+        if (modoEdicion) {
+            datos.id_gps = id;
+            datos.placa  = placas[0];
+        } else {
+            datos.placas = JSON.stringify(placas);
+        }
+
+        $.post(CTRL_GPS, datos, function (r) {
             if (!r.ok) return Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje });
-            cerrar('#modalGPS'); tabla.ajax.reload();
-            Swal.fire({ icon: 'success', title: 'Listo', text: r.mensaje, timer: 1800, showConfirmButton: false });
+            cerrar('#modalGPS');
+            tabla.ajax.reload();
+            Swal.fire({ icon: 'success', title: 'Listo', text: r.mensaje, timer: 2200, showConfirmButton: false });
         }, 'json');
     });
 
@@ -206,17 +268,18 @@ $(document).ready(function () {
     function reset(titulo) {
         $('#modalGPSTitulo').text(titulo);
         $('#gps_id').val('');
-        $('#gps_placa').val('').removeClass('is-invalid');
         $('#gps_id_tipo_vehiculo, #gps_id_destino, #gps_id_transporte').val('');
-        $('#gps_id_cuenta').val('').prop('disabled', true)
+        $('#gps_id_cuenta').val('').prop('disabled', true).removeClass('is-invalid')
             .find('option:first').text('— Primero selecciona transporte —');
         $('#gps_id_cuenta').find('option:not(:first)').remove();
-        $('#gps_id_cuenta').removeClass('is-invalid');
+        $('#gps_placas_lista').empty();
+        $('#gps_placas_error').hide();
+        $('#btnAgregarPlaca').toggle(!modoEdicion);
         cuentasCache = [];
         limpiarInfoCuenta();
     }
 
-    function abrir(sel) { const el = document.querySelector(sel); (bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el)).show(); }
+    function abrir(sel)  { const el = document.querySelector(sel); (bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el)).show(); }
     function cerrar(sel) { const m = bootstrap.Modal.getInstance(document.querySelector(sel)); if (m) m.hide(); }
-    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function esc(s)      { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 });
