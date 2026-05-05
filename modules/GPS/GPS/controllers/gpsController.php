@@ -21,23 +21,37 @@ try {
 
         case 'crear':
             $id_cuenta = (int)($_POST['id_cuenta'] ?? 0);
-            $placa     = trim($_POST['placa']       ?? '');
-            if (!$id_cuenta) respG([], true, 'Selecciona una cuenta GPS.');
-            if (!$placa)     respG([], true, 'La placa es requerida.');
-            $id = $model->crear([
+            $placasRaw = $_POST['placas'] ?? '';
+            $placas    = array_values(array_filter(
+                array_map(fn($p) => strtoupper(trim($p)), json_decode($placasRaw, true) ?? [])
+            ));
+
+            if (!$id_cuenta)      respG([], true, 'Selecciona una cuenta GPS.');
+            if (empty($placas))   respG([], true, 'Ingresa al menos una placa.');
+
+            // Detectar duplicados dentro del mismo envío
+            if (count($placas) !== count(array_unique($placas)))
+                respG([], true, 'Hay placas repetidas en el listado.');
+
+            $ids = $model->crear([
                 'id_cuenta'        => $id_cuenta,
                 'id_tipo_vehiculo' => (int)($_POST['id_tipo_vehiculo'] ?? 0),
                 'id_destino'       => (int)($_POST['id_destino']       ?? 0),
-                'placa'            => strtoupper($placa),
+                'placas'           => $placas,
                 'creado_por'       => $uid,
             ]);
-            respG(['id_gps' => $id], false, "Vehículo '$placa' registrado.");
+
+            $n   = count($ids);
+            $msg = $n === 1
+                ? "Vehículo \"{$placas[0]}\" registrado."
+                : "$n vehículos registrados: " . implode(', ', $placas) . '.';
+            respG(['ids' => $ids], false, $msg);
             break;
 
         case 'editar':
             $id_gps    = (int)($_POST['id_gps']    ?? 0);
             $id_cuenta = (int)($_POST['id_cuenta'] ?? 0);
-            $placa     = trim($_POST['placa']       ?? '');
+            $placa     = strtoupper(trim($_POST['placa'] ?? ''));
             if (!$id_gps)    respG([], true, 'ID inválido.');
             if (!$id_cuenta) respG([], true, 'Selecciona una cuenta GPS.');
             if (!$placa)     respG([], true, 'La placa es requerida.');
@@ -46,7 +60,7 @@ try {
                 'id_cuenta'        => $id_cuenta,
                 'id_tipo_vehiculo' => (int)($_POST['id_tipo_vehiculo'] ?? 0),
                 'id_destino'       => (int)($_POST['id_destino']       ?? 0),
-                'placa'            => strtoupper($placa),
+                'placa'            => $placa,
                 'actualizado_por'  => $uid,
             ]);
             respG([], false, 'Vehículo actualizado.');

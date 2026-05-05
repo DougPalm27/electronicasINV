@@ -1,7 +1,7 @@
 -- ============================================================
 -- Migración: Módulo de Solicitudes de Repuestos
 -- ============================================================
-
+--YAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY
 -- 1. Cabecera de la solicitud
 CREATE TABLE electronicas.SolicitudesRepuestos (
     id_solicitud      INT IDENTITY(1,1) PRIMARY KEY,

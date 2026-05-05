@@ -19,6 +19,7 @@ class mdlGPS
                     tv.nombre AS tipo_vehiculo,
                     d.nombre  AS destino,
                     t.nombre  AS transporte,
+                    t.id_transporte,
                     p.nombre  AS plataforma,
                     p.url_base,
                     c.usuario, c.contrasena,
@@ -38,25 +39,59 @@ class mdlGPS
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function crear(array $d): int
+    private function placaExiste(string $placa, int $excluir_id = 0): bool
     {
         $stmt = $this->conn->prepare(
-            "INSERT INTO gps.GPS (id_cuenta, id_tipo_vehiculo, id_destino, placa, creado_por)
-             OUTPUT INSERTED.id_gps
-             VALUES (?, ?, ?, ?, ?)"
+            "SELECT 1 FROM gps.GPS WHERE placa = ? AND id_gps <> ?"
         );
-        $stmt->execute([
-            $d['id_cuenta'],
-            $d['id_tipo_vehiculo'] ?: null,
-            $d['id_destino']       ?: null,
-            $d['placa'],
-            $d['creado_por'],
-        ]);
-        return (int)$stmt->fetchColumn();
+        $stmt->execute([$placa, $excluir_id]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    // Recibe array de placas, inserta todas en una transacción
+    public function crear(array $d): array
+    {
+        // Verificar duplicados antes de iniciar transacción
+        foreach ($d['placas'] as $placa) {
+            if ($this->placaExiste($placa)) {
+                throw new RuntimeException("La placa \"$placa\" ya está registrada.");
+            }
+        }
+
+        $this->conn->beginTransaction();
+        try {
+            $stmt = $this->conn->prepare(
+                "INSERT INTO gps.GPS (id_cuenta, id_tipo_vehiculo, id_destino, placa, creado_por)
+                 OUTPUT INSERTED.id_gps
+                 VALUES (?, ?, ?, ?, ?)"
+            );
+
+            $ids = [];
+            foreach ($d['placas'] as $placa) {
+                $stmt->execute([
+                    $d['id_cuenta'],
+                    $d['id_tipo_vehiculo'] ?: null,
+                    $d['id_destino']       ?: null,
+                    $placa,
+                    $d['creado_por'],
+                ]);
+                $ids[] = (int)$stmt->fetchColumn();
+            }
+
+            $this->conn->commit();
+            return $ids;
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            throw $e;
+        }
     }
 
     public function editar(array $d): void
     {
+        if ($this->placaExiste($d['placa'], $d['id_gps'])) {
+            throw new RuntimeException("La placa \"{$d['placa']}\" ya está registrada en otro vehículo.");
+        }
+
         $stmt = $this->conn->prepare(
             "UPDATE gps.GPS
              SET id_cuenta = ?, id_tipo_vehiculo = ?, id_destino = ?,

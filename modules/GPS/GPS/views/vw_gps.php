@@ -40,27 +40,23 @@
         <input type="hidden" id="gps_id">
 
         <div class="row g-3">
-          <div class="col-md-4">
-            <label for="gps_placa" class="form-label">Placa <span class="text-danger">*</span></label>
-            <input type="text" class="form-control text-uppercase" id="gps_placa"
-                   maxlength="20" placeholder="Ej.: JAX2805">
-            <div class="invalid-feedback">La placa es obligatoria.</div>
-          </div>
-
-          <div class="col-md-4">
+          <!-- Tipo vehículo -->
+          <div class="col-md-6">
             <label for="gps_id_tipo_vehiculo" class="form-label">Tipo de vehículo</label>
             <select class="form-select" id="gps_id_tipo_vehiculo">
               <option value="">— Selecciona —</option>
             </select>
           </div>
 
-          <div class="col-md-4">
+          <!-- Destino -->
+          <div class="col-md-6">
             <label for="gps_id_destino" class="form-label">Destino</label>
             <select class="form-select" id="gps_id_destino">
               <option value="">— Selecciona —</option>
             </select>
           </div>
 
+          <!-- Transporte -->
           <div class="col-md-6">
             <label for="gps_id_transporte" class="form-label">Empresa de transporte <span class="text-danger">*</span></label>
             <select class="form-select" id="gps_id_transporte">
@@ -68,6 +64,7 @@
             </select>
           </div>
 
+          <!-- Cuenta GPS -->
           <div class="col-md-6">
             <label for="gps_id_cuenta" class="form-label">Cuenta GPS <span class="text-danger">*</span></label>
             <select class="form-select" id="gps_id_cuenta" disabled>
@@ -76,6 +73,7 @@
             <div class="invalid-feedback">Selecciona una cuenta GPS.</div>
           </div>
 
+          <!-- Info readonly -->
           <div class="col-md-6">
             <label class="form-label">Plataforma</label>
             <input type="text" class="form-control" id="gps_info_plataforma" readonly
@@ -89,7 +87,23 @@
             <label class="form-label">Contraseña</label>
             <input type="text" class="form-control" id="gps_info_contrasena" readonly>
           </div>
+
+          <!-- Sección placas -->
+          <div class="col-12">
+            <hr class="my-1">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <label class="form-label mb-0 fw-semibold">
+                Placas <span class="text-danger">*</span>
+              </label>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="btnAgregarPlaca">
+                <i class="bi bi-plus-lg me-1"></i> Agregar placa
+              </button>
+            </div>
+            <div id="gps_placas_lista"></div>
+            <div class="invalid-feedback" id="gps_placas_error"></div>
+          </div>
         </div>
+
       </div>
       <div class="modal-footer">
         <button class="btn btn-primary" id="btnGuardarGPS">
@@ -108,4 +122,5 @@
   .pwd-masked { letter-spacing: .15em; color: #6c757d; font-size: .85rem; }
   .btn-reveal-pwd { padding: .15rem .4rem; font-size: .78rem; line-height: 1; }
   #gps_info_plataforma, #gps_info_usuario, #gps_info_contrasena { background: #f8f9fa; color: #495057; }
+  .placa-row input { text-transform: uppercase; }
 </style>
