@@ -127,7 +127,10 @@ $(document).ready(function () {
         _maquinas.forEach(m => {
             const opt = document.createElement('option');
             opt.value = m.id_maquina;
-            opt.textContent = m.nombre;
+            let label = m.nombre;
+            if (m.serie)    label += ` · S/N: ${m.serie}`;
+            if (m.ubicacion) label += ` · ${m.ubicacion}`;
+            opt.textContent = label;
             sel.appendChild(opt);
         });
 

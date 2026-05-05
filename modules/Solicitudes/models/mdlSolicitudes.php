@@ -17,7 +17,10 @@ class mdlSolicitudes
     public function listarMaquinas(): array
     {
         $stmt = $this->conn->query(
-            "SELECT id_maquina, nombre FROM electronicas.Maquinas
+            "SELECT id_maquina, nombre,
+                    ISNULL(serie,    '') AS serie,
+                    ISNULL(ubicacion,'') AS ubicacion
+             FROM electronicas.Maquinas
              WHERE id_estado = 1 ORDER BY nombre"
         );
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
