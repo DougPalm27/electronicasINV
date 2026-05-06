@@ -13,7 +13,7 @@ class mdlUsuarios
     // ── Listar ─────────────────────────────────────────────
     public function listar(): array
     {
-        $sql = "SELECT u.id_usuario, u.username, u.nombre, u.activo,
+        $sql = "SELECT u.id_usuario, u.username, u.nombre, u.email, u.activo,
                        FORMAT(u.fecha_registro,'dd/MM/yyyy') AS fecha_registro,
                        u.id_rol, r.nombre AS nombre_rol
                 FROM electronicas.Usuarios u
@@ -35,9 +35,8 @@ class mdlUsuarios
     }
 
     // ── Crear ──────────────────────────────────────────────
-    public function crear(string $username, string $password, string $nombre, ?int $id_rol = null): void
+    public function crear(string $username, string $password, string $nombre, ?int $id_rol = null, ?string $email = null): void
     {
-        // Verificar username único
         $chk = $this->conn->prepare(
             "SELECT COUNT(*) FROM electronicas.Usuarios WHERE username = ?"
         );
@@ -49,19 +48,19 @@ class mdlUsuarios
         $hash = password_hash($password, PASSWORD_BCRYPT);
 
         $stmt = $this->conn->prepare(
-            "INSERT INTO electronicas.Usuarios (username, password_hash, nombre, id_rol)
-             VALUES (?, ?, ?, ?)"
+            "INSERT INTO electronicas.Usuarios (username, password_hash, nombre, id_rol, email)
+             VALUES (?, ?, ?, ?, ?)"
         );
-        $stmt->execute([$username, $hash, $nombre, $id_rol]);
+        $stmt->execute([$username, $hash, $nombre, $id_rol, $email ?: null]);
     }
 
-    // ── Editar usuario (nombre + rol) ─────────────────────
-    public function editarNombre(int $id, string $nombre, ?int $id_rol = null): void
+    // ── Editar usuario (nombre + rol + email) ─────────────
+    public function editarNombre(int $id, string $nombre, ?int $id_rol = null, ?string $email = null): void
     {
         $stmt = $this->conn->prepare(
-            "UPDATE electronicas.Usuarios SET nombre = ?, id_rol = ? WHERE id_usuario = ?"
+            "UPDATE electronicas.Usuarios SET nombre = ?, id_rol = ?, email = ? WHERE id_usuario = ?"
         );
-        $stmt->execute([$nombre, $id_rol, $id]);
+        $stmt->execute([$nombre, $id_rol, $email ?: null, $id]);
     }
 
     // ── Asignar rol ────────────────────────────────────────

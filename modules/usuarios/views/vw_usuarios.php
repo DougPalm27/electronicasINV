@@ -19,6 +19,7 @@
                                     <th>#</th>
                                     <th>Usuario</th>
                                     <th>Nombre</th>
+                                    <th>Email</th>
                                     <th>Rol</th>
                                     <th class="text-center">Estado</th>
                                     <th>Registro</th>
@@ -52,6 +53,17 @@
                         <label for="u_nombre" class="form-label">Nombre completo <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="u_nombre" maxlength="150" required>
                         <div class="invalid-feedback">Ingresa el nombre completo.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="u_email" class="form-label">Correo electrónico</label>
+                        <input type="email" class="form-control" id="u_email" maxlength="150"
+                               placeholder="usuario@empresa.com">
+                        <div class="form-text text-muted">
+                            <i class="bi bi-envelope me-1"></i>
+                            Se usa para enviar notificaciones del sistema.
+                        </div>
+                        <div class="invalid-feedback">Ingresa un correo válido.</div>
                     </div>
 
                     <!-- Rol -->

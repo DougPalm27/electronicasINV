@@ -29,6 +29,7 @@ try {
             $username = trim($_POST['username'] ?? '');
             $password = $_POST['password']        ?? '';
             $nombre   = trim($_POST['nombre']     ?? '');
+            $email    = trim($_POST['email']      ?? '') ?: null;
             $id_rol   = $_POST['id_rol'] ?? null;
             $id_rol   = ($id_rol !== null && $id_rol !== '') ? (int)$id_rol : null;
 
@@ -38,20 +39,27 @@ try {
             if (strlen($password) < 6) {
                 resp([], true, 'La contraseña debe tener al menos 6 caracteres.');
             }
+            if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                resp([], true, 'El correo electrónico no es válido.');
+            }
 
-            $model->crear($username, $password, $nombre, $id_rol);
+            $model->crear($username, $password, $nombre, $id_rol, $email);
             resp([], false, 'Usuario creado correctamente.');
             break;
 
         case 'editarNombre':
             $id     = (int)($_POST['id_usuario'] ?? 0);
             $nombre = trim($_POST['nombre']      ?? '');
+            $email  = trim($_POST['email']       ?? '') ?: null;
             $id_rol = $_POST['id_rol'] ?? null;
             $id_rol = ($id_rol !== null && $id_rol !== '') ? (int)$id_rol : null;
 
             if (!$id || !$nombre) resp([], true, 'Datos incompletos.');
+            if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                resp([], true, 'El correo electrónico no es válido.');
+            }
 
-            $model->editarNombre($id, $nombre, $id_rol);
+            $model->editarNombre($id, $nombre, $id_rol, $email);
             resp([], false, 'Usuario actualizado.');
             break;
 

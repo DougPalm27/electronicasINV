@@ -29,6 +29,12 @@ $(document).ready(function () {
             { data: 'username' },
             { data: 'nombre' },
             {
+                data: 'email',
+                render: v => v
+                    ? `<a href="mailto:${v}" class="text-decoration-none small">${v}</a>`
+                    : '<span class="text-muted small">—</span>'
+            },
+            {
                 data: 'nombre_rol',
                 render: v => v
                     ? `<span class="badge bg-primary">${v}</span>`
@@ -50,6 +56,7 @@ $(document).ready(function () {
                     <button class="btn btn-sm btn-warning btn-editar me-1"
                             data-id="${r.id_usuario}"
                             data-nombre="${r.nombre}"
+                            data-email="${r.email || ''}"
                             data-rol="${r.id_rol || ''}"
                             title="Editar usuario">
                         <i class="bi bi-pencil"></i>
@@ -77,6 +84,7 @@ $(document).ready(function () {
         $('#frmUsuario')[0].reset();
         $('#frmUsuario .is-invalid').removeClass('is-invalid');
         $('#u_id').val('');
+        $('#u_email').val('');
         $('#bloque_username').show();
         $('#u_username, #u_password, #u_confirmar').prop('required', true);
         cargarRoles('');
@@ -87,6 +95,7 @@ $(document).ready(function () {
     $('#tblUsuarios').on('click', '.btn-editar', function () {
         const id     = $(this).data('id');
         const nombre = $(this).data('nombre');
+        const email  = $(this).data('email');
         const rol    = $(this).data('rol');
 
         $('#modalUsuarioTitulo').text('Editar usuario');
@@ -94,6 +103,7 @@ $(document).ready(function () {
         $('#frmUsuario .is-invalid').removeClass('is-invalid');
         $('#u_id').val(id);
         $('#u_nombre').val(nombre);
+        $('#u_email').val(email || '');
         $('#bloque_username').hide();
         $('#u_username, #u_password, #u_confirmar').prop('required', false);
         cargarRoles(rol);
@@ -105,6 +115,7 @@ $(document).ready(function () {
         const id        = $('#u_id').val();
         const esNuevo   = !id;
         const nombre    = $('#u_nombre').val().trim();
+        const email     = $('#u_email').val().trim();
         const username  = $('#u_username').val().trim();
         const password  = $('#u_password').val();
         const confirmar = $('#u_confirmar').val();
@@ -114,6 +125,12 @@ $(document).ready(function () {
 
         toggleInvalid('#u_nombre', !nombre);
         if (!nombre) valido = false;
+
+        // Validar email si se ingresó
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const emailInvalido = email !== '' && !emailRegex.test(email);
+        toggleInvalid('#u_email', emailInvalido);
+        if (emailInvalido) valido = false;
 
         if (esNuevo) {
             toggleInvalid('#u_username', !username);
@@ -131,8 +148,8 @@ $(document).ready(function () {
 
         const accion = esNuevo ? 'crear' : 'editarNombre';
         const datos  = esNuevo
-            ? { accion, nombre, username, password, id_rol }
-            : { accion, id_usuario: id, nombre, id_rol };
+            ? { accion, nombre, email, username, password, id_rol }
+            : { accion, id_usuario: id, nombre, email, id_rol };
 
         $.post(CTRL_USR, datos, function (resp) {
             if (!resp.ok) {
