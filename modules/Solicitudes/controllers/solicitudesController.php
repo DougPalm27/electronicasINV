@@ -4,8 +4,10 @@ requireLogin(true);
 
 header('Content-Type: application/json');
 include_once '../models/mdlSolicitudes.php';
+require_once '../../../config/Mailer.php';
 
 $model  = new mdlSolicitudes();
+$mailer = new Mailer();
 $accion = $_POST['accion'] ?? '';
 
 function respS($data = [], bool $error = false, string $msg = ''): void
@@ -83,6 +85,28 @@ try {
                 'fecha_programada' => $fecha_programada,
                 'maquinas'        => $maquinas,
             ]);
+
+            // Notificar a admins
+            try {
+                $admins = Mailer::getAdmins($model->getConn());
+                if (!empty($admins)) {
+                    $tipo_nombre = '';
+                    foreach ($model->listarTipos() as $t) {
+                        if ((int)$t['id_tipo'] === $id_tipo) { $tipo_nombre = $t['nombre']; break; }
+                    }
+                    $mailer->send($admins,
+                        "Nueva solicitud de repuestos #$id",
+                        Mailer::tplNuevaSolicitudRepuesto([
+                            'id'          => $id,
+                            'solicitante' => $_SESSION['nombre'] ?? '—',
+                            'descripcion' => $descripcion,
+                            'tipo'        => $tipo_nombre,
+                            'fecha'       => date('d/m/Y'),
+                        ])
+                    );
+                }
+            } catch (Throwable) { /* El correo no bloquea la operación */ }
+
             respS(['id_solicitud' => $id], false, "Solicitud #$id creada correctamente.");
             break;
 
@@ -93,6 +117,22 @@ try {
             $resp = $model->aprobarSolicitud($id, (int)$_SESSION['id_usuario']);
             if (!empty($resp['error'])) respS([], true, $resp['mensaje']);
             $n = count($resp['mantenimientos']);
+
+            // Notificar al solicitante
+            try {
+                $sol = $model->obtenerEmailSolicitante($id);
+                if (!empty($sol['email'])) {
+                    $mailer->send($sol['email'],
+                        "Solicitud de repuestos #$id — Aprobada",
+                        Mailer::tplRespuestaSolicitudRepuesto([
+                            'id'      => $id,
+                            'estado'  => 'Aprobado',
+                            'revisor' => $_SESSION['nombre'] ?? '—',
+                        ])
+                    );
+                }
+            } catch (Throwable) {}
+
             respS($resp, false, "Solicitud aprobada. Se generaron $n mantenimiento(s).");
             break;
 
@@ -103,6 +143,23 @@ try {
             if (!$id)     respS([], true, 'ID inválido.');
             if (!$motivo) respS([], true, 'Debes indicar el motivo del rechazo.');
             $model->rechazarSolicitud($id, (int)$_SESSION['id_usuario'], $motivo);
+
+            // Notificar al solicitante
+            try {
+                $sol = $model->obtenerEmailSolicitante($id);
+                if (!empty($sol['email'])) {
+                    $mailer->send($sol['email'],
+                        "Solicitud de repuestos #$id — Rechazada",
+                        Mailer::tplRespuestaSolicitudRepuesto([
+                            'id'      => $id,
+                            'estado'  => 'Rechazado',
+                            'revisor' => $_SESSION['nombre'] ?? '—',
+                            'motivo'  => $motivo,
+                        ])
+                    );
+                }
+            } catch (Throwable) {}
+
             respS([], false, 'Solicitud rechazada.');
             break;
 

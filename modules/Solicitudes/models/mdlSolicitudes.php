@@ -428,4 +428,18 @@ class mdlSolicitudes
         if ($stmt->rowCount() === 0)
             throw new RuntimeException('No puedes cancelar esta solicitud.');
     }
+
+    public function obtenerEmailSolicitante(int $id_solicitud): array
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT u.nombre, u.email
+             FROM electronicas.SolicitudesRepuestos s
+             INNER JOIN electronicas.Usuarios u ON u.id_usuario = s.id_usuario
+             WHERE s.id_solicitud = ?"
+        );
+        $stmt->execute([$id_solicitud]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function getConn(): \PDO { return $this->conn; }
 }

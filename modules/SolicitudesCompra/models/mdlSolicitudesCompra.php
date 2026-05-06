@@ -559,4 +559,18 @@ class mdlSolicitudesCompra
             throw new RuntimeException('No se puede cancelar esta solicitud en su estado actual.');
         }
     }
+
+    public function obtenerEmailSolicitante(int $id): array
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT u.nombre, u.email
+             FROM electronicas.SolicitudesCompra s
+             INNER JOIN electronicas.Usuarios u ON u.id_usuario = s.id_usuario
+             WHERE s.id_solicitud_compra = ?"
+        );
+        $stmt->execute([$id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function getConn(): \PDO { return $this->conn; }
 }

@@ -5,8 +5,10 @@ requireLogin(true);
 
 header('Content-Type: application/json');
 include_once '../models/mdlSolicitudesCompra.php';
+require_once '../../../config/Mailer.php';
 
 $model    = new mdlSolicitudesCompra();
+$mailer   = new Mailer();
 $accion   = $_POST['accion'] ?? $_GET['accion'] ?? '';
 $esAdmin  = ($_SESSION['nombre_rol'] ?? '') === 'Administrador';
 $idUsuario = (int)$_SESSION['id_usuario'];
@@ -77,6 +79,25 @@ try {
 
             $id = $model->guardarBorrador($payload, $idExistente);
             $model->enviarSolicitud($id, $idUsuario);
+
+            // Notificar admins
+            try {
+                $admins = Mailer::getAdmins($model->getConn());
+                if (!empty($admins)) {
+                    $det = $model->obtenerDetalle($id);
+                    $mailer->send($admins,
+                        "Nueva solicitud de compra #$id",
+                        Mailer::tplNuevaSolicitudCompra([
+                            'id'          => $id,
+                            'solicitante' => $_SESSION['nombre'] ?? '—',
+                            'descripcion' => $det['descripcion'] ?? '—',
+                            'proveedor'   => $det['proveedor']   ?? 'Sin especificar',
+                            'fecha'       => date('d/m/Y'),
+                        ])
+                    );
+                }
+            } catch (Throwable) {}
+
             resp(['id_solicitud_compra' => $id], false, 'Solicitud enviada correctamente.');
             break;
 
@@ -85,6 +106,25 @@ try {
             $id = (int)($_POST['id'] ?? 0);
             if (!$id) resp([], true, 'ID inválido.');
             $model->enviarSolicitud($id, $idUsuario);
+
+            // Notificar admins
+            try {
+                $admins = Mailer::getAdmins($model->getConn());
+                if (!empty($admins)) {
+                    $det = $model->obtenerDetalle($id);
+                    $mailer->send($admins,
+                        "Nueva solicitud de compra #$id",
+                        Mailer::tplNuevaSolicitudCompra([
+                            'id'          => $id,
+                            'solicitante' => $_SESSION['nombre'] ?? '—',
+                            'descripcion' => $det['descripcion'] ?? '—',
+                            'proveedor'   => $det['proveedor']   ?? 'Sin especificar',
+                            'fecha'       => date('d/m/Y'),
+                        ])
+                    );
+                }
+            } catch (Throwable) {}
+
             resp([], false, 'Solicitud enviada.');
             break;
 
@@ -94,6 +134,22 @@ try {
             $id = (int)($_POST['id'] ?? 0);
             if (!$id) resp([], true, 'ID inválido.');
             $model->aprobarSolicitud($id, $idUsuario);
+
+            // Notificar al solicitante
+            try {
+                $sol = $model->obtenerEmailSolicitante($id);
+                if (!empty($sol['email'])) {
+                    $mailer->send($sol['email'],
+                        "Solicitud de compra #$id — Aprobada",
+                        Mailer::tplRespuestaSolicitudCompra([
+                            'id'      => $id,
+                            'estado'  => 'Aprobada',
+                            'revisor' => $_SESSION['nombre'] ?? '—',
+                        ])
+                    );
+                }
+            } catch (Throwable) {}
+
             resp([], false, 'Solicitud aprobada.');
             break;
 
@@ -104,6 +160,23 @@ try {
             $motivo = trim($_POST['motivo'] ?? '');
             if (!$id || !$motivo) resp([], true, 'ID o motivo faltante.');
             $model->rechazarSolicitud($id, $idUsuario, $motivo);
+
+            // Notificar al solicitante
+            try {
+                $sol = $model->obtenerEmailSolicitante($id);
+                if (!empty($sol['email'])) {
+                    $mailer->send($sol['email'],
+                        "Solicitud de compra #$id — Rechazada",
+                        Mailer::tplRespuestaSolicitudCompra([
+                            'id'      => $id,
+                            'estado'  => 'Rechazada',
+                            'revisor' => $_SESSION['nombre'] ?? '—',
+                            'motivo'  => $motivo,
+                        ])
+                    );
+                }
+            } catch (Throwable) {}
+
             resp([], false, 'Solicitud rechazada.');
             break;
 
@@ -130,6 +203,19 @@ try {
             if (!empty($result['error'])) {
                 resp([], true, $result['mensaje']);
             }
+
+            // Notificar al solicitante
+            try {
+                $sol = $model->obtenerEmailSolicitante($id);
+                if (!empty($sol['email'])) {
+                    $estadoRec = $result['estado'] ?? 'Recibida parcial';
+                    $mailer->send($sol['email'],
+                        "Recepción registrada — Solicitud de compra #$id",
+                        Mailer::tplRecepcionCompra(['id' => $id, 'estado' => $estadoRec])
+                    );
+                }
+            } catch (Throwable) {}
+
             $msg = 'Recepción registrada. Inventario actualizado.';
             if (!empty($result['warnings'])) {
                 $msg .= ' Avisos: ' . implode(' | ', $result['warnings']);
