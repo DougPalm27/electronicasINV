@@ -81,6 +81,7 @@ try {
             $model->enviarSolicitud($id, $idUsuario);
 
             // Notificar admins
+            $mailErr = null;
             try {
                 $admins = Mailer::getAdmins($model->getConn());
                 if (!empty($admins)) {
@@ -95,10 +96,12 @@ try {
                             'fecha'       => date('d/m/Y'),
                         ])
                     );
+                } else {
+                    $mailErr = 'No hay admins con correo registrado.';
                 }
-            } catch (Throwable) {}
+            } catch (Throwable $me) { $mailErr = $me->getMessage(); }
 
-            resp(['id_solicitud_compra' => $id], false, 'Solicitud enviada correctamente.');
+            resp(['id_solicitud_compra' => $id, 'mail_error' => $mailErr], false, 'Solicitud enviada correctamente.');
             break;
 
         // ── Enviar borrador existente ──────────────────────
@@ -108,6 +111,7 @@ try {
             $model->enviarSolicitud($id, $idUsuario);
 
             // Notificar admins
+            $mailErr = null;
             try {
                 $admins = Mailer::getAdmins($model->getConn());
                 if (!empty($admins)) {
@@ -122,10 +126,12 @@ try {
                             'fecha'       => date('d/m/Y'),
                         ])
                     );
+                } else {
+                    $mailErr = 'No hay admins con correo registrado.';
                 }
-            } catch (Throwable) {}
+            } catch (Throwable $me) { $mailErr = $me->getMessage(); }
 
-            resp([], false, 'Solicitud enviada.');
+            resp(['mail_error' => $mailErr], false, 'Solicitud enviada.');
             break;
 
         // ── Aprobar ────────────────────────────────────────
@@ -136,6 +142,7 @@ try {
             $model->aprobarSolicitud($id, $idUsuario);
 
             // Notificar al solicitante
+            $mailErr = null;
             try {
                 $sol = $model->obtenerEmailSolicitante($id);
                 if (!empty($sol['email'])) {
@@ -147,10 +154,12 @@ try {
                             'revisor' => $_SESSION['nombre'] ?? '—',
                         ])
                     );
+                } else {
+                    $mailErr = 'El solicitante no tiene correo registrado.';
                 }
-            } catch (Throwable) {}
+            } catch (Throwable $me) { $mailErr = $me->getMessage(); }
 
-            resp([], false, 'Solicitud aprobada.');
+            resp(['mail_error' => $mailErr], false, 'Solicitud aprobada.');
             break;
 
         // ── Rechazar ───────────────────────────────────────
@@ -162,6 +171,7 @@ try {
             $model->rechazarSolicitud($id, $idUsuario, $motivo);
 
             // Notificar al solicitante
+            $mailErr = null;
             try {
                 $sol = $model->obtenerEmailSolicitante($id);
                 if (!empty($sol['email'])) {
@@ -174,10 +184,12 @@ try {
                             'motivo'  => $motivo,
                         ])
                     );
+                } else {
+                    $mailErr = 'El solicitante no tiene correo registrado.';
                 }
-            } catch (Throwable) {}
+            } catch (Throwable $me) { $mailErr = $me->getMessage(); }
 
-            resp([], false, 'Solicitud rechazada.');
+            resp(['mail_error' => $mailErr], false, 'Solicitud rechazada.');
             break;
 
         // ── Registrar orden al proveedor ───────────────────
@@ -205,6 +217,7 @@ try {
             }
 
             // Notificar al solicitante
+            $mailErr = null;
             try {
                 $sol = $model->obtenerEmailSolicitante($id);
                 if (!empty($sol['email'])) {
@@ -213,14 +226,16 @@ try {
                         "Recepción registrada — Solicitud de compra #$id",
                         Mailer::tplRecepcionCompra(['id' => $id, 'estado' => $estadoRec])
                     );
+                } else {
+                    $mailErr = 'El solicitante no tiene correo registrado.';
                 }
-            } catch (Throwable) {}
+            } catch (Throwable $me) { $mailErr = $me->getMessage(); }
 
             $msg = 'Recepción registrada. Inventario actualizado.';
             if (!empty($result['warnings'])) {
                 $msg .= ' Avisos: ' . implode(' | ', $result['warnings']);
             }
-            resp([], false, $msg);
+            resp(['mail_error' => $mailErr], false, $msg);
             break;
 
         // ── Cerrar recepción parcial ───────────────────────

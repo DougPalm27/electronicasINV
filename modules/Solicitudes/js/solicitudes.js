@@ -345,6 +345,8 @@ $(document).ready(function () {
                 Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje });
                 return;
             }
+            if (r.data?.mail_error) console.warn('[MAIL] Error al notificar:', r.data.mail_error);
+            else console.log('[MAIL] Notificación enviada correctamente.');
             cerrarModal('#modalNuevaSolicitud');
             tabla.ajax.reload();
             Swal.fire({ icon: 'success', title: '¡Solicitud enviada!', text: r.mensaje,
@@ -515,6 +517,8 @@ $(document).ready(function () {
         }).then(res => {
             if (!res.isConfirmed) return;
             $.post(CTRL_SOL, { accion: 'aprobar', id_solicitud: _idDetalle }, function (r) {
+                if (r.ok && r.data?.mail_error) console.warn('[MAIL] Error al notificar:', r.data.mail_error);
+                else if (r.ok) console.log('[MAIL] Notificación enviada correctamente.');
                 cerrarModal('#modalDetalle');
                 tabla.ajax.reload();
                 Swal.fire({
@@ -544,6 +548,8 @@ $(document).ready(function () {
             return;
         }
         $.post(CTRL_SOL, { accion: 'rechazar', id_solicitud: id, motivo }, function (r) {
+            if (r.ok && r.data?.mail_error) console.warn('[MAIL] Error al notificar:', r.data.mail_error);
+            else if (r.ok) console.log('[MAIL] Notificación enviada correctamente.');
             cerrarModal('#modalRechazo');
             tabla.ajax.reload();
             Swal.fire({ icon: r.ok ? 'success' : 'error',

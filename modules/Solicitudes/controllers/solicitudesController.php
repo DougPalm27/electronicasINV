@@ -87,6 +87,7 @@ try {
             ]);
 
             // Notificar a admins
+            $mailErr = null;
             try {
                 $admins = Mailer::getAdmins($model->getConn());
                 if (!empty($admins)) {
@@ -104,10 +105,12 @@ try {
                             'fecha'       => date('d/m/Y'),
                         ])
                     );
+                } else {
+                    $mailErr = 'No hay admins con correo registrado.';
                 }
-            } catch (Throwable) { /* El correo no bloquea la operación */ }
+            } catch (Throwable $me) { $mailErr = $me->getMessage(); }
 
-            respS(['id_solicitud' => $id], false, "Solicitud #$id creada correctamente.");
+            respS(['id_solicitud' => $id, 'mail_error' => $mailErr], false, "Solicitud #$id creada correctamente.");
             break;
 
         // ── Aprobar ──────────────────────────────────────────
@@ -119,6 +122,7 @@ try {
             $n = count($resp['mantenimientos']);
 
             // Notificar al solicitante
+            $mailErr = null;
             try {
                 $sol = $model->obtenerEmailSolicitante($id);
                 if (!empty($sol['email'])) {
@@ -130,9 +134,12 @@ try {
                             'revisor' => $_SESSION['nombre'] ?? '—',
                         ])
                     );
+                } else {
+                    $mailErr = 'El solicitante no tiene correo registrado.';
                 }
-            } catch (Throwable) {}
+            } catch (Throwable $me) { $mailErr = $me->getMessage(); }
 
+            $resp['mail_error'] = $mailErr;
             respS($resp, false, "Solicitud aprobada. Se generaron $n mantenimiento(s).");
             break;
 
@@ -145,6 +152,7 @@ try {
             $model->rechazarSolicitud($id, (int)$_SESSION['id_usuario'], $motivo);
 
             // Notificar al solicitante
+            $mailErr = null;
             try {
                 $sol = $model->obtenerEmailSolicitante($id);
                 if (!empty($sol['email'])) {
@@ -157,10 +165,12 @@ try {
                             'motivo'  => $motivo,
                         ])
                     );
+                } else {
+                    $mailErr = 'El solicitante no tiene correo registrado.';
                 }
-            } catch (Throwable) {}
+            } catch (Throwable $me) { $mailErr = $me->getMessage(); }
 
-            respS([], false, 'Solicitud rechazada.');
+            respS(['mail_error' => $mailErr], false, 'Solicitud rechazada.');
             break;
 
         // ── Cancelar (propio técnico) ─────────────────────────

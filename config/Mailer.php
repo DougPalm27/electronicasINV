@@ -9,18 +9,23 @@ use PHPMailer\PHPMailer\Exception;
 class Mailer
 {
     private array $cfg;
+    private static string $logFile = __DIR__ . '/../logs/mail.log';
 
     public function __construct()
     {
         $this->cfg = require __DIR__ . '/mail.php';
+        // Crear carpeta logs si no existe
+        $dir = dirname(self::$logFile);
+        if (!is_dir($dir)) mkdir($dir, 0755, true);
     }
 
     /**
      * Envía un correo HTML.
      *
-     * @param string|array $to     Correo(s) destinatario. String o array de ['email' => ..., 'name' => ...]
+     * @param string|array $to      Correo(s) destinatario. String o array de ['email' => ..., 'name' => ...]
      * @param string       $subject
-     * @param string       $body   HTML completo del mensaje
+     * @param string       $body    HTML completo del mensaje
+     * @throws \PHPMailer\PHPMailer\Exception si falla el envío
      */
     public function send(string|array $to, string $subject, string $body): void
     {
@@ -37,11 +42,14 @@ class Mailer
 
         $mail->setFrom($this->cfg['from_email'], $this->cfg['from_name']);
 
+        $destinatarios = [];
         if (is_string($to)) {
             $mail->addAddress($to);
+            $destinatarios[] = $to;
         } else {
             foreach ($to as $recipient) {
                 $mail->addAddress($recipient['email'], $recipient['name'] ?? '');
+                $destinatarios[] = $recipient['email'];
             }
         }
 
@@ -50,7 +58,22 @@ class Mailer
         $mail->Body    = $body;
         $mail->AltBody = strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $body));
 
-        $mail->send();
+        try {
+            $mail->send();
+            self::log('OK', $subject, $destinatarios);
+        } catch (\PHPMailer\PHPMailer\Exception $e) {
+            self::log('ERROR', $subject, $destinatarios, $mail->ErrorInfo);
+            throw $e;
+        }
+    }
+
+    private static function log(string $estado, string $subject, array $to, string $error = ''): void
+    {
+        $fecha = date('Y-m-d H:i:s');
+        $dest  = implode(', ', $to);
+        $linea = "[$fecha] [$estado] Asunto: \"$subject\" | Para: $dest";
+        if ($error) $linea .= " | Error: $error";
+        file_put_contents(self::$logFile, $linea . "\n", FILE_APPEND | LOCK_EX);
     }
 
     /**

@@ -854,6 +854,8 @@ function bindEventos(esAdmin) {
             if (!res.isConfirmed) return;
             $.post(CTRL_COMPRAS, { accion: 'enviar', id: _detalleId }, function (r) {
                 if (!r.ok) { Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje }); return; }
+                if (r.data?.mail_error) console.warn('[MAIL] Error al notificar:', r.data.mail_error);
+                else console.log('[MAIL] Notificación enviada correctamente.');
                 $MODAL_DETALLE.modal('hide');
                 _tabla.ajax.reload(null, false);
                 Swal.fire({ icon: 'success', title: '¡Enviada!', text: r.mensaje,
@@ -872,6 +874,8 @@ function bindEventos(esAdmin) {
             if (!res.isConfirmed) return;
             $.post(CTRL_COMPRAS, { accion: 'aprobar', id: _detalleId }, function (r) {
                 if (!r.ok) { Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje }); return; }
+                if (r.data?.mail_error) console.warn('[MAIL] Error al notificar:', r.data.mail_error);
+                else console.log('[MAIL] Notificación enviada correctamente.');
                 $MODAL_DETALLE.modal('hide');
                 _tabla.ajax.reload(null, false);
                 Swal.fire({ icon: 'success', title: '¡Aprobada!', text: r.mensaje,
@@ -893,6 +897,8 @@ function bindEventos(esAdmin) {
         $.post(CTRL_COMPRAS, { accion: 'rechazar', id: _detalleId, motivo }, function (r) {
             $('#btnConfirmarRechazoCompra').prop('disabled', false);
             if (!r.ok) { Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje }); return; }
+            if (r.data?.mail_error) console.warn('[MAIL] Error al notificar:', r.data.mail_error);
+            else console.log('[MAIL] Notificación enviada correctamente.');
             $MODAL_RECHAZO.modal('hide');
             $MODAL_DETALLE.modal('hide');
             _tabla.ajax.reload(null, false);
@@ -977,6 +983,8 @@ function bindEventos(esAdmin) {
         }, function (r) {
             $('#btnConfirmarRecepcion').prop('disabled', false);
             if (!r.ok) { Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje }); return; }
+            if (r.data?.mail_error) console.warn('[MAIL] Error al notificar:', r.data.mail_error);
+            else console.log('[MAIL] Notificación enviada correctamente.');
             $MODAL_RECEPCION.modal('hide');
             $MODAL_DETALLE.modal('hide');
             _tabla.ajax.reload(null, false);
