@@ -87,7 +87,7 @@ class Mailer
              FROM electronicas.Usuarios u
              INNER JOIN electronicas.Roles r ON r.id_rol = u.id_rol
              WHERE r.nombre = 'Administrador'
-               AND u.estado = 1
+               AND u.activo = 1
                AND u.email IS NOT NULL
                AND u.email <> ''"
         );
