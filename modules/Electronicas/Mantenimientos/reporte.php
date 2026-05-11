@@ -21,7 +21,6 @@ $stmtM = $conn->prepare("
         mq.serie                         AS maquina_serie,
         tm.nombre                        AS tipo,
         ISNULL(t.nombre, '—')            AS tecnico,
-        ISNULL(t.telefono, '')           AS tecnico_tel,
         m.fecha_mantenimiento,
         m.proximo_mantenimiento,
         ISNULL(m.descripcion, '')        AS descripcion,
@@ -29,7 +28,7 @@ $stmtM = $conn->prepare("
     FROM electronicas.Mantenimientos m
     INNER JOIN electronicas.Maquinas          mq ON m.id_maquina = mq.id_maquina
     INNER JOIN electronicas.TipoMantenimiento tm ON m.id_tipo    = tm.id_tipo
-    LEFT  JOIN electronicas.Tecnicos           t ON m.id_tecnico = t.id_tecnico
+    LEFT  JOIN electronicas.Usuarios           t ON m.id_tecnico = t.id_usuario
     WHERE m.id_mantenimiento = ?
 ");
 $stmtM->execute([$id]);
