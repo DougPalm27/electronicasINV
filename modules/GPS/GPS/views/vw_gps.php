@@ -228,4 +228,32 @@
     text-align: center;
     padding: 1px 4px 3px;
   }
+  .placa-copiable {
+    cursor: pointer;
+    transition: transform .1s, box-shadow .1s;
+    position: relative;
+  }
+  .placa-copiable:hover {
+    transform: scale(1.06);
+    box-shadow: 0 3px 8px rgba(0,0,0,.35);
+  }
+  .placa-copiable .ph-copied {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(13,29,140,.82);
+    color: #fff;
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+  }
+  .placa-copiable.placa-copiada .ph-copied {
+    display: flex;
+  }
+  .placa-copiable.placa-copiada {
+    transform: scale(1.06);
+  }
 </style>

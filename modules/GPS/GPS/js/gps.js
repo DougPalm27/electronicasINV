@@ -62,10 +62,11 @@ $(document).ready(function () {
         columns: [
             { data: null, render: (d, t, r, m) => m.row + 1 },
             { data: 'placa', render: v => `
-                <div class="placa-hn">
+                <div class="placa-hn placa-copiable" data-placa="${esc(v)}" title="Clic para copiar">
                     <div class="ph-top"><span class="ph-flag">🇭🇳</span> HONDURAS</div>
                     <div class="ph-num">${esc(v)}</div>
                     <div class="ph-bot">CENTROAMÉRICA</div>
+                    <div class="ph-copied">¡Copiado!</div>
                 </div>` },
             { data: 'tipo_vehiculo', defaultContent: '<span class="text-muted">—</span>' },
             { data: 'transporte',    defaultContent: '<span class="text-muted">—</span>' },
@@ -237,6 +238,23 @@ $(document).ready(function () {
             tabla.ajax.reload();
             Swal.fire({ icon: 'success', title: 'Listo', text: r.mensaje, timer: 2200, showConfirmButton: false });
         }, 'json');
+    });
+
+    // ── Copiar placa al portapapeles ──────────────────────
+    $('#tblGPS').on('click', '.placa-copiable', function () {
+        const placa = $(this).data('placa');
+        const $el   = $(this);
+        navigator.clipboard.writeText(placa).then(() => {
+            $el.addClass('placa-copiada');
+            setTimeout(() => $el.removeClass('placa-copiada'), 1500);
+        }).catch(() => {
+            // fallback
+            const $tmp = $('<input>').val(placa).appendTo('body').select();
+            document.execCommand('copy');
+            $tmp.remove();
+            $el.addClass('placa-copiada');
+            setTimeout(() => $el.removeClass('placa-copiada'), 1500);
+        });
     });
 
     // ── Acceso rápido — abrir modal ───────────────────────
