@@ -175,8 +175,57 @@
   .is-invalid ~ .invalid-feedback { display: block !important; }
   .form-control.is-invalid,
   .form-select.is-invalid { border-color: #dc3545 !important; box-shadow: 0 0 0 0.2rem rgba(220,53,69,.2) !important; }
-  .pwd-masked { letter-spacing: .15em; color: #6c757d; font-size: .85rem; }
-  .btn-reveal-pwd { padding: .15rem .4rem; font-size: .78rem; line-height: 1; }
   #gps_info_plataforma, #gps_info_usuario, #gps_info_contrasena { background: #f8f9fa; color: #495057; }
   .placa-row input { text-transform: uppercase; }
+
+  /* ── Placa hondureña ── */
+  .placa-hn {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    background: #fff;
+    border: 2.5px solid #0d1d8c;
+    border-radius: 5px;
+    min-width: 108px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,.3);
+    line-height: 1;
+    font-family: 'Arial Black', 'Arial Bold', Arial, sans-serif;
+    user-select: none;
+  }
+  .placa-hn .ph-top {
+    width: 100%;
+    background: #0d1d8c;
+    color: #fff;
+    font-size: .48rem;
+    font-weight: 800;
+    letter-spacing: .18em;
+    text-align: center;
+    padding: 2px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+  }
+  .placa-hn .ph-top .ph-flag {
+    font-size: .6rem;
+    line-height: 1;
+  }
+  .placa-hn .ph-num {
+    color: #000;
+    font-size: 1.15rem;
+    font-weight: 900;
+    letter-spacing: .06em;
+    padding: 1px 8px 0;
+    text-align: center;
+  }
+  .placa-hn .ph-bot {
+    width: 100%;
+    color: #0d1d8c;
+    font-size: .42rem;
+    font-weight: 800;
+    letter-spacing: .16em;
+    text-align: center;
+    padding: 1px 4px 3px;
+  }
 </style>

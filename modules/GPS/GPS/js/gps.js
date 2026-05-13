@@ -61,7 +61,12 @@ $(document).ready(function () {
         },
         columns: [
             { data: null, render: (d, t, r, m) => m.row + 1 },
-            { data: 'placa',        render: v => `<strong>${v}</strong>` },
+            { data: 'placa', render: v => `
+                <div class="placa-hn">
+                    <div class="ph-top"><span class="ph-flag">🇭🇳</span> HONDURAS</div>
+                    <div class="ph-num">${esc(v)}</div>
+                    <div class="ph-bot">CENTROAMÉRICA</div>
+                </div>` },
             { data: 'tipo_vehiculo', defaultContent: '<span class="text-muted">—</span>' },
             { data: 'transporte',    defaultContent: '<span class="text-muted">—</span>' },
             { data: 'plataforma',    defaultContent: '<span class="text-muted">—</span>' },
