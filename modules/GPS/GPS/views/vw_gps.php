@@ -15,9 +15,9 @@
           <thead>
             <tr>
               <th>#</th><th>Placa</th><th>Tipo</th><th>Transporte</th>
-              <th>Plataforma</th><th>Destino</th><th>Usuario</th><th>Contraseña</th>
-              <th class="text-center">Enlace</th>
-              <th class="text-center">Estado</th><th class="text-center">Acciones</th>
+              <th>Plataforma</th><th>Destino</th>
+              <th class="text-center">Acceso</th><th class="text-center">Estado</th>
+              <th class="text-center">Acciones</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -110,6 +110,63 @@
         </button>
         <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL — ACCESO RÁPIDO
+══════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalAccesoRapido" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+
+      <div class="modal-header pb-2">
+        <div>
+          <h6 class="modal-title mb-0" id="arTitulo">Acceso rápido</h6>
+          <small class="text-muted" id="arPlaca"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Usuario -->
+        <label class="form-label small fw-semibold mb-1">Usuario</label>
+        <div class="input-group mb-3">
+          <input type="text" id="arUsuario" class="form-control form-control-sm" readonly>
+          <button class="btn btn-outline-secondary btn-copiar" data-target="arUsuario" title="Copiar usuario">
+            <i class="bi bi-clipboard"></i>
+          </button>
+        </div>
+
+        <!-- Contraseña -->
+        <label class="form-label small fw-semibold mb-1">Contraseña</label>
+        <div class="input-group mb-3">
+          <input type="password" id="arContrasena" class="form-control form-control-sm" readonly>
+          <button class="btn btn-outline-secondary btn-ver-pwd" title="Mostrar / ocultar">
+            <i class="bi bi-eye"></i>
+          </button>
+          <button class="btn btn-outline-secondary btn-copiar" data-target="arContrasena" title="Copiar contraseña">
+            <i class="bi bi-clipboard"></i>
+          </button>
+        </div>
+
+        <!-- Toast de feedback -->
+        <div id="arToast" class="alert alert-success py-1 px-2 small mb-0" style="display:none">
+          <i class="bi bi-check2 me-1"></i><span id="arToastMsg"></span>
+        </div>
+
+      </div>
+
+      <div class="modal-footer pt-2">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+        <a id="arEnlace" href="#" target="_blank" rel="noopener noreferrer"
+           class="btn btn-primary btn-sm">
+          <i class="bi bi-box-arrow-up-right me-1"></i> Ir a la plataforma
+        </a>
+      </div>
+
     </div>
   </div>
 </div>

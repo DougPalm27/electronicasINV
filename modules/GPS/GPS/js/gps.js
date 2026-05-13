@@ -61,25 +61,22 @@ $(document).ready(function () {
         },
         columns: [
             { data: null, render: (d, t, r, m) => m.row + 1 },
-            { data: 'placa', render: v => `<strong>${v}</strong>` },
+            { data: 'placa',        render: v => `<strong>${v}</strong>` },
             { data: 'tipo_vehiculo', defaultContent: '<span class="text-muted">—</span>' },
-            { data: 'transporte',   defaultContent: '<span class="text-muted">—</span>' },
-            { data: 'plataforma',   defaultContent: '<span class="text-muted">—</span>' },
-            { data: 'destino',      defaultContent: '<span class="text-muted">—</span>' },
-            { data: 'usuario',      defaultContent: '<span class="text-muted">—</span>' },
-            { data: null, render: (d, t, r) => {
-                const pwd = esc(r.contrasena || '');
-                return `<span class="pwd-masked" data-pwd="${pwd}">••••••••</span>
-                        <button class="btn btn-link btn-reveal-pwd p-0 ms-1" data-visible="0" title="Mostrar / ocultar">
-                            <i class="bi bi-eye text-secondary"></i></button>`;
-            }},
-            { data: 'url_base', title: 'Enlace', className: 'text-center', orderable: false,
-              render: v => v
-                ? `<a href="${esc(v)}" target="_blank" rel="noopener noreferrer"
-                      class="btn btn-sm btn-outline-primary" title="${esc(v)}">
-                       <i class="bi bi-box-arrow-up-right"></i>
-                   </a>`
-                : '<span class="text-muted">—</span>' },
+            { data: 'transporte',    defaultContent: '<span class="text-muted">—</span>' },
+            { data: 'plataforma',    defaultContent: '<span class="text-muted">—</span>' },
+            { data: 'destino',       defaultContent: '<span class="text-muted">—</span>' },
+            { data: null, className: 'text-center', orderable: false,
+              render: (d, t, r) => `
+                <button class="btn btn-sm btn-success btn-acceso-rapido"
+                        data-placa="${esc(r.placa)}"
+                        data-usuario="${esc(r.usuario || '')}"
+                        data-contrasena="${esc(r.contrasena || '')}"
+                        data-url="${esc(r.url_base || '')}"
+                        data-plataforma="${esc(r.plataforma || '')}"
+                        title="Acceso rápido">
+                    <i class="bi bi-key"></i>
+                </button>` },
             { data: 'estado', className: 'text-center',
               render: v => v == 1 ? '<span class="badge bg-success">Activo</span>'
                                   : '<span class="badge bg-secondary">Inactivo</span>' },
@@ -102,13 +99,6 @@ $(document).ready(function () {
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
         order: [[1, 'asc']], pageLength: 15, scrollX: true, autoWidth: false
-    });
-
-    // ── Revelar contraseña en tabla ────────────────────────
-    $('#tblGPS').on('click', '.btn-reveal-pwd', function () {
-        const $btn = $(this), $m = $btn.prev('.pwd-masked'), vis = $btn.data('visible') == 1;
-        $m.text(vis ? '••••••••' : ($m.data('pwd') || '(vacía)'));
-        $btn.data('visible', vis ? 0 : 1).find('i').toggleClass('bi-eye', vis).toggleClass('bi-eye-slash', !vis);
     });
 
     // ── Agregar fila de placa ──────────────────────────────
@@ -242,6 +232,53 @@ $(document).ready(function () {
             tabla.ajax.reload();
             Swal.fire({ icon: 'success', title: 'Listo', text: r.mensaje, timer: 2200, showConfirmButton: false });
         }, 'json');
+    });
+
+    // ── Acceso rápido — abrir modal ───────────────────────
+    $('#tblGPS').on('click', '.btn-acceso-rapido', function () {
+        const $b = $(this);
+        $('#arTitulo').text($b.data('plataforma') || 'Acceso rápido');
+        $('#arPlaca').text('Placa: ' + $b.data('placa'));
+        $('#arUsuario').val($b.data('usuario'));
+        $('#arContrasena').val($b.data('contrasena')).attr('type', 'password');
+        $('#arEnlace').attr('href', $b.data('url') || '#')
+                      .toggleClass('disabled', !$b.data('url'));
+        $('#arToast').hide();
+        $('#modalAccesoRapido .btn-ver-pwd i').removeClass('bi-eye-slash').addClass('bi-eye');
+        abrir('#modalAccesoRapido');
+    });
+
+    // ── Acceso rápido — mostrar/ocultar contraseña ────────
+    $('#modalAccesoRapido').on('click', '.btn-ver-pwd', function () {
+        const $inp = $('#arContrasena');
+        const visible = $inp.attr('type') === 'text';
+        $inp.attr('type', visible ? 'password' : 'text');
+        $(this).find('i').toggleClass('bi-eye', visible).toggleClass('bi-eye-slash', !visible);
+    });
+
+    // ── Acceso rápido — copiar al portapapeles ────────────
+    $('#modalAccesoRapido').on('click', '.btn-copiar', function () {
+        const campo  = $(this).data('target');
+        const valor  = $('#' + campo).val();
+        const etiq   = campo === 'arUsuario' ? 'Usuario' : 'Contraseña';
+        if (!valor) return;
+
+        navigator.clipboard.writeText(valor).then(() => {
+            $('#arToastMsg').text(etiq + ' copiado al portapapeles');
+            $('#arToast').stop(true).fadeIn(150).delay(2000).fadeOut(400);
+            // Feedback visual en el botón
+            const $icn = $(this).find('i');
+            $icn.removeClass('bi-clipboard').addClass('bi-clipboard-check');
+            setTimeout(() => $icn.removeClass('bi-clipboard-check').addClass('bi-clipboard'), 2000);
+        }).catch(() => {
+            // Fallback para navegadores sin soporte Clipboard API
+            const $inp = $('#' + campo);
+            $inp.attr('type', 'text').select();
+            document.execCommand('copy');
+            if (campo === 'arContrasena') $inp.attr('type', 'password');
+            $('#arToastMsg').text(etiq + ' copiado al portapapeles');
+            $('#arToast').stop(true).fadeIn(150).delay(2000).fadeOut(400);
+        });
     });
 
     // ── Toggle estado ──────────────────────────────────────
