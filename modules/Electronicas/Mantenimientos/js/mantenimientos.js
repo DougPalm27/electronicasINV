@@ -1,16 +1,35 @@
 const CTRL = "./modules/Electronicas/Mantenimientos/Controllers/mantenimientosController.php";
 
-let tablaMantenimientos = null;
-let _tareas = [];   // lista de tareas del formulario actual
+let tablaMantenimientos     = null;
+let _tareas                 = [];   // tareas del formulario actual
+let _repuestosDisponibles   = [];   // catálogo cargado una vez
+let _instaladosEnMaquina    = [];   // piezas instaladas en la máquina seleccionada
+let _filasRepuestos         = [];   // [{id_repuesto, maneja_serie, cantidad, costo, series:[]}]
+let _filasRetiros           = [];   // [{id_maquina_repuesto, tipo_retiro, observaciones}]
 
 $(document).ready(function () {
     listarMantenimientos();
     cargarSelects();
+    cargarRepuestosDisponibles();
 
     // ── Nuevo mantenimiento ──────────────────────────────────
     $("#btnNuevoMantenimiento").on("click", function () {
         limpiarModal();
         abrirModal("#modalMantenimiento");
+    });
+
+    // ── Máquina cambia → cargar instalados para retiros ─────
+    $("#id_maquina").on("change", function () {
+        const id = $(this).val();
+        _filasRetiros = [];
+        renderRetiros();
+        if (!id || id === "-1") {
+            _instaladosEnMaquina = [];
+            $("#btnAgregarRetiro").prop("disabled", true);
+            $("#emptyRetiros").text("Selecciona una máquina para habilitar esta sección.");
+            return;
+        }
+        cargarInstalados(id);
     });
 
     // ── Agregar tarea con botón ──────────────────────────────
@@ -26,6 +45,82 @@ $(document).ready(function () {
         const idx = parseInt($(this).data("idx"));
         _tareas.splice(idx, 1);
         renderTareas();
+    });
+
+    // ── Agregar repuesto ─────────────────────────────────────
+    $("#btnAgregarRepuesto").on("click", function () {
+        _filasRepuestos.push({ id_repuesto: "", maneja_serie: 0, cantidad: 1, costo: 0, series: [] });
+        renderRepuestos();
+    });
+
+    // ── Eventos delegados — repuestos ────────────────────────
+    $("#listaRepuestos").on("change", ".sel-repuesto", function () {
+        const idx = parseInt($(this).closest(".rep-row").data("idx"));
+        const opt = $(this).find("option:selected");
+        const rep = _repuestosDisponibles.find(r => r.id_repuesto == $(this).val());
+        if (!rep) return;
+        _filasRepuestos[idx] = {
+            id_repuesto:  rep.id_repuesto,
+            maneja_serie: parseInt(rep.maneja_serie),
+            cantidad:     1,
+            costo:        parseFloat(rep.costo || 0),
+            series:       []
+        };
+        renderRepuestos();
+        // Si maneja serie, cargar series disponibles
+        if (parseInt(rep.maneja_serie) === 1) cargarSeries(idx, rep.id_repuesto);
+    });
+
+    $("#listaRepuestos").on("input", ".inp-cantidad", function () {
+        const idx = parseInt($(this).closest(".rep-row").data("idx"));
+        _filasRepuestos[idx].cantidad = parseInt($(this).val()) || 1;
+    });
+
+    $("#listaRepuestos").on("input", ".inp-costo", function () {
+        const idx = parseInt($(this).closest(".rep-row").data("idx"));
+        _filasRepuestos[idx].costo = parseFloat($(this).val()) || 0;
+    });
+
+    $("#listaRepuestos").on("change", ".chk-serie", function () {
+        const idx   = parseInt($(this).closest(".rep-row").data("idx"));
+        const val   = parseInt($(this).val());
+        const arr   = _filasRepuestos[idx].series;
+        if ($(this).is(":checked")) { if (!arr.includes(val)) arr.push(val); }
+        else { _filasRepuestos[idx].series = arr.filter(v => v !== val); }
+    });
+
+    $("#listaRepuestos").on("click", ".btn-quitar-rep", function () {
+        const idx = parseInt($(this).closest(".rep-row").data("idx"));
+        _filasRepuestos.splice(idx, 1);
+        renderRepuestos();
+    });
+
+    // ── Agregar retiro ───────────────────────────────────────
+    $("#btnAgregarRetiro").on("click", function () {
+        _filasRetiros.push({ id_maquina_repuesto: "", tipo_retiro: "devolucion", observaciones: "" });
+        renderRetiros();
+    });
+
+    // ── Eventos delegados — retiros ──────────────────────────
+    $("#listaRetiros").on("change", ".sel-retiro", function () {
+        const idx = parseInt($(this).closest(".ret-row").data("idx"));
+        _filasRetiros[idx].id_maquina_repuesto = $(this).val();
+    });
+
+    $("#listaRetiros").on("change", ".sel-tipo-retiro", function () {
+        const idx = parseInt($(this).closest(".ret-row").data("idx"));
+        _filasRetiros[idx].tipo_retiro = $(this).val();
+    });
+
+    $("#listaRetiros").on("input", ".inp-obs", function () {
+        const idx = parseInt($(this).closest(".ret-row").data("idx"));
+        _filasRetiros[idx].observaciones = $(this).val();
+    });
+
+    $("#listaRetiros").on("click", ".btn-quitar-ret", function () {
+        const idx = parseInt($(this).closest(".ret-row").data("idx"));
+        _filasRetiros.splice(idx, 1);
+        renderRetiros();
     });
 
     // ── Guardar ──────────────────────────────────────────────
@@ -168,6 +263,177 @@ function renderTareas() {
 }
 
 // ════════════════════════════════════════════════════════════
+// REPUESTOS
+// ════════════════════════════════════════════════════════════
+
+function cargarRepuestosDisponibles() {
+    $.post(CTRL, { accion: "repuestos" }, function (resp) {
+        if (!resp.ok) return;
+        _repuestosDisponibles = resp.data;
+    }, "json");
+}
+
+function cargarSeries(idx, id_repuesto) {
+    $.post(CTRL, { accion: "series", id_repuesto }, function (resp) {
+        if (!resp.ok) return;
+        const $row = $(`.rep-row[data-idx="${idx}"]`);
+        const $cont = $row.find(".series-cont");
+        if (!resp.data.length) {
+            $cont.html('<span class="text-danger small">Sin series disponibles en stock.</span>');
+            return;
+        }
+        let html = '<div class="d-flex flex-wrap gap-2 mt-1">';
+        resp.data.forEach(s => {
+            html += `<div class="form-check form-check-inline mb-0">
+                <input class="form-check-input chk-serie" type="checkbox"
+                       value="${s.id_detalle_repuesto}" id="serie_${idx}_${s.id_detalle_repuesto}">
+                <label class="form-check-label small" for="serie_${idx}_${s.id_detalle_repuesto}">
+                    <span class="badge bg-secondary">${escHtml(s.serie)}</span>
+                </label>
+            </div>`;
+        });
+        html += '</div>';
+        $cont.html(html);
+    }, "json");
+}
+
+function renderRepuestos() {
+    const $lista = $("#listaRepuestos");
+    if (!_filasRepuestos.length) {
+        $lista.html('<p class="text-muted small fst-italic mb-0" id="emptyRepuestos">Sin repuestos agregados.</p>');
+        return;
+    }
+
+    let html = '';
+    _filasRepuestos.forEach((rep, idx) => {
+        const optsRep = _repuestosDisponibles.map(r => {
+            const sel = r.id_repuesto == rep.id_repuesto ? "selected" : "";
+            const stock = parseInt(r.maneja_serie) === 1
+                ? `${r.stock} series`
+                : `stock: ${r.stock}`;
+            return `<option value="${r.id_repuesto}" data-serie="${r.maneja_serie}" data-costo="${r.costo}" ${sel}>
+                        ${escHtml(r.nombre)} (${stock})
+                    </option>`;
+        }).join('');
+
+        const esSerie = rep.maneja_serie === 1;
+        const cantOSerie = esSerie
+            ? `<div class="col-12 series-cont mt-1">
+                   <small class="text-muted">Selecciona las series a instalar:</small>
+               </div>`
+            : `<div class="col-auto">
+                   <label class="form-label small mb-1">Cantidad</label>
+                   <input type="number" class="form-control form-control-sm inp-cantidad"
+                          style="width:80px" min="1" value="${rep.cantidad}">
+               </div>`;
+
+        html += `
+        <div class="card mb-2 rep-row" data-idx="${idx}">
+            <div class="card-body p-2">
+                <div class="row g-2 align-items-start">
+                    <div class="col">
+                        <label class="form-label small mb-1">Repuesto</label>
+                        <select class="form-select form-select-sm sel-repuesto">
+                            <option value="">— Selecciona —</option>
+                            ${optsRep}
+                        </select>
+                    </div>
+                    ${!esSerie ? `<div class="col-auto">
+                        <label class="form-label small mb-1">Cantidad</label>
+                        <input type="number" class="form-control form-control-sm inp-cantidad"
+                               style="width:80px" min="1" value="${rep.cantidad}">
+                    </div>` : ''}
+                    <div class="col-auto">
+                        <label class="form-label small mb-1">Costo unit.</label>
+                        <input type="number" class="form-control form-control-sm inp-costo"
+                               style="width:100px" min="0" step="0.01" value="${rep.costo}">
+                    </div>
+                    <div class="col-auto d-flex align-items-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-quitar-rep mb-0">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                    ${esSerie ? `<div class="col-12 series-cont"><small class="text-muted fst-italic">Selecciona el repuesto para ver series.</small></div>` : ''}
+                </div>
+            </div>
+        </div>`;
+    });
+    $lista.html(html);
+}
+
+// ════════════════════════════════════════════════════════════
+// RETIROS
+// ════════════════════════════════════════════════════════════
+
+function cargarInstalados(id_maquina) {
+    $("#emptyRetiros").text("Cargando piezas instaladas...");
+    $.post(CTRL, { accion: "instalados", id_maquina }, function (resp) {
+        _instaladosEnMaquina = resp.ok ? resp.data : [];
+        $("#btnAgregarRetiro").prop("disabled", !_instaladosEnMaquina.length);
+        $("#emptyRetiros").text(
+            _instaladosEnMaquina.length
+                ? "Usa el botón 'Agregar' para registrar piezas retiradas."
+                : "Esta máquina no tiene piezas instaladas."
+        );
+    }, "json");
+}
+
+function renderRetiros() {
+    const $lista = $("#listaRetiros");
+    if (!_filasRetiros.length) {
+        const msg = _instaladosEnMaquina.length
+            ? "Usa el botón 'Agregar' para registrar piezas retiradas."
+            : "Selecciona una máquina para habilitar esta sección.";
+        $lista.html(`<p class="text-muted small fst-italic mb-0" id="emptyRetiros">${msg}</p>`);
+        return;
+    }
+
+    let html = '';
+    _filasRetiros.forEach((ret, idx) => {
+        const optsInstalados = _instaladosEnMaquina.map(p => {
+            const label = p.serie
+                ? `${escHtml(p.repuesto)} — Serie: ${escHtml(p.serie)}`
+                : `${escHtml(p.repuesto)} (cant: ${p.cantidad})`;
+            const sel = p.id_maquina_repuesto == ret.id_maquina_repuesto ? "selected" : "";
+            return `<option value="${p.id_maquina_repuesto}" ${sel}>${label}</option>`;
+        }).join('');
+
+        html += `
+        <div class="card mb-2 ret-row" data-idx="${idx}">
+            <div class="card-body p-2">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label small mb-1">Pieza instalada</label>
+                        <select class="form-select form-select-sm sel-retiro">
+                            <option value="">— Selecciona —</option>
+                            ${optsInstalados}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Tipo de retiro</label>
+                        <select class="form-select form-select-sm sel-tipo-retiro">
+                            <option value="devolucion" ${ret.tipo_retiro === 'devolucion' ? 'selected' : ''}>Devolución al stock</option>
+                            <option value="baja"       ${ret.tipo_retiro === 'baja'       ? 'selected' : ''}>Baja (descarte)</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label class="form-label small mb-1">Observaciones</label>
+                        <input type="text" class="form-control form-control-sm inp-obs"
+                               placeholder="Motivo, estado de la pieza..." value="${escHtml(ret.observaciones)}">
+                    </div>
+                    <div class="col-auto">
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-quitar-ret">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    });
+    $lista.html(html);
+}
+
+// ════════════════════════════════════════════════════════════
 // GUARDAR
 // ════════════════════════════════════════════════════════════
 
@@ -196,6 +462,27 @@ function guardar() {
         ? $("#id_tecnico option:selected").val()
         : $("#id_tecnico").val();
 
+    // Validar repuestos: todos deben tener repuesto seleccionado
+    for (let i = 0; i < _filasRepuestos.length; i++) {
+        const r = _filasRepuestos[i];
+        if (!r.id_repuesto) {
+            Swal.fire("Atención", `La fila ${i + 1} de repuestos no tiene un repuesto seleccionado.`, "warning");
+            return;
+        }
+        if (r.maneja_serie === 1 && !r.series.length) {
+            Swal.fire("Atención", `Selecciona al menos una serie para el repuesto de la fila ${i + 1}.`, "warning");
+            return;
+        }
+    }
+
+    // Validar retiros: todos deben tener pieza seleccionada
+    for (let i = 0; i < _filasRetiros.length; i++) {
+        if (!_filasRetiros[i].id_maquina_repuesto) {
+            Swal.fire("Atención", `La fila ${i + 1} de retiros no tiene una pieza seleccionada.`, "warning");
+            return;
+        }
+    }
+
     const payload = {
         id_maquina,
         id_tipo,
@@ -203,7 +490,9 @@ function guardar() {
         fecha_mantenimiento:   fecha,
         proximo_mantenimiento: $("#proximo_mantenimiento").val() || null,
         descripcion:           $("#descripcion").val().trim(),
-        tareas:                _tareas
+        tareas:                _tareas,
+        repuestos:             _filasRepuestos,
+        retiros:               _filasRetiros
     };
 
     const $btn = $("#btnGuardarMantenimiento")
@@ -356,9 +645,21 @@ function renderDetalle(data) {
 
 function limpiarModal() {
     $("#formMantenimiento")[0].reset();
+
+    // Tareas
     _tareas = [];
     renderTareas();
     $("#emptyTareas").show();
+
+    // Repuestos
+    _filasRepuestos = [];
+    renderRepuestos();
+
+    // Retiros
+    _filasRetiros        = [];
+    _instaladosEnMaquina = [];
+    renderRetiros();
+    $("#btnAgregarRetiro").prop("disabled", true);
 
     // Restaurar estado del select de técnico según el rol de la sesión
     if (window.USUARIO_ROL === "Técnico") {

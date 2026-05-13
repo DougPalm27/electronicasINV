@@ -1,11 +1,11 @@
 <?php
 
 return [
-    'host'       => 'smtp.office365.com',
+    'host'       => 'smtp.gmail.com',
     'port'       => 587,
     'encryption' => 'tls',
-    'username'   => 'notificaciones@tuempresa.com',   // <-- cambiar
-    'password'   => 'TU_CONTRASEÑA',                  // <-- cambiar
-    'from_email' => 'notificaciones@tuempresa.com',   // <-- cambiar
+    'username'   => 'notificaciones.electronicas.hco@gmail.com',        // <-- tu cuenta Gmail
+    'password'   => 'dgxy howa uhhi ypjh',       // <-- contraseña de aplicación (16 chars)
+    'from_email' => 'notificaciones.electronicas.hco@gmail.com',
     'from_name'  => 'Sistema Electronicas',
 ];

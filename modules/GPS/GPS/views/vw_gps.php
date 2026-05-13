@@ -10,14 +10,13 @@
         </button>
       </div>
 
-      <div class="table-responsive">
-        <table id="tblGPS" class="table table-striped">
+      <div>
+        <table id="tblGPS" class="table table-striped w-100">
           <thead>
             <tr>
               <th>#</th><th>Placa</th><th>Tipo</th><th>Transporte</th>
               <th>Plataforma</th><th>Destino</th><th>Usuario</th><th>Contraseña</th>
-              <th>Fecha creación</th><th>Creado por</th>
-              <th>Últ. actualización</th><th>Actualizado por</th>
+              <th class="text-center">Enlace</th>
               <th class="text-center">Estado</th><th class="text-center">Acciones</th>
             </tr>
           </thead>

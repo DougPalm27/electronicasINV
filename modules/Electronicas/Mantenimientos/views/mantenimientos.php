@@ -28,7 +28,7 @@
      MODAL — REGISTRAR MANTENIMIENTO
 ══════════════════════════════════════════════════════════ -->
 <div class="modal fade" id="modalMantenimiento" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
 
             <div class="modal-header">
@@ -110,10 +110,40 @@
                         <p class="small mt-1 mb-0">Sin tareas agregadas</p>
                     </div>
 
-                    <div class="alert alert-info py-2 mt-3 mb-0" style="font-size:.85rem">
-                        <i class="bi bi-info-circle me-1"></i>
-                        Para incluir repuestos en un mantenimiento, crea una
-                        <a href="?module=solicitudes" class="alert-link">Solicitud de Repuestos</a>.
+                    <!-- ── Repuestos instalados ───────────────────────── -->
+                    <hr class="my-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">
+                            <i class="bi bi-box-seam me-1 text-success"></i>
+                            Repuestos instalados
+                            <span class="text-muted fw-normal" style="font-size:.8rem">(opcional)</span>
+                        </h6>
+                        <button type="button" class="btn btn-sm btn-outline-success" id="btnAgregarRepuesto">
+                            <i class="bi bi-plus-lg"></i> Agregar
+                        </button>
+                    </div>
+                    <div id="listaRepuestos">
+                        <p class="text-muted small fst-italic mb-0" id="emptyRepuestos">
+                            Sin repuestos agregados.
+                        </p>
+                    </div>
+
+                    <!-- ── Piezas retiradas ───────────────────────────── -->
+                    <hr class="my-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">
+                            <i class="bi bi-arrow-return-left me-1 text-warning"></i>
+                            Piezas retiradas
+                            <span class="text-muted fw-normal" style="font-size:.8rem">(opcional)</span>
+                        </h6>
+                        <button type="button" class="btn btn-sm btn-outline-warning" id="btnAgregarRetiro" disabled>
+                            <i class="bi bi-plus-lg"></i> Agregar
+                        </button>
+                    </div>
+                    <div id="listaRetiros">
+                        <p class="text-muted small fst-italic mb-0" id="emptyRetiros">
+                            Selecciona una máquina para habilitar esta sección.
+                        </p>
                     </div>
 
                 </form>

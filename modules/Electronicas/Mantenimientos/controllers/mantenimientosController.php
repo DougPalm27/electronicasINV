@@ -46,6 +46,22 @@ try {
             response($model->listarTecnicos());
             break;
 
+        case 'repuestos':
+            response($model->listarRepuestosDisponibles());
+            break;
+
+        case 'series':
+            $id_rep = (int)($_POST['id_repuesto'] ?? 0);
+            if (!$id_rep) response([], true, 'ID de repuesto inválido.');
+            response($model->obtenerSeriesDisponibles($id_rep));
+            break;
+
+        case 'instalados':
+            $id_maq = (int)($_POST['id_maquina'] ?? 0);
+            if (!$id_maq) response([], true, 'ID de máquina inválido.');
+            response($model->obtenerInstalados($id_maq));
+            break;
+
         case 'guardar':
             $payload = $_POST["losDatos"] ?? null;
             if (!$payload) response([], true, "No se recibieron datos");
@@ -57,10 +73,9 @@ try {
             $tareas = isset($obj->tareas) ? (array)$obj->tareas : [];
             unset($obj->tareas);
 
-            // guardarMantenimiento solo necesita máquina/tipo/técnico/fecha/descripción
-            // Forzar arrays vacíos para repuestos/retiros (no se usan desde la UI)
-            $obj->repuestos = [];
-            $obj->retiros   = [];
+            // Asegurar que repuestos/retiros sean arrays (pueden venir del payload o vacíos)
+            if (!isset($obj->repuestos) || !is_array($obj->repuestos)) $obj->repuestos = [];
+            if (!isset($obj->retiros)   || !is_array($obj->retiros))   $obj->retiros   = [];
 
             $resp = $model->guardarMantenimiento($obj);
 

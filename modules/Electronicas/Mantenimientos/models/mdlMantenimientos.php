@@ -303,7 +303,7 @@ class mdlMantenimientos
     private function procesarSalidaCantidadDesdeMantenimiento($id_mantenimiento, $id_maquina, $r)
     {
         $cantidad = isset($r->cantidad) ? (int)$r->cantidad : 1;
-        $costo    = isset($r->costo_unitario) ? (float)$r->costo_unitario : 0;
+        $costo    = (float)($r->costo_unitario ?? $r->costo ?? 0);
 
         if ($cantidad <= 0) throw new Exception("Cantidad inválida para repuesto ID {$r->id_repuesto}");
 
@@ -346,7 +346,7 @@ class mdlMantenimientos
             throw new Exception("Debes seleccionar al menos una serie para repuesto ID {$r->id_repuesto}");
         }
 
-        $costo = isset($r->costo_unitario) ? (float)$r->costo_unitario : 0;
+        $costo = (float)($r->costo_unitario ?? $r->costo ?? 0);
 
         foreach ($r->series as $id_detalle) {
             $stmtVal = $this->conn->prepare(

@@ -73,10 +73,13 @@ $(document).ready(function () {
                         <button class="btn btn-link btn-reveal-pwd p-0 ms-1" data-visible="0" title="Mostrar / ocultar">
                             <i class="bi bi-eye text-secondary"></i></button>`;
             }},
-            { data: 'fecha_creacion',         render: v => v ? v.substring(0, 10) : '—' },
-            { data: 'creado_por_nombre',      defaultContent: '<span class="text-muted">—</span>' },
-            { data: 'fecha_actualizacion',    render: v => v ? v.substring(0, 10) : '—' },
-            { data: 'actualizado_por_nombre', defaultContent: '<span class="text-muted">—</span>' },
+            { data: 'url_base', title: 'Enlace', className: 'text-center', orderable: false,
+              render: v => v
+                ? `<a href="${esc(v)}" target="_blank" rel="noopener noreferrer"
+                      class="btn btn-sm btn-outline-primary" title="${esc(v)}">
+                       <i class="bi bi-box-arrow-up-right"></i>
+                   </a>`
+                : '<span class="text-muted">—</span>' },
             { data: 'estado', className: 'text-center',
               render: v => v == 1 ? '<span class="badge bg-success">Activo</span>'
                                   : '<span class="badge bg-secondary">Inactivo</span>' },
@@ -98,7 +101,7 @@ $(document).ready(function () {
                     <i class="bi bi-${r.estado == 1 ? 'toggle-on' : 'toggle-off'}"></i></button>` }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-        order: [[1, 'asc']], pageLength: 15, scrollX: true
+        order: [[1, 'asc']], pageLength: 15, scrollX: true, autoWidth: false
     });
 
     // ── Revelar contraseña en tabla ────────────────────────
