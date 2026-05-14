@@ -23,5 +23,10 @@ $_SESSION = [];
 session_destroy();
 
 ob_end_clean();
-header('Location: /Electronicas/index.php');
+
+// Calcula la ruta base según donde esté instalado el proyecto
+// En local:  /Electronicas/index.php
+// En server: /index.php  (o la subcarpeta que corresponda)
+$basePath = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
+header('Location: ' . $basePath . '/index.php');
 exit;
