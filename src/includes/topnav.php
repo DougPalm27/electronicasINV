@@ -42,7 +42,7 @@ $username      = $_SESSION['usuario'] ?? '';
                     <li><hr class="dropdown-divider"></li>
                     <li>
                         <a class="dropdown-item d-flex align-items-center"
-                           href="/Electronicas/logout.php">
+                           href="<?= rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') ?>/logout.php">
                             <i class="bi bi-box-arrow-right me-2"></i>
                             <span>Cerrar sesión</span>
                         </a>
