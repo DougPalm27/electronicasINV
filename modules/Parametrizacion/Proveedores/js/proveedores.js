@@ -11,7 +11,6 @@ $(document).ready(function () {
             }
         },
         columns: [
-            { data: null, render: (_, __, ___, meta) => meta.row + 1, orderable: false, width: '40px' },
             { data: 'nombre' },
             { data: 'telefono', defaultContent: '<span class="text-muted">—</span>' },
             { data: 'correo',   defaultContent: '<span class="text-muted">—</span>' },
@@ -55,7 +54,7 @@ $(document).ready(function () {
             }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-        order: [[1, 'asc']],
+        order: [[0, 'asc']],
         pageLength: 10
     });
 

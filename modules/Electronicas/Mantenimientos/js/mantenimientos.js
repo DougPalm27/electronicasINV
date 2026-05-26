@@ -169,6 +169,8 @@ function listarMantenimientos() {
             error: manejarError
         },
         columns: [
+            { data: "codigo", title: "Código",
+              render: v => `<span class="badge bg-light text-dark border font-monospace fw-semibold">${v}</span>` },
             { data: "maquina", title: "Máquina",
               render: (v, t, row) => {
                   const n = escHtml(v);
@@ -230,7 +232,8 @@ function listarMantenimientos() {
         createdRow: function (row, data) {
             if (data.anulado == 1) $(row).addClass('table-secondary').css('opacity', '0.6');
         },
-        language: { url: "//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" }
+        language: { url: "//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" },
+        order: [[0, 'desc']]
     });
 
     // ── Abrir detalle desde la tabla ─────────────────────────

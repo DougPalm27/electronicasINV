@@ -19,7 +19,6 @@
         <table class="table table-hover w-100" id="tablaTipos">
             <thead>
                 <tr>
-                    <th>#</th>
                     <th>Nombre</th>
                     <th>Repuestos</th>
                     <th class="text-center">Acciones</th>

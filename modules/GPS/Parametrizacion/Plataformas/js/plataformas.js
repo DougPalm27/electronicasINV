@@ -6,7 +6,6 @@ $(document).ready(function () {
     const tabla = $('#tblPlataformas').DataTable({
         ajax: { url: CTRL_PLAT, type: 'POST', data: { accion: 'listar' }, dataSrc: r => r.ok ? r.data : [] },
         columns: [
-            { data: null, render: (d,t,r,m) => m.row + 1 },
             { data: 'nombre', render: v => `<strong>${v}</strong>` },
             { data: 'url_base', render: v => v
                 ? `<a href="${esc(v)}" target="_blank" rel="noopener" class="text-truncate d-inline-block" style="max-width:200px" title="${esc(v)}"><i class="bi bi-link-45deg me-1"></i>${esc(v)}</a>`
@@ -43,7 +42,7 @@ $(document).ready(function () {
                 </div>` }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-        order: [[1,'asc']], pageLength: 10
+        order: [[0,'asc']], pageLength: 10
     });
 
     $('#btnNuevaPlataforma').on('click', () => { reset('Nueva plataforma GPS'); abrir('#modalPlataforma'); });

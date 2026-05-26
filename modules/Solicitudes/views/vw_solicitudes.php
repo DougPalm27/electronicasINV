@@ -31,7 +31,7 @@
         <table id="tblSolicitudes" class="table table-hover w-100">
             <thead>
                 <tr>
-                    <th>#</th>
+                    <th>Código</th>
                     <th>Descripción</th>
                     <th class="col-hide-sm">Tipo</th>
                     <th class="col-hide-xs">Solicitante</th>
@@ -334,14 +334,14 @@
 }
 @media (max-width: 767px) {
     #tblSolicitudes th.col-hide-sm,
-    #tblSolicitudes td:nth-child(3),   /* Tipo */
-    #tblSolicitudes td:nth-child(5) {  /* Máquinas */
+    #tblSolicitudes td:nth-child(4),   /* Tipo */
+    #tblSolicitudes td:nth-child(6) {  /* Máquinas */
         display: none;
     }
 }
 @media (max-width: 575px) {
     #tblSolicitudes th.col-hide-xs,
-    #tblSolicitudes td:nth-child(4) {  /* Solicitante */
+    #tblSolicitudes td:nth-child(5) {  /* Solicitante */
         display: none;
     }
     /* footer buttons full-width en mobile */

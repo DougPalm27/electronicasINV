@@ -46,7 +46,6 @@ function listarModelos() {
             },
         },
         columns: [
-            { data: "id_modelo" },
             { data: "nombre" },
             { data: "marca" },
             {
@@ -84,7 +83,7 @@ function listarModelos() {
             },
         ],
         language: { url: "./modules/Electronicas/Repuestos/js/es-ES.json" },
-        order: [[2, "asc"], [1, "asc"]],
+        order: [[1, "asc"], [0, "asc"]],
     });
 }
 

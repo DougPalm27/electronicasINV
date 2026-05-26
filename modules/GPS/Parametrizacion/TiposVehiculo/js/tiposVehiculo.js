@@ -6,7 +6,6 @@ $(document).ready(function () {
     const tabla = $('#tblTiposVehiculo').DataTable({
         ajax: { url: CTRL_TV, type: 'POST', data: { accion: 'listar' }, dataSrc: r => r.ok ? r.data : [] },
         columns: [
-            { data: null, render: (d,t,r,m) => m.row + 1 },
             { data: 'nombre', render: v => `<strong>${v}</strong>` },
             { data: 'fecha_creacion', render: v => v ? v.substring(0,10) : '—' },
             { data: 'creado_por_nombre', defaultContent: '<span class="text-muted">—</span>' },
@@ -39,7 +38,7 @@ $(document).ready(function () {
                 </div>` }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-        order: [[1,'asc']], pageLength: 10
+        order: [[0,'asc']], pageLength: 10
     });
 
     $('#btnNuevoTipoV').on('click', () => { reset('Nuevo tipo de vehículo'); abrir('#modalTipoV'); });

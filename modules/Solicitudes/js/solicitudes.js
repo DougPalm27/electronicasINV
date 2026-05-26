@@ -38,7 +38,8 @@ $(document).ready(function () {
             dataSrc: r => r.ok ? r.data : []
         },
         columns: [
-            { data: null, render: (d, t, r, m) => m.row + 1 },
+            { data: 'codigo',
+              render: v => `<span class="badge bg-light text-dark border font-monospace fw-semibold">${v}</span>` },
             { data: 'descripcion',
               render: v => `<span title="${v}">${v.length > 45 ? v.slice(0,45)+'…' : v}</span>` },
             { data: 'tipo',           className: 'col-hide-sm' },
@@ -52,7 +53,7 @@ $(document).ready(function () {
               render: (d, t, r) => botonesAccion(r, esAdmin) }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-        order: [[6, 'desc']],
+        order: [[0, 'desc']],
         pageLength: 15
     });
 

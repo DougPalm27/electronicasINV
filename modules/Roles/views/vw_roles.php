@@ -21,7 +21,6 @@
         <table id="tblRoles" class="table table-hover w-100">
             <thead>
                 <tr>
-                    <th>#</th>
                     <th>Rol</th>
                     <th>Descripción</th>
                     <th class="text-center">Módulos</th>

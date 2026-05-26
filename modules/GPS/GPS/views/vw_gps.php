@@ -14,7 +14,7 @@
         <table id="tblGPS" class="table table-striped w-100">
           <thead>
             <tr>
-              <th>#</th><th>Placa</th><th>Tipo</th><th>Transporte</th>
+              <th>Placa</th><th>Tipo</th><th>Transporte</th>
               <th>Plataforma</th><th>Destino</th>
               <th class="text-center">Estado</th>
               <th class="text-center">Acciones</th>

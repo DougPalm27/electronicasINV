@@ -19,7 +19,6 @@
         <table id="tblUsuarios" class="table table-hover w-100">
             <thead>
                 <tr>
-                    <th>#</th>
                     <th>Usuario</th>
                     <th>Nombre</th>
                     <th>Email</th>

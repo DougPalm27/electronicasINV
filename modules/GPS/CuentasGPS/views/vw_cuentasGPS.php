@@ -14,7 +14,7 @@
         <table id="tblCuentasGPS" class="table table-striped">
           <thead>
             <tr>
-              <th>#</th><th>Transporte</th><th>Plataforma</th><th>URL</th>
+              <th>Transporte</th><th>Plataforma</th><th>URL</th>
               <th>Usuario</th><th>Contraseña</th>
               <th>Fecha creación</th><th>Creado por</th>
               <th>Últ. actualización</th><th>Actualizado por</th>

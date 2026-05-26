@@ -13,7 +13,6 @@ $(document).ready(function () {
     const tabla = $('#tblCuentasGPS').DataTable({
         ajax: { url: CTRL_CU, type: 'POST', data: { accion: 'listar' }, dataSrc: r => r.ok ? r.data : [] },
         columns: [
-            { data: null, render: (d,t,r,m) => m.row + 1 },
             { data: 'transporte',  render: v => `<strong>${v}</strong>` },
             { data: 'plataforma' },
             { data: 'url_base', render: v => v
@@ -63,7 +62,7 @@ $(document).ready(function () {
                 </div>` }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-        order: [[1,'asc']], pageLength: 15, scrollX: true
+        order: [[0,'asc']], pageLength: 15, scrollX: true
     });
 
     // ── Revelar contraseña en tabla ────────────────────────

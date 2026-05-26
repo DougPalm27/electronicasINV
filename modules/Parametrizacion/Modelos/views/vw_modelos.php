@@ -19,7 +19,6 @@
         <table class="table table-hover w-100" id="tablaModelos">
             <thead>
                 <tr>
-                    <th>#</th>
                     <th>Nombre</th>
                     <th>Marca</th>
                     <th>Tipo</th>

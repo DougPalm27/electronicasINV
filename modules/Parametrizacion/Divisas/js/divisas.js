@@ -12,7 +12,6 @@ $(document).ready(function () {
             dataSrc: r => r.ok ? r.data : []
         },
         columns: [
-            { data: null, render: (d, t, r, m) => m.row + 1, orderable: false, width: '40px' },
             { data: 'nombre' },
             { data: 'codigo',  className: 'text-center', render: v => `<code>${v}</code>` },
             { data: 'simbolo', className: 'text-center fw-bold' },
@@ -79,7 +78,7 @@ $(document).ready(function () {
             }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-        order: [[6, 'desc'], [1, 'asc']],
+        order: [[5, 'desc'], [0, 'asc']],
         pageLength: 25,
         paging: false,
         info: false,

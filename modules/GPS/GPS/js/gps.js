@@ -60,7 +60,6 @@ $(document).ready(function () {
             dataSrc: r => r.ok ? r.data : []
         },
         columns: [
-            { data: null, render: (d, t, r, m) => m.row + 1 },
             { data: 'placa', render: v => `
                 <div class="placa-hn placa-copiable" data-placa="${esc(v)}" title="Clic para copiar">
                     <div class="ph-top"><span class="ph-flag">🇭🇳</span> HONDURAS</div>
@@ -119,7 +118,7 @@ $(document).ready(function () {
                 </div>` }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-        order: [[1, 'asc']], pageLength: 15, scrollX: true, autoWidth: false
+        order: [[0, 'asc']], pageLength: 15, scrollX: true, autoWidth: false
     });
 
     // ── Agregar fila de placa ──────────────────────────────

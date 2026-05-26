@@ -19,7 +19,6 @@
         <table class="table table-hover w-100" id="tablaProveedores">
             <thead>
                 <tr>
-                    <th>#</th>
                     <th>Nombre</th>
                     <th>Teléfono</th>
                     <th>Correo</th>

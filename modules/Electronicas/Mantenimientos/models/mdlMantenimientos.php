@@ -18,6 +18,7 @@ class mdlMantenimientos
     {
         $sql = "SELECT
                     m.id_mantenimiento,
+                    m.codigo,
                     mq.nombre                          AS maquina,
                     tm.nombre                          AS tipo,
                     ISNULL(t.nombre, 'Sin técnico')    AS tecnico,

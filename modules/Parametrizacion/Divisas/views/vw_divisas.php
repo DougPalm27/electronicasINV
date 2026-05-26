@@ -19,7 +19,6 @@
         <table id="tblDivisas" class="table table-hover w-100">
             <thead>
                 <tr>
-                    <th>#</th>
                     <th>Nombre</th>
                     <th class="text-center">Código</th>
                     <th class="text-center">Símbolo</th>

@@ -25,7 +25,6 @@ $(document).ready(function () {
             dataSrc: function (resp) { return resp.ok ? resp.data : []; }
         },
         columns: [
-            { data: null, render: (d, t, r, m) => m.row + 1 },
             { data: 'username' },
             { data: 'nombre' },
             {
@@ -87,7 +86,7 @@ $(document).ready(function () {
             }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-        order: [[2, 'asc']],
+        order: [[1, 'asc']],
         pageLength: 10
     });
 

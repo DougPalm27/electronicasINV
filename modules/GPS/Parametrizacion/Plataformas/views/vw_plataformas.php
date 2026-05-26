@@ -14,7 +14,7 @@
         <table id="tblPlataformas" class="table table-striped">
           <thead>
             <tr>
-              <th>#</th><th>Nombre</th><th>URL base</th><th>Fecha creación</th>
+              <th>Nombre</th><th>URL base</th><th>Fecha creación</th>
               <th>Creado por</th><th class="text-center">Estado</th>
               <th class="text-center">Acciones</th>
             </tr>

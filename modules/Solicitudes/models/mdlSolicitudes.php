@@ -89,6 +89,7 @@ class mdlSolicitudes
 
         $sql = "SELECT
                     sr.id_solicitud,
+                    sr.codigo,
                     sr.descripcion,
                     sr.estado,
                     FORMAT(sr.fecha_programada, 'dd/MM/yyyy')  AS fecha_programada,
@@ -104,10 +105,10 @@ class mdlSolicitudes
                 LEFT  JOIN electronicas.Usuarios            t  ON t.id_usuario  = sr.id_tecnico
                 LEFT  JOIN electronicas.SolicitudesMaquinas sm ON sm.id_solicitud = sr.id_solicitud
                 $where
-                GROUP BY sr.id_solicitud, sr.descripcion, sr.estado,
+                GROUP BY sr.id_solicitud, sr.codigo, sr.descripcion, sr.estado,
                          sr.fecha_programada, sr.fecha_solicitud,
                          u.nombre, tm.nombre, t.nombre, sr.motivo_rechazo
-                ORDER BY sr.fecha_solicitud DESC";
+                ORDER BY sr.codigo DESC";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();

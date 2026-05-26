@@ -14,7 +14,6 @@
         <table id="tblTransportes" class="table table-striped">
           <thead>
             <tr>
-              <th>#</th>
               <th>Empresa</th>
               <th>Contacto</th>
               <th>Teléfono</th>

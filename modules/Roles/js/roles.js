@@ -12,7 +12,6 @@ $(document).ready(function () {
             dataSrc: r => r.ok ? r.data : []
         },
         columns: [
-            { data: null, render: (d, t, r, m) => m.row + 1 },
             { data: 'nombre', render: v => `<strong>${v}</strong>` },
             { data: 'descripcion', defaultContent: '<span class="text-muted">—</span>' },
             {
@@ -78,7 +77,7 @@ $(document).ready(function () {
             }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-        order: [[1, 'asc']],
+        order: [[0, 'asc']],
         pageLength: 10
     });
 

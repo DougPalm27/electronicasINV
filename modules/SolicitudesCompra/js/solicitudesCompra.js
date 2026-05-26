@@ -138,7 +138,7 @@ function initDataTable(esAdmin) {
         },
         columns: [
             { data: 'codigo',
-              render: v => `<span class="badge bg-primary fw-normal font-monospace">${escHtml(v)}</span>` },
+              render: v => `<span class="badge bg-light text-dark border fw-semibold font-monospace">${escHtml(v)}</span>` },
             { data: 'descripcion',
               render: v => `<span title="${escHtml(v)}">${escHtml(v.length > 40 ? v.slice(0,40)+'…' : v)}</span>` },
             { data: 'solicitante', className: 'col-hide-xs' },
@@ -496,7 +496,7 @@ function abrirDetalle(id) {
         // Mostrar código en el título del modal
         const cod = r.data.codigo || `#${id}`;
         $('#detalleCompraId').html(
-            `<span class="badge bg-primary fw-normal font-monospace ms-1">${escHtml(cod)}</span>`
+            `<span class="badge bg-light text-dark border fw-semibold font-monospace ms-1">${escHtml(cod)}</span>`
         );
         renderDetalle(r.data);
         mostrarBotonesDetalle(r.data, window.USUARIO_ROL === 'Administrador');
@@ -509,7 +509,7 @@ function renderDetalle(d) {
     let html = `<div class="row g-3 mb-3">
         <div class="col-6 col-md-2">
             <p class="mb-1 text-muted small">Código</p>
-            <p class="mb-0"><span class="badge bg-primary fw-normal font-monospace">${escHtml(d.codigo || '—')}</span></p>
+            <p class="mb-0"><span class="badge bg-light text-dark border fw-semibold font-monospace">${escHtml(d.codigo || '—')}</span></p>
         </div>
         <div class="col-6 col-md-1">
             <p class="mb-1 text-muted small">ID interno</p>
