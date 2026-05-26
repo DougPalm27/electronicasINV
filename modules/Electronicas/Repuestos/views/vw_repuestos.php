@@ -1,36 +1,40 @@
-<div class="col-lg-12">
-    <div class="card">
-        <div class="card-body">
-
-            <h5 class="card-title">Inventario de Repuestos</h5>
-
-            <div class="d-flex justify-content-between mb-3">
-                <button id="btnNuevoRepuesto" class="btn btn-primary">
-                    <i class="bi bi-plus-circle"></i> Nuevo Repuesto
-                </button>
-                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalImportarRepuestos">
-                    <i class="bi bi-file-earmark-arrow-up me-1"></i> Importar desde plantilla
-                </button>
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">Inventario de Repuestos</h5>
+                    <small class="text-muted">Control de stock, entradas y salidas</small>
+                </div>
+                <div class="d-flex gap-2">
+                    <button id="btnNuevoRepuesto" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Nuevo Repuesto
+                    </button>
+                    <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#modalImportarRepuestos">
+                        <i class="bi bi-file-earmark-arrow-up me-1"></i> Importar
+                    </button>
+                </div>
             </div>
-
-            <div class="table-responsive">
-                <table class="table table-striped" id="tablaRepuestos">
-                    <thead>
-                        <tr>
-                            <th>Nombre</th>
-                            <th>Marca</th>
-                            <th>Modelo</th>
-                            <th>Ubicación</th>
-                            <th>Stock</th>
-                            <th>Costo</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-
         </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <table class="table table-hover w-100" id="tablaRepuestos">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Marca</th>
+                    <th>Modelo</th>
+                    <th>Ubicación</th>
+                    <th>Stock</th>
+                    <th>Costo</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
     </div>
 </div>
 

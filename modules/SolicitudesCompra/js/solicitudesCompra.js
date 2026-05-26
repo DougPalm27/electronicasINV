@@ -137,7 +137,8 @@ function initDataTable(esAdmin) {
             }
         },
         columns: [
-            { data: null, render: (d, t, r, m) => m.row + 1 },
+            { data: 'codigo',
+              render: v => `<span class="badge bg-primary fw-normal font-monospace">${escHtml(v)}</span>` },
             { data: 'descripcion',
               render: v => `<span title="${escHtml(v)}">${escHtml(v.length > 40 ? v.slice(0,40)+'…' : v)}</span>` },
             { data: 'solicitante', className: 'col-hide-xs' },
@@ -154,7 +155,7 @@ function initDataTable(esAdmin) {
               render: (d, t, r) => botonesTabla(r, esAdmin) }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-        order: [[6, 'desc']],
+        order: [[0, 'desc']],
         pageLength: 15,
         responsive: false
     });
@@ -461,7 +462,7 @@ function abrirDetalle(id) {
     _detalleId    = id;
     _detalleDatos = null;
 
-    $('#detalleCompraId').text(`#${id}`);
+    $('#detalleCompraId').text('…');
     $('#detalleCompraBody').html(
         '<div class="text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span> Cargando...</div>'
     );
@@ -478,6 +479,11 @@ function abrirDetalle(id) {
             return;
         }
         _detalleDatos = r.data;
+        // Mostrar código en el título del modal
+        const cod = r.data.codigo || `#${id}`;
+        $('#detalleCompraId').html(
+            `<span class="badge bg-primary fw-normal font-monospace ms-1">${escHtml(cod)}</span>`
+        );
         renderDetalle(r.data);
         mostrarBotonesDetalle(r.data, window.USUARIO_ROL === 'Administrador');
     }, 'json');
@@ -487,7 +493,15 @@ function renderDetalle(d) {
     const simbolo = escHtml(d.divisa_simbolo || '');
 
     let html = `<div class="row g-3 mb-3">
-        <div class="col-12 col-md-6">
+        <div class="col-6 col-md-2">
+            <p class="mb-1 text-muted small">Código</p>
+            <p class="mb-0"><span class="badge bg-primary fw-normal font-monospace">${escHtml(d.codigo || '—')}</span></p>
+        </div>
+        <div class="col-6 col-md-1">
+            <p class="mb-1 text-muted small">ID interno</p>
+            <p class="mb-0 text-muted small">${escHtml(String(d.id_solicitud_compra))}</p>
+        </div>
+        <div class="col-12 col-md-5">
             <p class="mb-1 text-muted small">Descripción</p>
             <p class="fw-semibold mb-0">${escHtml(d.descripcion)}</p>
         </div>
@@ -524,14 +538,10 @@ function renderDetalle(d) {
             <p class="mb-0 text-danger">${escHtml(d.motivo_rechazo || '—')}</p>
         </div>`;
     }
-    if (['Ordenada','Recibida'].includes(d.estado)) {
+    if (['Ordenada','Recibida parcial','Recibida'].includes(d.estado)) {
         html += `<div class="col-6 col-md-3">
             <p class="mb-1 text-muted small">Nº Orden</p>
             <p class="mb-0">${escHtml(d.numero_orden || '—')}</p>
-        </div>
-        <div class="col-6 col-md-3">
-            <p class="mb-1 text-muted small">Entrega estimada</p>
-            <p class="mb-0">${escHtml(d.fecha_ent_fmt || '—')}</p>
         </div>`;
     }
     if (d.estado === 'Recibida') {
@@ -564,6 +574,7 @@ function renderDetalle(d) {
                 <th class="col-hide-sm">Proveedor</th>
                 <th class="text-center" style="width:80px">Solicitado</th>
                 <th class="text-center" style="width:80px">Recibido</th>
+                <th class="col-hide-sm text-center" style="width:105px">Entrega est.</th>
                 <th class="text-end"   style="width:115px">Costo unit.</th>
                 <th class="text-end"   style="width:115px">Subtotal</th>
             </tr>
@@ -610,6 +621,7 @@ function renderDetalle(d) {
             <td class="col-hide-sm small">${provItem}</td>
             <td class="text-center">${it.cantidad_solicitada}</td>
             <td class="text-center ${recCls}">${it.cantidad_recibida}</td>
+            <td class="col-hide-sm text-center small">${escHtml(it.fecha_ent_fmt || '—')}</td>
             <td class="text-end">${it.costo_unitario > 0 ? `${simbolo} ${fmtNum(it.costo_unitario)}` : '—'}</td>
             <td class="text-end">${sub > 0 ? `${simbolo} ${fmtNum(sub)}` : '—'}</td>
         </tr>`;
@@ -617,7 +629,7 @@ function renderDetalle(d) {
 
     html += `</tbody>
         <tfoot><tr class="table-light">
-            <td colspan="5" class="text-end fw-bold">Total estimado:</td>
+            <td colspan="6" class="text-end fw-bold">Total estimado:</td>
             <td class="text-end fw-bold">${total > 0 ? `${simbolo} ${fmtNum(total)}` : '—'}</td>
         </tr></tfoot>
     </table></div>`;
@@ -910,16 +922,43 @@ function bindEventos(esAdmin) {
     // ── Registrar orden ──────────────────────────────────────
     $('#btnOrdenarCompra').on('click', function () {
         $('#ordenNumero').val('');
-        $('#ordenFechaEntrega').val('');
+
+        // Generar una fila de fecha por ítem
+        let html = '';
+        if (_detalleDatos && _detalleDatos.items && _detalleDatos.items.length) {
+            _detalleDatos.items.forEach(it => {
+                const extra = [it.marca, it.modelo].filter(Boolean).join(' / ');
+                const label = extra
+                    ? `${escHtml(it.repuesto)} <small class="text-muted">— ${escHtml(extra)}</small>`
+                    : escHtml(it.repuesto);
+                html += `
+                <div class="mb-3 border rounded p-2 bg-light">
+                    <div class="small fw-semibold mb-1">${label}</div>
+                    <label class="form-label small mb-1 text-muted">Fecha estimada de entrega <span class="fw-normal">(opcional)</span></label>
+                    <input type="date" class="form-control form-control-sm orden-fecha-item"
+                           data-id-detalle="${it.id_detalle}">
+                </div>`;
+            });
+        }
+        $('#ordenItemsFechas').html(html);
         $MODAL_ORDEN.modal('show');
     });
     $('#btnConfirmarOrden').on('click', function () {
+        // Recolectar fecha estimada por ítem
+        const fechas_items = [];
+        $('#ordenItemsFechas .orden-fecha-item').each(function () {
+            fechas_items.push({
+                id_detalle:        $(this).data('id-detalle'),
+                fecha_entrega_est: $(this).val() || null
+            });
+        });
+
         $(this).prop('disabled', true);
         $.post(CTRL_COMPRAS, {
-            accion:            'registrarOrden',
-            id:                _detalleId,
-            numero_orden:      $('#ordenNumero').val().trim(),
-            fecha_entrega_est: $('#ordenFechaEntrega').val()
+            accion:       'registrarOrden',
+            id:           _detalleId,
+            numero_orden: $('#ordenNumero').val().trim(),
+            fechas_items: JSON.stringify(fechas_items)
         }, function (r) {
             $('#btnConfirmarOrden').prop('disabled', false);
             if (!r.ok) { Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje }); return; }

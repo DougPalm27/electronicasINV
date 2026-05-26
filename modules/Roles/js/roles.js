@@ -21,6 +21,19 @@ $(document).ready(function () {
                 render: v => `<span class="badge bg-info text-dark">${v} módulo${v != 1 ? 's' : ''}</span>`
             },
             {
+                data: 'puede_ejecutar_mantenimiento',
+                className: 'text-center',
+                render: (v, t, r) => {
+                    const on = v == 1;
+                    return `<button class="btn btn-sm btn-toggle-ejec-mant
+                                    ${on ? 'btn-outline-success' : 'btn-outline-secondary'}"
+                                    data-id="${r.id_rol}" title="${on ? 'Quitar permiso' : 'Dar permiso'}">
+                                <i class="bi bi-${on ? 'toggle-on text-success' : 'toggle-off text-secondary'}"></i>
+                                <span class="ms-1 small">${on ? 'Sí' : 'No'}</span>
+                            </button>`;
+                }
+            },
+            {
                 data: 'activo',
                 className: 'text-center',
                 render: v => v == 1
@@ -101,6 +114,15 @@ $(document).ready(function () {
             cerrarModal('#modalRol');
             tabla.ajax.reload();
             Swal.fire({ icon: 'success', title: 'Listo', text: r.mensaje, timer: 1800, showConfirmButton: false });
+        }, 'json');
+    });
+
+    // ── Toggle ejecuta mantenimiento ──────────────────────
+    $('#tblRoles').on('click', '.btn-toggle-ejec-mant', function () {
+        const id = $(this).data('id');
+        $.post(CTRL_ROLES, { accion: 'toggleEjecutaMantenimiento', id_rol: id }, function (r) {
+            if (r.ok) tabla.ajax.reload(null, false);
+            else Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje });
         }, 'json');
     });
 

@@ -23,7 +23,9 @@ class mdlMantenimientos
                     ISNULL(t.nombre, 'Sin técnico')    AS tecnico,
                     m.fecha_mantenimiento,
                     m.proximo_mantenimiento,
-                    m.descripcion
+                    m.descripcion,
+                    m.anulado,
+                    m.motivo_anulacion
                 FROM electronicas.Mantenimientos m
                 INNER JOIN electronicas.Maquinas          mq ON m.id_maquina = mq.id_maquina
                 INNER JOIN electronicas.TipoMantenimiento tm ON m.id_tipo    = tm.id_tipo
@@ -137,7 +139,7 @@ class mdlMantenimientos
     public function listarTipos()
     {
         $stmt = $this->conn->prepare(
-            "SELECT id_tipo, nombre FROM electronicas.TipoMantenimiento"
+            "SELECT id_tipo, nombre, descripcion FROM electronicas.TipoMantenimiento"
         );
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -149,7 +151,7 @@ class mdlMantenimientos
             "SELECT u.id_usuario, u.nombre
              FROM electronicas.Usuarios u
              INNER JOIN electronicas.Roles r ON r.id_rol = u.id_rol
-             WHERE r.nombre = 'Técnico' AND u.activo = 1
+             WHERE r.puede_ejecutar_mantenimiento = 1 AND u.activo = 1
              ORDER BY u.nombre"
         );
         $stmt->execute();
@@ -492,6 +494,18 @@ class mdlMantenimientos
                 observaciones_retiro      = ?
              WHERE id_maquina_repuesto = ?"
         )->execute([$tipo, $id_mantenimiento, $obs, $ret->id_maquina_repuesto]);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // ANULACIÓN
+    // ══════════════════════════════════════════════════════════════
+    public function anularMantenimiento(int $id, string $motivo): void
+    {
+        $this->conn->prepare(
+            "UPDATE electronicas.Mantenimientos
+             SET anulado = 1, motivo_anulacion = ?
+             WHERE id_mantenimiento = ? AND anulado = 0"
+        )->execute([$motivo, $id]);
     }
 
     // ══════════════════════════════════════════════════════════════

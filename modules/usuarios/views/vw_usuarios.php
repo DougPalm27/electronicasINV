@@ -1,41 +1,38 @@
-<section class="section">
-    <div class="row">
-        <div class="col-12">
-
-            <div class="card">
-                <div class="card-body pt-3">
-
-                    <div class="d-flex justify-content-between align-items-center mb-3 mt-2">
-                        <h5 class="card-title mb-0">Gestión de Usuarios</h5>
-                        <button class="btn btn-primary btn-sm" id="btnNuevoUsuario">
-                            <i class="bi bi-person-plus me-1"></i> Nuevo usuario
-                        </button>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table id="tblUsuarios" class="table table-hover table-striped table-sm align-middle">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>#</th>
-                                    <th>Usuario</th>
-                                    <th>Nombre</th>
-                                    <th>Email</th>
-                                    <th>Rol</th>
-                                    <th class="text-center">Estado</th>
-                                    <th>Registro</th>
-                                    <th class="text-center">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">Gestión de Usuarios</h5>
+                    <small class="text-muted">Cuentas de acceso y roles asignados</small>
                 </div>
+                <button class="btn btn-primary" id="btnNuevoUsuario">
+                    <i class="bi bi-person-plus me-1"></i> Nuevo usuario
+                </button>
             </div>
-
         </div>
     </div>
-</section>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <table id="tblUsuarios" class="table table-hover w-100">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Usuario</th>
+                    <th>Nombre</th>
+                    <th>Email</th>
+                    <th>Rol</th>
+                    <th class="text-center">Estado</th>
+                    <th>Registro</th>
+                    <th class="text-center">Acciones</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
 
 <!-- ── Modal Crear / Editar ──────────────────────────────── -->
 <div class="modal fade" id="modalUsuario" tabindex="-1" aria-hidden="true">

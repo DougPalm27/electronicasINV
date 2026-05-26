@@ -1,30 +1,35 @@
-<section class="section">
-<div class="row">
-<div class="col-12">
-<div class="card">
-<div class="card-body pt-3">
-
-    <div class="d-flex justify-content-between align-items-center mb-3 mt-2 flex-wrap gap-2">
-        <h5 class="card-title mb-0">
-            <i class="bi bi-clipboard-check me-2 text-primary"></i>Solicitudes de Repuestos
-        </h5>
-        <button class="btn btn-primary btn-sm" id="btnNuevaSolicitud">
-            <i class="bi bi-plus-circle me-1"></i> Nueva solicitud
-        </button>
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">
+                        <i class="bi bi-clipboard-check me-2 text-primary"></i>Solicitudes de Repuestos
+                    </h5>
+                    <small class="text-muted">Gestión y aprobación de solicitudes internas</small>
+                </div>
+                <button class="btn btn-primary" id="btnNuevaSolicitud">
+                    <i class="bi bi-plus-circle me-1"></i> Nueva solicitud
+                </button>
+            </div>
+        </div>
     </div>
+</div>
 
-    <!-- Filtros de estado -->
-    <div class="d-flex gap-2 mb-3 flex-wrap" id="filtrosEstado">
-        <button class="btn btn-sm btn-outline-secondary filtro-estado active" data-estado="">Todas</button>
-        <button class="btn btn-sm btn-outline-warning  filtro-estado" data-estado="Pendiente">Pendientes</button>
-        <button class="btn btn-sm btn-outline-success  filtro-estado" data-estado="Aprobado">Aprobadas</button>
-        <button class="btn btn-sm btn-outline-danger   filtro-estado" data-estado="Rechazado">Rechazadas</button>
-        <button class="btn btn-sm btn-outline-secondary filtro-estado" data-estado="Cancelado">Canceladas</button>
-    </div>
+<div class="card shadow-sm border-0">
+    <div class="card-body">
 
-    <div class="table-responsive">
-        <table id="tblSolicitudes" class="table table-hover table-striped table-sm align-middle">
-            <thead class="table-primary">
+        <!-- Filtros de estado -->
+        <div class="d-flex gap-2 mb-3 flex-wrap" id="filtrosEstado">
+            <button class="btn btn-sm btn-outline-secondary filtro-estado active" data-estado="">Todas</button>
+            <button class="btn btn-sm btn-outline-warning  filtro-estado" data-estado="Pendiente">Pendientes</button>
+            <button class="btn btn-sm btn-outline-success  filtro-estado" data-estado="Aprobado">Aprobadas</button>
+            <button class="btn btn-sm btn-outline-danger   filtro-estado" data-estado="Rechazado">Rechazadas</button>
+            <button class="btn btn-sm btn-outline-secondary filtro-estado" data-estado="Cancelado">Canceladas</button>
+        </div>
+
+        <table id="tblSolicitudes" class="table table-hover w-100">
+            <thead>
                 <tr>
                     <th>#</th>
                     <th>Descripción</th>
@@ -39,13 +44,9 @@
             </thead>
             <tbody></tbody>
         </table>
-    </div>
 
+    </div>
 </div>
-</div>
-</div>
-</div>
-</section>
 
 
 <!-- ══════════════════════════════════════════════════════════

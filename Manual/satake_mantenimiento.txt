@@ -1,0 +1,497 @@
+================================================================================
+SATAKE EVOLUTION RGB — GUÍA DE MANTENIMIENTO
+HonduCafé
+Fuente: Manual oficial Satake USA Inc. © 2012
+================================================================================
+
+
+--------------------------------------------------------------------------------
+SECCIÓN 1: PROGRAMA DE MANTENIMIENTO PREVENTIVO
+--------------------------------------------------------------------------------
+
+Las tareas están organizadas por frecuencia. La frecuencia exacta depende de:
+- Número de turnos diarios de operación
+- Tasa de producción
+- Nivel de defectos del producto clasificado
+- Calidad del aire comprimido suministrado
+- Uso o no de extracción de polvo
+- Temperatura ambiente
+
+------------------------------------------------------------------------
+A DIARIO
+------------------------------------------------------------------------
+
+TAREA: Limpiar polvo y residuos de la máquina
+POR QUÉ: El polvo y residuos del café se acumulan durante la operación. Si
+no se retiran pueden entrar a la zona óptica o a los eyectores y causar
+errores de clasificación. También pueden obstruir entradas de aire y
+sobrecalentar componentes electrónicos.
+SI NO SE HACE: Los sensores y cámaras pierden precisión. El clasificador
+empieza a rechazar granos buenos o a dejar pasar defectos.
+
+TAREA: Limpiar bandejas de alimentación y conductos
+POR QUÉ: Las bandejas guían el flujo de granos hacia el área de
+clasificación. Las partículas finas del café (polvo, mucílago seco) se
+adhieren y forman capas que ralentizan o desvían el flujo, haciendo que
+los granos lleguen al sensor a velocidad o posición incorrecta.
+SI NO SE HACE: Flujo irregular genera clasificación imprecisa. La
+producción baja y aumentan los errores de rechazo.
+MÉTODO: Usar limpiador a base de alcohol (sin amoníaco) y paño suave.
+Para acumulaciones usar cuchilla de plástico. En condiciones frías,
+activar calentadores de bandeja.
+
+TAREA: Verificar niveles de compuerta de tolva
+POR QUÉ: La tolva controla la cantidad de granos que entran al sistema.
+Si las compuertas no están al mismo nivel el flujo es desigual: unas
+canaletas reciben más grano que otras.
+SI NO SE HACE: Flujo desigual genera clasificación inconsistente. Algunas
+canaletas pierden defectos y otras clasifican mal por exceso de granos.
+NOTA: Todas las compuertas deben estar ajustadas a la misma altura.
+
+TAREA: Soplar polvo dentro del área del visor
+POR QUÉ: El área del visor es donde las cámaras ven los granos. El polvo
+suspendido se deposita sobre ventanas y lentes, reduciendo la claridad de
+imagen que reciben las cámaras.
+SI NO SE HACE: Imágenes borrosas o con partículas causan que el sistema
+no distinga correctamente granos buenos de defectuosos.
+MÉTODO: Usar aire comprimido limpio y seco. NO usar aire para limpiar
+el interior del visor (puede empujar polvo hacia zona óptica). En el
+interior usar aspiradora.
+
+TAREA: Limpiar interior del visor (vidrio, deflector, antideslumbrante)
+POR QUÉ: El vidrio del visor tiene revestimiento antirreflejo (AR)
+delicado. Los residuos del producto crean interferencias ópticas. El
+deflector y antideslumbrante controlan cómo la luz llega a las cámaras.
+SI NO SE HACE: El visor sucio altera la lectura de color y brillo de los
+granos, generando falsos rechazos o defectos sin rechazar.
+MÉTODO CORRECTO: Paño de microfibra (Edmund NT54-718), toallas de vidrio
+óptico (NT53-984), toallitas prehumedecidas (NT53-985), detergente
+lavavajillas suave + agua, mezcla 50/50 alcohol + agua destilada.
+PROHIBIDO: Windex u otros con amoníaco, toallas de papel, manos o dedos,
+paños sucios.
+
+TAREA: Inspeccionar las lámparas
+POR QUÉ: Las lámparas LED iluminan los granos durante la clasificación.
+El sistema usa esa luz para comparar color y brillo de cada grano. Si una
+lámpara falla o pierde intensidad la iluminación es desigual.
+SI NO SE HACE: Iluminación irregular produce lecturas incorrectas de
+color. El sistema puede generar alarma de falla de calibración.
+TIPOS DE ALARMA:
+  - Alarma falla lámparas del producto: una placa no puede calibrarse.
+  - Alarma falla lámparas de fondo: el fondo no puede calibrarse.
+ACCIÓN: Si falla la calibración, reemplazar la placa LED correspondiente.
+
+TAREA: Verificar si hay fallas en pantalla
+POR QUÉ: La pantalla táctil muestra en tiempo real si hay algún
+componente con problema: eyectores fallidos, errores de calibración,
+problemas de comunicación interna, etc.
+SI NO SE HACE: Un problema pequeño puede escalar a parada completa o a
+clasificación incorrecta sin que el operador lo note.
+
+TAREA: Verificar funcionamiento del limpiaparabrisas
+POR QUÉ: El limpiaparabrisas limpia automáticamente las ventanas del
+visor durante la operación. Si el cepillo o fieltro está desgastado deja
+residuos en el vidrio que las cámaras interpretan como defectos.
+SI NO SE HACE: Limpieza incompleta del visor genera imágenes con manchas
+y errores de clasificación constantes y difíciles de identificar.
+ACCIÓN: Si el cepillo o fieltro está desgastado o deformado, reemplazar.
+
+TAREA: Verificar que todos los gabinetes estén cerrados y pestillos asegurados
+POR QUÉ: Los gabinetes protegen los componentes electrónicos del polvo
+del ambiente. En una planta de beneficiado hay mucho polvo en suspensión.
+SI NO SE HACE: Acumulación de polvo en electrónica provoca cortocircuitos,
+sobrecalentamiento y fallos inesperados de componentes costosos.
+
+------------------------------------------------------------------------
+SEMANALMENTE
+------------------------------------------------------------------------
+
+TAREA: Inspeccionar sujetadores, protectores laterales y soportes
+POR QUÉ: Las vibraciones constantes de la máquina pueden aflojar tornillos
+con el tiempo. Los protectores laterales evitan que materiales extraños
+entren a zonas críticas. Un soporte suelto puede desalinear componentes.
+SI NO SE HACE: Piezas sueltas pueden caer al interior, dañar eyectores o
+atascar el flujo. Una desalineación afecta la precisión óptica.
+
+TAREA: Inspeccionar compuertas de la tolva y ajustar si es necesario
+POR QUÉ: Con el uso diario, las compuertas pueden desplazarse levemente.
+Una inspección semanal permite detectar y corregir variaciones antes de
+que afecten la producción.
+SI NO SE HACE: Compuertas desajustadas crean flujos desiguales que
+reducen la eficiencia de clasificación.
+
+TAREA: Inspeccionar filtros de aire y aceite
+POR QUÉ: El clasificador usa aire comprimido para activar los eyectores.
+Si el filtro está sucio, el aire contiene humedad, aceite o partículas
+que dañan o hacen fallar los eyectores.
+SI NO SE HACE: Aire contaminado hace que los eyectores se peguen, soplen
+continuamente, o no respondan. Los defectos no se expulsan correctamente.
+SISTEMA DE FILTROS:
+  - Prefiltro: elimina partículas líquidas y sólidas. Recipiente
+    transparente para monitoreo visual. Limpiar de adentro hacia afuera
+    con aire. Reemplazar si no se puede limpiar eficazmente.
+  - Filtro de extracción de aceite: condensa neblina de aceite.
+    Indicador verde = OK. Rojo = cambiar elemento filtrante.
+    Cambiar cuando indicador esté mitad verde / mitad rojo.
+    IMPORTANTE: El elemento filtrante NO se limpia, debe reemplazarse.
+NOTA: Si hay agua o aceite acumulado, revisar el sistema de aire
+comprimido inmediatamente.
+
+TAREA: Realizar prueba de eyectores y reemplazar los fallidos
+POR QUÉ: Los eyectores son las válvulas de aire que expulsan los granos
+defectuosos. Cada eyector cubre una pequeña zona de la canaleta. Si uno
+falla, los defectos de esa zona pasan sin ser rechazados.
+SI NO SE HACE: Un eyector fallido permite que granos defectuosos
+contaminen el lote de café de exportación.
+SEÑALES DE PROBLEMA:
+  - Eyector errático: suciedad, humedad o aceite en la aleta.
+  - Eyector sopla continuamente: material extraño entre aleta y válvula.
+  - Defectos no desviados: malla del filtro de entrada obstruida.
+RECOMENDACIÓN: Mantener un juego de eyectores de repuesto disponible.
+
+TAREA: Inspeccionar cepillos del limpiaparabrisas para detectar desgaste
+POR QUÉ: El cepillo o fieltro se desgasta con el uso continuo. Un cepillo
+deformado o gastado no limpia bien el vidrio y puede rayarlo, dañando
+permanentemente el revestimiento antirreflejo.
+SI NO SE HACE: Rayones en el visor son daño permanente e irreparable.
+
+TAREA: Inspeccionar conductos para detectar desgaste
+POR QUÉ: Los conductos por donde caen los granos se desgastan con el
+paso constante del producto. Un conducto rayado o rugoso altera la
+trayectoria de los granos al área de detección.
+SI NO SE HACE: Granos con trayectoria incorrecta generan errores de
+detección y pueden no ser desviados correctamente por los eyectores.
+
+TAREA: Realizar prueba de derrame
+POR QUÉ: Verifica que el sistema de expulsión funciona correctamente.
+Se activan los feeders, se desactivan los eyectores y se observa si el
+producto cae en el lugar correcto.
+SI NO SE HACE: Un problema de flujo o alineación puede pasar
+desapercibido y causar clasificación incorrecta sin señales de alarma.
+PROCEDIMIENTO: Poner en marcha los alimentadores, apagar los eyectores,
+observar el flujo del producto en el área de visualización. Si el
+producto cae en el área de rechazo, tomar medidas correctivas.
+
+TAREA: Inspeccionar filtro del A/C, manguera de drenaje, evaporador y condensador
+POR QUÉ: El clasificador tiene aire acondicionado para proteger los
+componentes electrónicos del calor. Si el filtro está tapado o el drenaje
+bloqueado, la temperatura interna sube.
+SI NO SE HACE: Sobrecalentamiento puede causar fallos inesperados, pérdida
+de calibración o daño permanente en tarjetas de control.
+ADVERTENCIA: Desconectar el voltaje de entrada ANTES de trabajar en el A/C.
+
+------------------------------------------------------------------------
+MENSUALMENTE
+------------------------------------------------------------------------
+
+TAREA: Inspeccionar gabinetes electrónicos para detectar acumulación de polvo
+POR QUÉ: Aunque los gabinetes están cerrados, algo de polvo fino puede
+infiltrarse. Se hace revisión profunda con aspiradora del interior donde
+están las tarjetas de control.
+SI NO SE HACE: El polvo sobre componentes electrónicos actúa como aislante
+térmico y puede producir cortocircuitos o daños en tarjetas.
+MÉTODO: Usar aspiradora (recomendada). Si no está disponible, usar aire
+seco y limpio. APAGAR LA MÁQUINA y desconectar toda alimentación antes.
+
+TAREA: Inspeccionar juntas de protección contra la intemperie
+POR QUÉ: Las juntas o sellos evitan que el polvo del ambiente entre por
+las rendijas y uniones de la máquina. Con el tiempo se deterioran o se
+llenan de polvo y pierden su función.
+SI NO SE HACE: Sellos deteriorados permiten entrada de polvo a zonas
+ópticas y electrónicas, acelerando el deterioro de componentes.
+ACCIÓN: Inspeccionar para detectar rastros de polvo. Sellar según sea necesario.
+
+TAREA: Inspeccionar pernos y bisagras del visor frontal y apretar si es necesario
+POR QUÉ: El visor frontal se abre frecuentemente para mantenimiento. Los
+pernos y bisagras pueden aflojarse. Un visor mal asegurado puede vibrar
+durante la operación y afectar las lecturas ópticas.
+SI NO SE HACE: Un visor suelto que vibra genera imágenes inestables para
+las cámaras, produciendo errores aleatorios difíciles de diagnosticar.
+
+TAREA: Limpiar interior del cristal del visor y área óptica
+POR QUÉ: Mensualmente se hace una limpieza profunda del interior del
+cristal y del área donde están las cámaras y lentes. Se accede girando
+el visor frontal hacia afuera.
+SI NO SE HACE: La acumulación gradual de residuos en el área óptica
+interna reduce la calidad de imagen progresivamente, sin alarmas claras.
+PROCEDIMIENTO: Apagar máquina → girar visor hacia afuera → limpiar con
+paño suave y limpiador a base de alcohol (sin amoníaco) → regresar visor
+y asegurar. Abrir puertas de visores y aspirar polvo del interior. NO
+usar aire comprimido en el interior del visor.
+
+TAREA: Limpiar filtros ópticos con paño suave para lentes
+POR QUÉ: Los filtros ópticos controlan qué longitudes de luz llegan a los
+sensores. El polvo sobre ellos cambia las lecturas de color que usa el
+sistema para clasificar.
+SI NO SE HACE: Filtros sucios alteran la lectura de color de todos los
+granos. El sistema puede rechazar granos buenos o dejar pasar defectos
+de forma sistemática.
+
+------------------------------------------------------------------------
+SEMESTRALMENTE
+------------------------------------------------------------------------
+
+TAREA: Limpieza completa interior y exterior de la máquina
+POR QUÉ: Dos veces al año se hace una limpieza exhaustiva de toda la
+máquina: todos los compartimentos, zonas internas, exterior, filtros,
+conductos y componentes. Es un reinicio profundo del estado de limpieza.
+SI NO SE HACE: Se acumulan residuos en zonas difíciles de alcanzar en la
+limpieza diaria, degradando el rendimiento general del equipo.
+
+TAREA: Inspeccionar estado y funcionamiento de sensores de tolva
+POR QUÉ: Los sensores de la tolva detectan el nivel de producto y
+controlan el flujo de entrada al clasificador. Si un sensor falla, la
+máquina puede operar sin producto o con desbordamiento.
+SI NO SE HACE: Sensores fallidos pueden causar operación en vacío
+(desgaste sin clasificar) o desbordamiento que daña otros componentes.
+
+------------------------------------------------------------------------
+ANUALMENTE
+------------------------------------------------------------------------
+
+TAREA: Visita de técnico especialista Satake
+POR QUÉ: Un técnico oficial realiza calibraciones profundas, ajustes de
+parámetros ópticos, verificación de componentes internos que el operador
+no puede revisar, y actualización de configuraciones si es necesario.
+SI NO SE HACE: Los parámetros del clasificador pueden derivar
+gradualmente de sus valores óptimos, reduciendo la calidad de
+clasificación sin que sea evidente en el día a día.
+
+
+--------------------------------------------------------------------------------
+SECCIÓN 2: PROCEDIMIENTOS TÉCNICOS (SOLO PERSONAL DE SERVICIO)
+--------------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+LIMPIEZA DE EYECTORES DE AIRE DE 10 MM
+------------------------------------------------------------------------
+
+PASOS:
+A. Ponerse gafas de seguridad.
+B. Apagar la máquina.
+C. Girar la mitad frontal del visor hacia afuera para acceder a los
+   eyectores. Cada base contiene cinco eyectores montados en la barra.
+D. Antes de retirar un eyector, soplar el área circundante para evitar
+   que entre polvo en el eyector o en el colector.
+E. Cerrar el suministro de aire.
+F. Desconectar el conector eléctrico del eyector apretando los pestillos
+   y tirando del conector hacia afuera.
+G. Retirar el eyector del colector apretando el mecanismo de liberación
+   del pestillo y tirando hacia afuera.
+H. Limpiar el exterior del eyector con un cepillo rígido.
+I. Separar el conjunto del solenoide del conjunto de la válvula principal.
+J. Limpiar bien la trampilla con paño humedecido en alcohol desnaturalizado
+   o limpiador de contactos eléctricos. Secar.
+K. Limpiar el interior del conjunto del solenoide, el asiento de la válvula
+   y la cavidad de la malla del filtro de entrada con alcohol desnaturalizado.
+   Cuidado: no desalojar la junta tórica de su ranura.
+L. Soplar el interior con aire comprimido desde adentro hacia afuera, a
+   través de la malla del filtro.
+M. Rearmar asegurando que la junta tórica esté colocada. El pequeño orificio
+   de la trampilla debe quedar justo encima de la malla del filtro de
+   entrada. El cable eléctrico, el orificio de la trampilla y la malla del
+   filtro deben quedar en el mismo lado del eyector.
+N. Reinstalar el eyector alineando puertos de entrada y salida con los del
+   colector y presionar hasta que el pestillo encaje. Instalar el conector
+   eléctrico y presionar hasta que el pestillo encaje.
+O. Encender la corriente y el aire.
+P. Probar el eyector según la Sección 5.4 del manual del operador.
+
+------------------------------------------------------------------------
+REEMPLAZO DE EYECTORES DE AIRE DE 5 MM
+------------------------------------------------------------------------
+
+CONFIGURACIÓN: El conjunto consta de dos grupos (izquierdo y derecho).
+Cada grupo tiene tres filas de eyectores. Los cables agrupan los eyectores.
+RECOMENDACIÓN: Reemplazar los eyectores uno a uno para simplificar la
+conexión de conectores eléctricos.
+
+PASOS:
+a. Ponerse gafas de seguridad.
+b. Apagar la máquina.
+c. Girar la mitad frontal del visor hacia afuera para acceder a los eyectores.
+d. Antes de retirar un eyector, soplar el área circundante.
+e. Cerrar el suministro de aire.
+f. Desconectar el conector eléctrico sujetándolo y tirando suavemente hacia
+   afuera desde la válvula.
+g. Colocar la herramienta de instalación de válvulas sobre el cabezal del
+   eyector con los orificios laterales alejados del colector. Introducir una
+   llave Allen pequeña por los orificios.
+h. Girar la herramienta en sentido antihorario para desenroscar el eyector
+   del colector. Levantar del colector.
+i. Instalar el nuevo eyector atornillando con la herramienta hasta que quede
+   firmemente asentado. NOTA: Apretar solo a mano. No usar herramientas.
+j. Instalar el conector eléctrico en el receptáculo correcto y empujar hasta
+   que encaje.
+k. Encender la alimentación y el aire.
+l. Probar el eyector según el manual del operador.
+
+------------------------------------------------------------------------
+MANTENIMIENTO DEL PREFILTRO
+------------------------------------------------------------------------
+
+A. Cerrar el suministro de aire y reducir la presión a cero.
+B. Retirar la línea de drenaje.
+C. Retirar el recipiente de policarbonato girando en sentido antihorario.
+D. Lavar el recipiente con agua tibia SIN detergente.
+   ADVERTENCIA: El recipiente puede dañarse con disolventes, álcalis fuertes,
+   aceites con aditivos a base de ésteres o aceites sintéticos. Si esto es
+   un problema, sustituir por el recipiente metálico del filtro de aceite.
+E. Retirar el elemento filtrante girando el deflector en sentido antihorario.
+   Retirar la sección inferior tirando hacia abajo.
+F. Lavar elemento filtrante, deflector, sección de rejilla y juntas tóricas
+   con agua tibia y jabón. Enjuagar y secar. Soplar el elemento de adentro
+   hacia afuera con aire comprimido limpio y seco.
+G. Soplar los conductos internos del cuerpo con aire comprimido limpio y seco.
+H. Inspeccionar todas las piezas y reemplazar las que no estén en buenas condiciones.
+I. Aplicar una capa de grasa Dow Corning 44 (o equivalente) a las juntas tóricas.
+J. Rearmar el filtro. Asegurar que todas las juntas tóricas estén correctamente
+   instaladas. Centrar el elemento filtrante en la sección de rejilla antes de
+   apretar el deflector. Instalar la junta tórica en el borde superior del
+   recipiente antes de girarlo.
+K. Abrir el aire y verificar si hay fugas.
+
+------------------------------------------------------------------------
+MANTENIMIENTO DEL FILTRO DE EXTRACCIÓN DE ACEITE
+------------------------------------------------------------------------
+
+INDICADOR DE VIDA ÚTIL: Verde = OK. Cambiando a rojo = reemplazar elemento.
+Reemplazar cuando el indicador esté mitad verde y mitad rojo.
+
+A. Cerrar el suministro de aire y reducir la presión a cero.
+B. Retirar la línea de drenaje.
+C. Retirar el recipiente metálico girando en sentido antihorario.
+D. Retirar el elemento filtrante girando en sentido antihorario.
+E. Lavar recipiente metálico, componentes de drenaje automático y juntas
+   tóricas con agua tibia y jabón. Enjuagar y secar.
+F. Soplar los conductos internos del cuerpo con aire comprimido limpio y seco.
+G. Inspeccionar todas las piezas. El elemento filtrante NO puede limpiarse,
+   debe reemplazarse por uno nuevo.
+H. Aplicar una capa de grasa Dow Corning 44 (o equivalente) a las juntas tóricas.
+I. Rearmar el filtro. Asegurar que todas las juntas tóricas estén instaladas
+   correctamente. Colocar la junta tórica en la ranura superior del recipiente
+   antes de girarlo.
+J. Encender el aire y verificar si hay fugas.
+
+------------------------------------------------------------------------
+EXTRACCIÓN DE TARJETA DE CIRCUITO IMPRESO
+------------------------------------------------------------------------
+
+REGLA CRÍTICA: Apagar el equipo SIEMPRE antes de retirar o instalar
+tarjetas de circuito impreso. Nunca intervenir con la máquina encendida.
+
+
+--------------------------------------------------------------------------------
+SECCIÓN 3: ALERTAS Y SEÑALES DE PROBLEMA
+--------------------------------------------------------------------------------
+
+SEÑAL: Eyector funciona de forma errática
+CAUSA: Suciedad, humedad o aceite acumulado en la aleta de la válvula.
+ACCIÓN: Limpiar el eyector según procedimiento de limpieza.
+
+SEÑAL: Eyector sopla continuamente
+CAUSA: Material extraño atrapado entre la aleta y el asiento de la válvula.
+ACCIÓN: Limpiar o reemplazar el eyector.
+
+SEÑAL: Defectos no se desvían correctamente
+CAUSA: Malla del filtro de entrada obstruida, restricción de flujo de aire.
+ACCIÓN: Limpiar o reemplazar el elemento filtrante del eyector.
+
+SEÑAL: Alarma de falla de lámparas del producto
+CAUSA: Una placa LED del producto no puede calibrarse.
+ACCIÓN: Reemplazar la placa LED del producto.
+
+SEÑAL: Alarma de falla de lámparas de fondo
+CAUSA: El fondo no puede calibrarse.
+ACCIÓN: Reemplazar la placa LED de fondo.
+
+SEÑAL: Indicador del filtro de aceite en rojo
+CAUSA: El elemento filtrante está saturado de partículas.
+ACCIÓN: Reemplazar el elemento filtrante (no se puede limpiar).
+
+SEÑAL: Agua o aceite en los filtros
+CAUSA: Problema en el sistema de aire comprimido (compresor/secador).
+ACCIÓN: Revisar el sistema de aire comprimido inmediatamente.
+
+SEÑAL: Reflejos irregulares hacia las cámaras
+CAUSA: Pintura del deflector o la parte posterior del deflector desgastada.
+ACCIÓN: Repintar el deflector. Si no se repinta, los reflejos del metal
+desnudo causan disparos desiguales en el rango de tiempo de detección.
+
+
+--------------------------------------------------------------------------------
+SECCIÓN 4: PRODUCTOS RECOMENDADOS PARA LIMPIEZA
+--------------------------------------------------------------------------------
+
+PARA VIDRIO ÓPTICO (ventanas del visor, lentes de cámara):
+  - Paños de microfibra: Edmund NT54-718
+  - Toallas especiales de vidrio óptico: Edmund NT53-984
+  - Toallitas prehumedecidas: Edmund NT53-985
+  - Limpiador de vidrios especializado: Edmund NT54-828
+  - Limpiador industrial: Kimball Medio Oeste 80-749
+  - Mezcla 50/50 de alcohol + agua destilada
+  - Detergente lavavajillas suave + agua
+  PROHIBIDO: Windex, 409, cualquier producto con amoníaco, toallas de
+  papel, manos o dedos, paños sucios.
+
+PARA LENTES ACRÍLICAS (Fresnel y LED):
+  - Paños de microfibra: Edmund NT54-718
+  - Toallas especiales de vidrio óptico: Edmund NT53-984
+  - Toallitas prehumedecidas: Edmund NT53-985
+  - Novus #1 Plastic Clean & Shine (www.novuspolish.com)
+  - Brillianize limpiador de plástico (www.brillianize.com)
+  - Detergente lavavajillas suave + agua
+  PROHIBIDO: Paño seco o toalla de papel, alcohol, Windex o productos
+  con amoníaco.
+
+PARA EYECTORES (interior):
+  - Alcohol desnaturalizado
+  - Limpiador de contactos eléctricos
+
+PARA JUNTAS TÓRICAS:
+  - Grasa Dow Corning 44 o equivalente
+
+PARA PANTALLA TÁCTIL:
+  - Paño limpio no abrasivo humedecido con agua jabonosa suave
+  - Espray a base de alcohol
+  IMPORTANTE: Limpiar SOLO con la máquina apagada.
+
+
+--------------------------------------------------------------------------------
+SECCIÓN 5: NOTAS IMPORTANTES DE SEGURIDAD
+--------------------------------------------------------------------------------
+
+1. El mantenimiento del clasificador solo debe ser realizado por personal
+   calificado. Los procedimientos técnicos (eyectores, filtros, tarjetas)
+   son exclusivos para personal de servicio.
+
+2. Apagar siempre la máquina antes de retirar o instalar tarjetas de
+   circuito impreso.
+
+3. Desconectar el voltaje de entrada antes de trabajar en la unidad de
+   aire acondicionado.
+
+4. Cerrar siempre el suministro de aire y esperar a que se descargue la
+   presión antes de retirar eyectores.
+
+5. No limpiar la pantalla táctil mientras la máquina está en operación.
+
+6. No usar aire comprimido para limpiar el interior del visor. El polvo
+   puede entrar a la zona óptica/detector y es difícil de eliminar.
+
+7. Tener cuidado al operar los calentadores de canaletas. Las canaletas
+   pueden calentarse.
+
+8. Los apretar los eyectores de 5 mm, hacerlo solo a mano. No usar
+   herramientas de apriete.
+
+9. Al menos una vez al año, un técnico oficial de Satake debe visitar
+   las instalaciones para revisión y calibración profunda.
+
+
+--------------------------------------------------------------------------------
+FIN DEL DOCUMENTO
+Satake Evolution RGB — Guía de Mantenimiento HonduCafé
+© 2012 Satake USA Inc.
+Adaptado para uso interno como base de conocimiento.
+--------------------------------------------------------------------------------

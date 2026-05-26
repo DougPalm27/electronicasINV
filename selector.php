@@ -5,7 +5,8 @@ requireLogin();
 $modulos_usuario = $_SESSION['modulos'] ?? null;
 
 $grupoElectronicas = ['dasboard','maquinas','repuestos','mantenimientos','solicitudes',
-                      'marcas','modelos','proveedores','tiposRepuestos','divisas','usuarios','roles'];
+                      'marcas','modelos','proveedores','tiposRepuestos','divisas','usuarios','roles',
+                      'satake','compras'];
 $grupoGPS          = ['gpsCredenciales','gpsTransportes'];
 
 function tieneAccesoGrupo(?array $permitidos, array $grupo): bool {

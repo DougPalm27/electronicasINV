@@ -1,34 +1,38 @@
 
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">Máquinas</h5>
+                    <small class="text-muted">Registro general del área de electrónicas</small>
+                </div>
+                <button class="btn btn-primary" id="btnNuevaMaquina" data-bs-toggle="modal" data-bs-target="#modalMaquina">
+                    <i class="bi bi-plus-circle"></i> Nueva Máquina
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card shadow-sm border-0">
     <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-                <h5 class="card-title mb-0">Máquinas</h5>
-                <small class="text-muted">Registro general del área de electrónicas</small>
-            </div>
-            <button class="btn btn-primary" id="btnNuevaMaquina" data-bs-toggle="modal" data-bs-target="#modalMaquina">
-                <i class="bi bi-plus-circle"></i> Nueva Máquina
-            </button>
-        </div>
-
-        <div class="table-responsive">
-            <table class="table table-hover align-middle" id="tablaMaquinas" width="100%">
-                <thead>
-                    <tr>
-                        <th>Nombre</th>
-                        <th>Marca</th>
-                        <th>Modelo</th>
-                        <th>Serie</th>
-                        <th>Año</th>
-                        <th>Ubicación</th>
-                        <th>Costo</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
+        <table class="table table-hover w-100" id="tablaMaquinas">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Marca</th>
+                    <th>Modelo</th>
+                    <th>Serie</th>
+                    <th>Año</th>
+                    <th>Ubicación</th>
+                    <th>Costo</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
     </div>
 </div>
 

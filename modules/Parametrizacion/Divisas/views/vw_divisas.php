@@ -1,46 +1,39 @@
-<section class="section">
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body pt-3">
-
-                    <div class="d-flex justify-content-between align-items-center mb-3 mt-2">
-                        <h5 class="card-title mb-0">Divisas y tipos de cambio</h5>
-                        <button class="btn btn-primary btn-sm" id="btnNuevaDivisa">
-                            <i class="bi bi-plus-circle me-1"></i> Nueva divisa
-                        </button>
-                    </div>
-
-                    <div class="alert alert-info d-flex align-items-center py-2 mb-3" role="alert">
-                        <i class="bi bi-info-circle-fill me-2"></i>
-                        <span>El tipo de cambio es relativo al <strong>Lempira (L.)</strong> como moneda base.
-                        La divisa marcada como <strong>predeterminada</strong> se usa en toda la aplicación para mostrar precios.</span>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table id="tblDivisas" class="table table-hover table-striped table-sm align-middle">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>#</th>
-                                    <th>Nombre</th>
-                                    <th class="text-center">Código</th>
-                                    <th class="text-center">Símbolo</th>
-                                    <th class="text-end">Tipo de cambio (vs L.)</th>
-                                    <th class="text-center">Estado</th>
-                                    <th class="text-center">Predeterminada</th>
-                                    <th>Actualizado</th>
-                                    <th class="text-center">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">Divisas y tipos de cambio</h5>
+                    <small class="text-muted">Moneda base: Lempira (L.) — la divisa predeterminada se usa en toda la app</small>
                 </div>
+                <button class="btn btn-primary" id="btnNuevaDivisa">
+                    <i class="bi bi-plus-circle me-1"></i> Nueva divisa
+                </button>
             </div>
         </div>
     </div>
-</section>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <table id="tblDivisas" class="table table-hover w-100">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Nombre</th>
+                    <th class="text-center">Código</th>
+                    <th class="text-center">Símbolo</th>
+                    <th class="text-end">Tipo de cambio (vs L.)</th>
+                    <th class="text-center">Estado</th>
+                    <th class="text-center">Predeterminada</th>
+                    <th>Actualizado</th>
+                    <th class="text-center">Acciones</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
 
 <!-- ── Modal Crear / Editar ──────────────────────────────── -->
 <div class="modal fade" id="modalDivisa" tabindex="-1" aria-hidden="true">

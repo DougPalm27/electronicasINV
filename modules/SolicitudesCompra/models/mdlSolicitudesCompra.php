@@ -64,6 +64,7 @@ class mdlSolicitudesCompra
         $where = $id_usuario ? "WHERE sc.id_usuario = $id_usuario" : '';
 
         $sql = "SELECT sc.id_solicitud_compra,
+                       sc.codigo,
                        sc.descripcion,
                        sc.estado,
                        FORMAT(sc.fecha_solicitud, 'dd/MM/yyyy') AS fecha_solicitud,
@@ -73,8 +74,7 @@ class mdlSolicitudesCompra
                        d.codigo                                  AS divisa_codigo,
                        COUNT(det.id_detalle)                     AS total_items,
                        SUM(det.cantidad_solicitada * det.costo_unitario) AS total_estimado,
-                       sc.numero_orden,
-                       sc.fecha_entrega_est
+                       sc.numero_orden
                 FROM electronicas.SolicitudesCompra sc
                 INNER JOIN electronicas.Usuarios   u   ON u.id_usuario   = sc.id_usuario
                 INNER JOIN electronicas.Divisas    d   ON d.id_divisa    = sc.id_divisa
@@ -82,10 +82,10 @@ class mdlSolicitudesCompra
                 LEFT  JOIN electronicas.SolicitudesCompraDetalle det
                        ON det.id_solicitud_compra = sc.id_solicitud_compra
                 $where
-                GROUP BY sc.id_solicitud_compra, sc.descripcion, sc.estado,
+                GROUP BY sc.id_solicitud_compra, sc.codigo, sc.descripcion, sc.estado,
                          sc.fecha_solicitud, u.nombre, p.nombre,
-                         d.simbolo, d.codigo, sc.numero_orden, sc.fecha_entrega_est
-                ORDER BY sc.fecha_solicitud DESC";
+                         d.simbolo, d.codigo, sc.numero_orden
+                ORDER BY sc.codigo DESC";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
@@ -110,8 +110,7 @@ class mdlSolicitudesCompra
                     FORMAT(sc.fecha_solicitud,  'dd/MM/yyyy HH:mm') AS fecha_sol_fmt,
                     FORMAT(sc.fecha_aprobacion, 'dd/MM/yyyy HH:mm') AS fecha_apr_fmt,
                     FORMAT(sc.fecha_orden,      'dd/MM/yyyy HH:mm') AS fecha_ord_fmt,
-                    FORMAT(sc.fecha_recepcion,  'dd/MM/yyyy HH:mm') AS fecha_rec_fmt,
-                    FORMAT(sc.fecha_entrega_est,'dd/MM/yyyy')        AS fecha_ent_fmt
+                    FORMAT(sc.fecha_recepcion,  'dd/MM/yyyy HH:mm') AS fecha_rec_fmt
              FROM electronicas.SolicitudesCompra sc
              INNER JOIN electronicas.Usuarios   u   ON u.id_usuario   = sc.id_usuario
              INNER JOIN electronicas.Divisas    d   ON d.id_divisa    = sc.id_divisa
@@ -139,6 +138,8 @@ class mdlSolicitudesCompra
                     det.cantidad_recibida,
                     det.costo_unitario,
                     det.costo_recibido,
+                    det.fecha_entrega_est,
+                    FORMAT(det.fecha_entrega_est, 'dd/MM/yyyy') AS fecha_ent_fmt,
                     CASE
                         WHEN r.id_repuesto IS NULL  THEN NULL
                         WHEN r.maneja_serie = 1
@@ -311,19 +312,40 @@ class mdlSolicitudesCompra
     // REGISTRAR ORDEN (Aprobada → Ordenada)
     // ══════════════════════════════════════════════════════
 
-    public function registrarOrden(int $id, string $numero_orden, ?string $fecha_entrega_est): void
+    public function registrarOrden(int $id, string $numero_orden, array $fechas_items): void
     {
-        $stmt = $this->conn->prepare(
-            "UPDATE electronicas.SolicitudesCompra
-             SET estado = 'Ordenada',
-                 numero_orden      = ?,
-                 fecha_orden       = GETDATE(),
-                 fecha_entrega_est = ?
-             WHERE id_solicitud_compra = ? AND estado = 'Aprobada'"
-        );
-        $stmt->execute([$numero_orden ?: null, $fecha_entrega_est ?: null, $id]);
-        if ($stmt->rowCount() === 0) {
-            throw new RuntimeException('La solicitud no está en estado Aprobada.');
+        $this->conn->beginTransaction();
+        try {
+            // Actualizar cabecera
+            $stmt = $this->conn->prepare(
+                "UPDATE electronicas.SolicitudesCompra
+                 SET estado       = 'Ordenada',
+                     numero_orden = ?,
+                     fecha_orden  = GETDATE()
+                 WHERE id_solicitud_compra = ? AND estado = 'Aprobada'"
+            );
+            $stmt->execute([$numero_orden ?: null, $id]);
+            if ($stmt->rowCount() === 0) {
+                throw new RuntimeException('La solicitud no está en estado Aprobada.');
+            }
+
+            // Actualizar fecha estimada por ítem
+            $stmtD = $this->conn->prepare(
+                "UPDATE electronicas.SolicitudesCompraDetalle
+                 SET fecha_entrega_est = ?
+                 WHERE id_detalle = ? AND id_solicitud_compra = ?"
+            );
+            foreach ($fechas_items as $item) {
+                $idDet = (int)($item['id_detalle'] ?? 0);
+                $fecha = trim($item['fecha_entrega_est'] ?? '');
+                if (!$idDet) continue;
+                $stmtD->execute([$fecha ?: null, $idDet, $id]);
+            }
+
+            $this->conn->commit();
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            throw $e;
         }
     }
 

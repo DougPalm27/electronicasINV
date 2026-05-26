@@ -1,29 +1,32 @@
-<div class="col-lg-12">
-    <div class="card">
-        <div class="card-body">
-
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="card-title mb-0">Marcas</h5>
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">Marcas</h5>
+                    <small class="text-muted">Catálogo de marcas de equipos y repuestos</small>
+                </div>
                 <button class="btn btn-primary" id="btnNuevaMarca">
                     <i class="bi bi-plus-circle"></i> Nueva Marca
                 </button>
             </div>
-
-            <div class="table-responsive">
-                <table class="table table-striped table-hover" id="tablaMarcas">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Nombre</th>
-                            <th>Modelos</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-
         </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <table class="table table-hover w-100" id="tablaMarcas">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Nombre</th>
+                    <th>Modelos</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
     </div>
 </div>
 

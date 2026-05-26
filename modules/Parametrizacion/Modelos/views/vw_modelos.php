@@ -1,30 +1,33 @@
-<div class="col-lg-12">
-    <div class="card">
-        <div class="card-body">
-
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="card-title mb-0">Modelos</h5>
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">Modelos</h5>
+                    <small class="text-muted">Catálogo de modelos por marca</small>
+                </div>
                 <button class="btn btn-primary" id="btnNuevoModelo">
                     <i class="bi bi-plus-circle"></i> Nuevo Modelo
                 </button>
             </div>
-
-            <div class="table-responsive">
-                <table class="table table-striped table-hover" id="tablaModelos">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Nombre</th>
-                            <th>Marca</th>
-                            <th>Tipo</th>
-                            <th class="text-center">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-
         </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <table class="table table-hover w-100" id="tablaModelos">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Nombre</th>
+                    <th>Marca</th>
+                    <th>Tipo</th>
+                    <th class="text-center">Acciones</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
     </div>
 </div>
 

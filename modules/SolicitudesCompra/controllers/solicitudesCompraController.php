@@ -195,11 +195,11 @@ try {
         // ── Registrar orden al proveedor ───────────────────
         case 'registrarOrden':
             if (!$esAdmin) resp([], true, 'Sin permisos.');
-            $id              = (int)($_POST['id'] ?? 0);
-            $numero_orden    = trim($_POST['numero_orden'] ?? '');
-            $fecha_entrega   = trim($_POST['fecha_entrega_est'] ?? '');
+            $id           = (int)($_POST['id'] ?? 0);
+            $numero_orden = trim($_POST['numero_orden'] ?? '');
+            $fechas_items = json_decode($_POST['fechas_items'] ?? '[]', true);
             if (!$id) resp([], true, 'ID inválido.');
-            $model->registrarOrden($id, $numero_orden, $fecha_entrega ?: null);
+            $model->registrarOrden($id, $numero_orden, is_array($fechas_items) ? $fechas_items : []);
             resp([], false, 'Orden registrada correctamente.');
             break;
 

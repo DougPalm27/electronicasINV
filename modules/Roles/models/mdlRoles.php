@@ -17,10 +17,12 @@ class mdlRoles
     public function listarRoles(): array
     {
         $sql = "SELECT r.id_rol, r.nombre, r.descripcion, r.activo,
+                       r.puede_ejecutar_mantenimiento,
                        COUNT(rm.id_modulo) AS total_modulos
                 FROM electronicas.Roles r
                 LEFT JOIN electronicas.RolModulos rm ON rm.id_rol = r.id_rol
-                GROUP BY r.id_rol, r.nombre, r.descripcion, r.activo
+                GROUP BY r.id_rol, r.nombre, r.descripcion, r.activo,
+                         r.puede_ejecutar_mantenimiento
                 ORDER BY r.nombre";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
@@ -57,10 +59,18 @@ class mdlRoles
 
     public function toggleActivoRol(int $id): void
     {
-        $stmt = $this->conn->prepare(
+        $this->conn->prepare(
             "UPDATE electronicas.Roles SET activo = 1 - activo WHERE id_rol = ?"
-        );
-        $stmt->execute([$id]);
+        )->execute([$id]);
+    }
+
+    public function toggleEjecutaMantenimiento(int $id): void
+    {
+        $this->conn->prepare(
+            "UPDATE electronicas.Roles
+             SET puede_ejecutar_mantenimiento = 1 - puede_ejecutar_mantenimiento
+             WHERE id_rol = ?"
+        )->execute([$id]);
     }
 
     // ══════════════════════════════════════════════════════

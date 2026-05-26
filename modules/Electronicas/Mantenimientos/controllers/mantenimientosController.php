@@ -7,8 +7,10 @@ header('Content-Type: application/json');
 
 include_once "../models/mdlMantenimientos.php";
 
-$model  = new mdlMantenimientos();
-$accion = $_POST['accion'] ?? $_GET['accion'] ?? '';
+$model              = new mdlMantenimientos();
+$accion             = $_POST['accion'] ?? $_GET['accion'] ?? '';
+$puedeMantenimiento = !empty($_SESSION['puede_ejecutar_mantenimiento']);
+$esAdmin            = ($_SESSION['nombre_rol'] ?? '') === 'Administrador';
 
 function response($data = [], $error = false, $mensaje = "")
 {
@@ -63,6 +65,7 @@ try {
             break;
 
         case 'guardar':
+            if (!$puedeMantenimiento) response([], true, 'Sin permisos para registrar mantenimientos.');
             $payload = $_POST["losDatos"] ?? null;
             if (!$payload) response([], true, "No se recibieron datos");
 
@@ -89,6 +92,16 @@ try {
             }
 
             response($resp, false, "Mantenimiento guardado correctamente");
+            break;
+
+        case 'anular':
+            if (!$esAdmin) response([], true, 'Solo el administrador puede anular mantenimientos.');
+            $id     = (int)($_POST['id_mantenimiento'] ?? 0);
+            $motivo = trim($_POST['motivo'] ?? '');
+            if (!$id)     response([], true, 'ID inválido.');
+            if (!$motivo) response([], true, 'Debes indicar el motivo de anulación.');
+            $model->anularMantenimiento($id, $motivo);
+            response([], false, 'Mantenimiento anulado correctamente.');
             break;
 
         default:

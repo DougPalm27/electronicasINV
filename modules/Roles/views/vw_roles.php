@@ -1,41 +1,39 @@
-<section class="section">
-    <div class="row">
-        <div class="col-12">
-
-            <div class="card">
-                <div class="card-body pt-3">
-
-                    <div class="d-flex justify-content-between align-items-center mb-3 mt-2">
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-shield-lock me-2 text-primary"></i>Roles y Permisos
-                        </h5>
-                        <button class="btn btn-primary btn-sm" id="btnNuevoRol">
-                            <i class="bi bi-plus-circle me-1"></i> Nuevo rol
-                        </button>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table id="tblRoles" class="table table-hover table-striped table-sm align-middle">
-                            <thead class="table-primary">
-                                <tr>
-                                    <th>#</th>
-                                    <th>Rol</th>
-                                    <th>Descripción</th>
-                                    <th class="text-center">Módulos</th>
-                                    <th class="text-center">Estado</th>
-                                    <th class="text-center">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">
+                        <i class="bi bi-shield-lock me-2 text-primary"></i>Roles y Permisos
+                    </h5>
+                    <small class="text-muted">Define qué módulos y acciones puede realizar cada rol</small>
                 </div>
+                <button class="btn btn-primary" id="btnNuevoRol">
+                    <i class="bi bi-plus-circle me-1"></i> Nuevo rol
+                </button>
             </div>
-
         </div>
     </div>
-</section>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <table id="tblRoles" class="table table-hover w-100">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Rol</th>
+                    <th>Descripción</th>
+                    <th class="text-center">Módulos</th>
+                    <th class="text-center">Ejec. Mantenimiento</th>
+                    <th class="text-center">Estado</th>
+                    <th class="text-center">Acciones</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
 
 <!-- ── Modal Crear / Editar Rol ─────────────────────────── -->
 <div class="modal fade" id="modalRol" tabindex="-1" aria-hidden="true">

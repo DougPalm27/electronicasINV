@@ -84,6 +84,14 @@ try {
             respR([], false, 'Estado actualizado.');
             break;
 
+        // ── Toggle ejecuta mantenimiento ─────────────────────
+        case 'toggleEjecutaMantenimiento':
+            $id = (int)($_POST['id_rol'] ?? 0);
+            if (!$id) respR([], true, 'ID inválido.');
+            $model->toggleEjecutaMantenimiento($id);
+            respR([], false, 'Permiso de mantenimiento actualizado.');
+            break;
+
         default:
             respR([], true, "Acción no válida: $accion");
     }

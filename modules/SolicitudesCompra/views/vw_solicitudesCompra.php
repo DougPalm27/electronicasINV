@@ -1,35 +1,40 @@
-<section class="section">
-<div class="row">
-<div class="col-12">
-<div class="card">
-<div class="card-body pt-3">
-
-    <div class="d-flex justify-content-between align-items-center mb-3 mt-2 flex-wrap gap-2">
-        <h5 class="card-title mb-0">
-            <i class="bi bi-cart-check me-2 text-primary"></i>Solicitudes de Compra
-        </h5>
-        <button class="btn btn-primary btn-sm" id="btnNuevaCompra">
-            <i class="bi bi-plus-circle me-1"></i> Nueva solicitud
-        </button>
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">
+                        <i class="bi bi-cart-check me-2 text-primary"></i>Solicitudes de Compra
+                    </h5>
+                    <small class="text-muted">Órdenes de compra y seguimiento de aprobaciones</small>
+                </div>
+                <button class="btn btn-primary" id="btnNuevaCompra">
+                    <i class="bi bi-plus-circle me-1"></i> Nueva solicitud
+                </button>
+            </div>
+        </div>
     </div>
+</div>
 
-    <!-- Filtros de estado -->
-    <div class="d-flex gap-2 mb-3 flex-wrap" id="filtrosEstadoCompra">
-        <button class="btn btn-sm btn-outline-secondary filtro-compra active" data-estado="">Todas</button>
-        <button class="btn btn-sm btn-outline-secondary filtro-compra" data-estado="Borrador">Borrador</button>
-        <button class="btn btn-sm btn-outline-warning  filtro-compra" data-estado="Pendiente">Pendientes</button>
-        <button class="btn btn-sm btn-outline-info     filtro-compra" data-estado="Aprobada">Aprobadas</button>
-        <button class="btn btn-sm btn-outline-primary  filtro-compra" data-estado="Ordenada">Ordenadas</button>
-        <button class="btn btn-sm btn-outline-warning  filtro-compra" data-estado="Recibida parcial">Parciales</button>
-        <button class="btn btn-sm btn-outline-success  filtro-compra" data-estado="Recibida">Recibidas</button>
-        <button class="btn btn-sm btn-outline-danger   filtro-compra" data-estado="Rechazada">Rechazadas</button>
-    </div>
+<div class="card shadow-sm border-0">
+    <div class="card-body">
 
-    <div class="table-responsive">
-        <table id="tblCompras" class="table table-hover table-striped table-sm align-middle">
-            <thead class="table-primary">
+        <!-- Filtros de estado -->
+        <div class="d-flex gap-2 mb-3 flex-wrap" id="filtrosEstadoCompra">
+            <button class="btn btn-sm btn-outline-secondary filtro-compra active" data-estado="">Todas</button>
+            <button class="btn btn-sm btn-outline-secondary filtro-compra" data-estado="Borrador">Borrador</button>
+            <button class="btn btn-sm btn-outline-warning  filtro-compra" data-estado="Pendiente">Pendientes</button>
+            <button class="btn btn-sm btn-outline-info     filtro-compra" data-estado="Aprobada">Aprobadas</button>
+            <button class="btn btn-sm btn-outline-primary  filtro-compra" data-estado="Ordenada">Ordenadas</button>
+            <button class="btn btn-sm btn-outline-warning  filtro-compra" data-estado="Recibida parcial">Parciales</button>
+            <button class="btn btn-sm btn-outline-success  filtro-compra" data-estado="Recibida">Recibidas</button>
+            <button class="btn btn-sm btn-outline-danger   filtro-compra" data-estado="Rechazada">Rechazadas</button>
+        </div>
+
+        <table id="tblCompras" class="table table-hover w-100">
+            <thead>
                 <tr>
-                    <th>#</th>
+                    <th>Código</th>
                     <th>Descripción</th>
                     <th class="col-hide-xs">Solicitante</th>
                     <th class="text-center col-hide-sm">Ítems</th>
@@ -41,13 +46,9 @@
             </thead>
             <tbody></tbody>
         </table>
-    </div>
 
+    </div>
 </div>
-</div>
-</div>
-</div>
-</section>
 
 
 <!-- ══════════════════════════════════════════════════════════
@@ -239,7 +240,7 @@
      MODAL — REGISTRAR ORDEN AL PROVEEDOR
 ══════════════════════════════════════════════════════════ -->
 <div class="modal fade" id="modalOrdenCompra" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-fullscreen-sm-down">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
@@ -253,10 +254,12 @@
                     <input type="text" class="form-control" id="ordenNumero"
                            maxlength="100" placeholder="Ej: PO-2025-001 (opcional)">
                 </div>
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Fecha estimada de entrega</label>
-                    <input type="date" class="form-control" id="ordenFechaEntrega">
-                </div>
+                <hr class="my-3">
+                <h6 class="fw-semibold mb-3">
+                    <i class="bi bi-calendar-event me-1 text-primary"></i>
+                    Fecha estimada de entrega por ítem
+                </h6>
+                <div id="ordenItemsFechas"></div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>

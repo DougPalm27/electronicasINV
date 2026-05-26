@@ -1,4 +1,4 @@
-const CTRL_USR = './modules/Usuarios/controllers/usuariosController.php';
+const CTRL_USR = './modules/usuarios/controllers/usuariosController.php';
 
 $(document).ready(function () {
     if (!document.getElementById('tblUsuarios')) return;

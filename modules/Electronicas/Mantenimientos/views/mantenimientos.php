@@ -9,9 +9,11 @@
                     <h5 class="mb-0">Mantenimientos</h5>
                     <small class="text-muted">Historial y control de máquinas</small>
                 </div>
+                <?php if (!empty($_SESSION['puede_ejecutar_mantenimiento'])): ?>
                 <button class="btn btn-primary" id="btnNuevoMantenimiento">
                     <i class="bi bi-plus-circle me-1"></i> Nuevo mantenimiento
                 </button>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -44,38 +46,71 @@
                     <div class="row g-3">
 
                         <div class="col-md-6">
-                            <label class="form-label">Máquina <span class="text-danger">*</span></label>
+                            <label class="form-label">
+                                Máquina <span class="text-danger">*</span>
+                                <i class="bi bi-info-circle text-muted ms-1 info-tip"
+                                   data-bs-toggle="tooltip"
+                                   title="Selecciona el equipo al que se le realizó la intervención."></i>
+                            </label>
                             <select id="id_maquina" class="form-select">
                                 <option value="-1">Seleccione</option>
                             </select>
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Tipo <span class="text-danger">*</span></label>
+                            <label class="form-label">
+                                Tipo <span class="text-danger">*</span>
+                                <i class="bi bi-info-circle text-muted ms-1 info-tip"
+                                   data-bs-toggle="tooltip"
+                                   title="Indica la naturaleza del mantenimiento. Selecciona uno para ver su descripción."></i>
+                            </label>
                             <select id="id_tipo" class="form-select">
                                 <option value="-1">Seleccione</option>
                             </select>
+                            <div id="desc_tipo" class="form-text text-info mt-1" style="display:none">
+                                <i class="bi bi-lightbulb me-1"></i><span id="desc_tipo_texto"></span>
+                            </div>
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Técnico</label>
+                            <label class="form-label">
+                                Técnico
+                                <i class="bi bi-info-circle text-muted ms-1 info-tip"
+                                   data-bs-toggle="tooltip"
+                                   title="Persona que realizó la intervención. Si eres técnico, ya apareces seleccionado."></i>
+                            </label>
                             <select id="id_tecnico" class="form-select">
                                 <option value="-1">Seleccione</option>
                             </select>
                         </div>
 
                         <div class="col-md-3">
-                            <label class="form-label">Fecha <span class="text-danger">*</span></label>
+                            <label class="form-label">
+                                Fecha <span class="text-danger">*</span>
+                                <i class="bi bi-info-circle text-muted ms-1 info-tip"
+                                   data-bs-toggle="tooltip"
+                                   title="Día en que se realizó el mantenimiento."></i>
+                            </label>
                             <input type="date" id="fecha_mantenimiento" class="form-control">
                         </div>
 
                         <div class="col-md-3">
-                            <label class="form-label">Próximo mantenimiento</label>
+                            <label class="form-label">
+                                Próximo mantenimiento
+                                <i class="bi bi-info-circle text-muted ms-1 info-tip"
+                                   data-bs-toggle="tooltip"
+                                   title="Fecha estimada en que se debería realizar la próxima intervención a esta máquina. Es opcional."></i>
+                            </label>
                             <input type="date" id="proximo_mantenimiento" class="form-control">
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label">Notas generales</label>
+                            <label class="form-label">
+                                Notas generales
+                                <i class="bi bi-info-circle text-muted ms-1 info-tip"
+                                   data-bs-toggle="tooltip"
+                                   title="Observaciones adicionales sobre el mantenimiento: condiciones encontradas, anomalías, recomendaciones, etc. Es opcional."></i>
+                            </label>
                             <textarea id="descripcion" class="form-control" rows="2"
                                       placeholder="Observaciones adicionales (opcional)"></textarea>
                         </div>
@@ -88,6 +123,10 @@
                         <h6 class="mb-0">
                             <i class="bi bi-list-check me-1 text-primary"></i>
                             Tareas realizadas <span class="text-danger">*</span>
+                            <i class="bi bi-info-circle text-muted ms-1 info-tip"
+                               data-bs-toggle="tooltip"
+                               data-bs-html="true"
+                               title="Lista de trabajos específicos que se hicieron durante esta intervención.<br>Ejemplos: <em>Limpieza de filtros</em>, <em>Calibración de sensor</em>, <em>Cambio de correa</em>.<br>Se requiere al menos una tarea."></i>
                         </h6>
                         <small class="text-muted">Agrega una o más tareas</small>
                     </div>
@@ -102,9 +141,7 @@
                     </div>
 
                     <!-- Lista de tareas -->
-                    <ul class="list-group" id="listaTareas">
-                        <!-- Las tareas se renderizan aquí -->
-                    </ul>
+                    <ul class="list-group" id="listaTareas"></ul>
                     <div id="emptyTareas" class="text-center text-muted py-3" style="display:none">
                         <i class="bi bi-clipboard2 opacity-25" style="font-size:1.5rem"></i>
                         <p class="small mt-1 mb-0">Sin tareas agregadas</p>
@@ -117,6 +154,10 @@
                             <i class="bi bi-box-seam me-1 text-success"></i>
                             Repuestos instalados
                             <span class="text-muted fw-normal" style="font-size:.8rem">(opcional)</span>
+                            <i class="bi bi-info-circle text-muted ms-1 info-tip"
+                               data-bs-toggle="tooltip"
+                               data-bs-html="true"
+                               title="Piezas nuevas que se colocaron en la máquina durante este mantenimiento.<br>Al guardar, <strong>se descuentan automáticamente del inventario</strong>."></i>
                         </h6>
                         <button type="button" class="btn btn-sm btn-outline-success" id="btnAgregarRepuesto">
                             <i class="bi bi-plus-lg"></i> Agregar
@@ -135,6 +176,10 @@
                             <i class="bi bi-arrow-return-left me-1 text-warning"></i>
                             Piezas retiradas
                             <span class="text-muted fw-normal" style="font-size:.8rem">(opcional)</span>
+                            <i class="bi bi-info-circle text-muted ms-1 info-tip"
+                               data-bs-toggle="tooltip"
+                               data-bs-html="true"
+                               title="Componentes extraídos de la máquina en este mantenimiento.<br><strong>Devolución:</strong> regresa la pieza al inventario disponible.<br><strong>Baja:</strong> la pieza se descarta definitivamente."></i>
                         </h6>
                         <button type="button" class="btn btn-sm btn-outline-warning" id="btnAgregarRetiro" disabled>
                             <i class="bi bi-plus-lg"></i> Agregar

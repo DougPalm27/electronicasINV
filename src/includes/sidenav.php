@@ -56,6 +56,16 @@ foreach ($parametrizacion as $p) {
       </li>
       <?php endif; ?>
 
+      <!-- Manual Satake -->
+      <?php if (puedeVer('satake')): ?>
+      <li class="nav-item">
+        <a class="<?= navLink('satake', $mod) ?>" href="?module=satake">
+          <i class="bi bi-journal-medical"></i>
+          <span>Manual Satake</span>
+        </a>
+      </li>
+      <?php endif; ?>
+
       <!-- Máquinas -->
       <?php if (puedeVer('maquinas')): ?>
       <li class="nav-item">

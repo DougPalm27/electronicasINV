@@ -6,11 +6,33 @@ let _repuestosDisponibles   = [];   // catálogo cargado una vez
 let _instaladosEnMaquina    = [];   // piezas instaladas en la máquina seleccionada
 let _filasRepuestos         = [];   // [{id_repuesto, maneja_serie, cantidad, costo, series:[]}]
 let _filasRetiros           = [];   // [{id_maquina_repuesto, tipo_retiro, observaciones}]
+let _tiposMap               = {};   // {id_tipo: descripcion} para mostrar al seleccionar
 
 $(document).ready(function () {
     listarMantenimientos();
     cargarSelects();
     cargarRepuestosDisponibles();
+
+    // ── Inicializar tooltips al abrir el modal ───────────────
+    document.getElementById('modalMantenimiento')
+        .addEventListener('shown.bs.modal', function () {
+            document.querySelectorAll('#modalMantenimiento .info-tip').forEach(el => {
+                if (!bootstrap.Tooltip.getInstance(el)) {
+                    new bootstrap.Tooltip(el, { trigger: 'hover focus' });
+                }
+            });
+        });
+
+    // ── Mostrar descripción al cambiar tipo ──────────────────
+    $("#id_tipo").on("change", function () {
+        const desc = _tiposMap[$(this).val()];
+        if (desc) {
+            $("#desc_tipo_texto").text(desc);
+            $("#desc_tipo").show();
+        } else {
+            $("#desc_tipo").hide();
+        }
+    });
 
     // ── Nuevo mantenimiento ──────────────────────────────────
     $("#btnNuevoMantenimiento").on("click", function () {
@@ -147,7 +169,15 @@ function listarMantenimientos() {
             error: manejarError
         },
         columns: [
-            { data: "maquina",               title: "Máquina" },
+            { data: "maquina", title: "Máquina",
+              render: (v, t, row) => {
+                  const n = escHtml(v);
+                  return row.anulado == 1
+                      ? `<span class="text-decoration-line-through text-muted">${n}</span>
+                         <span class="badge bg-danger ms-1 fw-normal" style="font-size:.7rem">Anulado</span>`
+                      : n;
+              }
+            },
             { data: "tipo",                  title: "Tipo" },
             { data: "tecnico",               title: "Técnico" },
             { data: "fecha_mantenimiento",   title: "Fecha" },
@@ -157,31 +187,52 @@ function listarMantenimientos() {
             {
                 data: null, title: "Acciones", orderable: false, searchable: false,
                 render: function (data, type, row) {
+                    const btnAnular = (row.anulado != 1 && window.USUARIO_ROL === 'Administrador')
+                        ? `<button class="btn btn-sm btn-outline-danger btn-anular ms-1"
+                                   data-id="${row.id_mantenimiento}"
+                                   title="Anular mantenimiento">
+                               <i class="bi bi-slash-circle"></i>
+                           </button>`
+                        : '';
                     return `
-                        <button class="btn btn-sm btn-info me-1"
+                        <button class="btn btn-sm btn-info btn-ver-detalle me-1"
                                 data-id="${row.id_mantenimiento}"
                                 data-maquina="${escHtml(row.maquina)}"
                                 data-fecha="${escHtml(row.fecha_mantenimiento)}"
+                                data-anulado="${row.anulado}"
+                                data-motivo="${escHtml(row.motivo_anulacion || '')}"
                                 title="Ver detalle">
                             <i class="bi bi-eye"></i>
                         </button>
-                        <a class="btn btn-sm btn-danger"
+                        <a class="btn btn-sm btn-outline-secondary"
                            href="./modules/Electronicas/Mantenimientos/reporte.php?id=${row.id_mantenimiento}"
                            target="_blank" title="Imprimir / PDF">
                             <i class="bi bi-file-earmark-pdf"></i>
-                        </a>`;
+                        </a>
+                        ${btnAnular}`;
                 }
             }
         ],
+        createdRow: function (row, data) {
+            if (data.anulado == 1) $(row).addClass('table-secondary').css('opacity', '0.6');
+        },
         language: { url: "//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" }
     });
 
     // ── Abrir detalle desde la tabla ─────────────────────────
-    $("#tablaMantenimientos").on("click", "button[data-id]", function () {
+    $("#tablaMantenimientos").on("click", ".btn-ver-detalle", function () {
         const id      = $(this).data("id");
         const maquina = $(this).data("maquina");
         const fecha   = $(this).data("fecha");
-        verDetalle(id, maquina, fecha);
+        const anulado = $(this).data("anulado");
+        const motivo  = $(this).data("motivo");
+        verDetalle(id, maquina, fecha, anulado, motivo);
+    });
+
+    // ── Anular mantenimiento (solo admin) ────────────────────
+    $("#tablaMantenimientos").on("click", ".btn-anular", function () {
+        const id = $(this).data("id");
+        confirmarAnulacion(id);
     });
 }
 
@@ -191,8 +242,21 @@ function listarMantenimientos() {
 
 function cargarSelects() {
     cargarSelect("maquinas", "#id_maquina", "id_maquina");
-    cargarSelect("tipos",    "#id_tipo",    "id_tipo");
+    cargarSelectTipos();
     cargarSelectTecnicos();
+}
+
+function cargarSelectTipos() {
+    $.post(CTRL, { accion: "tipos" }, function (resp) {
+        if (!resp.ok) { console.error(resp.mensaje); return; }
+        let html = '<option value="-1">Seleccione</option>';
+        _tiposMap = {};
+        resp.data.forEach(t => {
+            html += `<option value="${t.id_tipo}">${escHtml(t.nombre)}</option>`;
+            if (t.descripcion) _tiposMap[t.id_tipo] = t.descripcion;
+        });
+        $("#id_tipo").html(html);
+    }, "json");
 }
 
 function cargarSelect(accion, selector, valueKey) {
@@ -458,9 +522,10 @@ function guardar() {
     }
 
     // .val() devuelve null en selects disabled; usamos el atributo directo
-    const id_tecnico = $("#id_tecnico").prop("disabled")
+    const _tecRaw    = $("#id_tecnico").prop("disabled")
         ? $("#id_tecnico option:selected").val()
         : $("#id_tecnico").val();
+    const id_tecnico = (_tecRaw && _tecRaw !== "-1") ? _tecRaw : null;
 
     // Validar repuestos: todos deben tener repuesto seleccionado
     for (let i = 0; i < _filasRepuestos.length; i++) {
@@ -513,7 +578,7 @@ function guardar() {
 // DETALLE
 // ════════════════════════════════════════════════════════════
 
-function verDetalle(id_mantenimiento, maquina, fecha) {
+function verDetalle(id_mantenimiento, maquina, fecha, anulado, motivo) {
     $("#modalDetalleLabel").html(
         `<i class="bi bi-tools me-2"></i>${escHtml(maquina)} — ${escHtml(fecha)}`
     );
@@ -527,15 +592,57 @@ function verDetalle(id_mantenimiento, maquina, fecha) {
             $("#detalleContenido").html(`<div class="alert alert-danger m-3">${escHtml(resp.mensaje)}</div>`);
             return;
         }
-        renderDetalle(resp.data);
+        renderDetalle(resp.data, anulado, motivo);
     }, "json").fail(manejarError);
 }
 
-function renderDetalle(data) {
-    const tareas    = data.tareas    || [];
+function confirmarAnulacion(id) {
+    Swal.fire({
+        title: 'Anular mantenimiento',
+        html: `<p class="text-muted small mb-2">
+                   Esta acción marcará el registro como anulado.<br>
+                   <strong>Los movimientos de inventario no se revierten automáticamente.</strong>
+               </p>`,
+        icon: 'warning',
+        input: 'textarea',
+        inputLabel: 'Motivo de anulación',
+        inputPlaceholder: 'Describe el motivo...',
+        inputAttributes: { maxlength: 500, rows: 3 },
+        inputValidator: v => !v.trim() ? 'El motivo es obligatorio.' : null,
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        confirmButtonText: '<i class="bi bi-slash-circle me-1"></i> Sí, anular',
+        cancelButtonText: 'Cancelar'
+    }).then(result => {
+        if (!result.isConfirmed) return;
+        $.post(CTRL, {
+            accion: 'anular',
+            id_mantenimiento: id,
+            motivo: result.value.trim()
+        }, function (resp) {
+            if (!resp.ok) { Swal.fire('Error', resp.mensaje, 'error'); return; }
+            tablaMantenimientos.ajax.reload(null, false);
+            Swal.fire({ icon: 'success', title: 'Anulado', timer: 1800, showConfirmButton: false });
+        }, 'json').fail(manejarError);
+    });
+}
+
+function renderDetalle(data, anulado, motivo) {
+    const tareas     = data.tareas     || [];
     const instalados = data.instalados || [];
-    const retiros   = data.retiros   || [];
+    const retiros    = data.retiros    || [];
     let html = "";
+
+    // ── Banner de anulado ─────────────────────────────────────
+    if (anulado == 1) {
+        html += `<div class="alert alert-danger d-flex align-items-start gap-2 mb-0 rounded-0 border-0">
+            <i class="bi bi-slash-circle-fill fs-5 flex-shrink-0 mt-1"></i>
+            <div>
+                <strong>Mantenimiento anulado</strong>
+                ${motivo ? `<br><small class="text-danger-emphasis">${escHtml(motivo)}</small>` : ''}
+            </div>
+        </div>`;
+    }
 
     // ── Tareas ────────────────────────────────────────────────
     html += `<div class="px-3 pt-3 pb-2">
@@ -645,6 +752,7 @@ function renderDetalle(data) {
 
 function limpiarModal() {
     $("#formMantenimiento")[0].reset();
+    $("#desc_tipo").hide();
 
     // Tareas
     _tareas = [];
