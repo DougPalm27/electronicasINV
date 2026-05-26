@@ -60,16 +60,27 @@ function listarModelos() {
                 orderable: false,
                 className: "text-center",
                 render: (data, type, row) => `
-                    <button class="btn btn-warning btn-sm me-1"
-                        onclick='editarModelo(${JSON.stringify(row)})'
-                        title="Editar">
-                        <i class="bi bi-pencil"></i>
-                    </button>
-                    <button class="btn btn-danger btn-sm"
-                        onclick="eliminarModelo(${row.id_modelo}, '${row.nombre.replace(/'/g, "\\'")}')"
-                        title="Eliminar">
-                        <i class="bi bi-trash"></i>
-                    </button>`,
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-primary dropdown-toggle py-1"
+                                type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li>
+                                <button class="dropdown-item" type="button"
+                                        onclick='editarModelo(${JSON.stringify(row)})'>
+                                    <i class="bi bi-pencil me-2 text-warning"></i>Editar
+                                </button>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button class="dropdown-item text-danger" type="button"
+                                        onclick="eliminarModelo(${row.id_modelo}, '${row.nombre.replace(/'/g, "\\'")}')">
+                                    <i class="bi bi-trash me-2"></i>Eliminar
+                                </button>
+                            </li>
+                        </ul>
+                    </div>`,
             },
         ],
         language: { url: "./modules/Electronicas/Repuestos/js/es-ES.json" },

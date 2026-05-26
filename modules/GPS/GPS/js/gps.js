@@ -72,36 +72,51 @@ $(document).ready(function () {
             { data: 'transporte',    defaultContent: '<span class="text-muted">—</span>' },
             { data: 'plataforma',    defaultContent: '<span class="text-muted">—</span>' },
             { data: 'destino',       defaultContent: '<span class="text-muted">—</span>' },
-            { data: null, className: 'text-center', orderable: false,
-              render: (d, t, r) => `
-                <button class="btn btn-sm btn-success btn-acceso-rapido"
-                        data-placa="${esc(r.placa)}"
-                        data-usuario="${esc(r.usuario || '')}"
-                        data-contrasena="${esc(r.contrasena || '')}"
-                        data-url="${esc(r.url_base || '')}"
-                        data-plataforma="${esc(r.plataforma || '')}"
-                        title="Acceso rápido">
-                    <i class="bi bi-key"></i>
-                </button>` },
             { data: 'estado', className: 'text-center',
               render: v => v == 1 ? '<span class="badge bg-success">Activo</span>'
                                   : '<span class="badge bg-secondary">Inactivo</span>' },
             { data: null, className: 'text-center', orderable: false,
               render: (d, t, r) => `
-                <button class="btn btn-sm btn-warning btn-editar-gps me-1"
-                        data-id="${r.id_gps}"
-                        data-placa="${esc(r.placa)}"
-                        data-id-tipo="${r.id_tipo_vehiculo || ''}"
-                        data-id-destino="${r.id_destino || ''}"
-                        data-id-transporte="${r.id_transporte || ''}"
-                        data-id-cuenta="${r.id_cuenta || ''}"
-                        data-plataforma="${esc(r.plataforma || '')}"
-                        data-usuario="${esc(r.usuario || '')}"
-                        data-contrasena="${esc(r.contrasena || '')}"
-                        title="Editar"><i class="bi bi-pencil"></i></button>
-                <button class="btn btn-sm ${r.estado == 1 ? 'btn-danger' : 'btn-success'} btn-toggle-gps"
-                        data-id="${r.id_gps}" title="${r.estado == 1 ? 'Desactivar' : 'Activar'}">
-                    <i class="bi bi-${r.estado == 1 ? 'toggle-on' : 'toggle-off'}"></i></button>` }
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-primary dropdown-toggle py-1"
+                            type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-three-dots-vertical"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                        <li>
+                            <button class="dropdown-item btn-acceso-rapido" type="button"
+                                    data-placa="${esc(r.placa)}"
+                                    data-usuario="${esc(r.usuario || '')}"
+                                    data-contrasena="${esc(r.contrasena || '')}"
+                                    data-url="${esc(r.url_base || '')}"
+                                    data-plataforma="${esc(r.plataforma || '')}">
+                                <i class="bi bi-key me-2 text-success"></i>Acceso rápido
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item btn-editar-gps" type="button"
+                                    data-id="${r.id_gps}"
+                                    data-placa="${esc(r.placa)}"
+                                    data-id-tipo="${r.id_tipo_vehiculo || ''}"
+                                    data-id-destino="${r.id_destino || ''}"
+                                    data-id-transporte="${r.id_transporte || ''}"
+                                    data-id-cuenta="${r.id_cuenta || ''}"
+                                    data-plataforma="${esc(r.plataforma || '')}"
+                                    data-usuario="${esc(r.usuario || '')}"
+                                    data-contrasena="${esc(r.contrasena || '')}">
+                                <i class="bi bi-pencil me-2 text-warning"></i>Editar
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <button class="dropdown-item ${r.estado==1?'text-danger':'text-success'} btn-toggle-gps"
+                                    type="button" data-id="${r.id_gps}">
+                                <i class="bi bi-${r.estado==1?'toggle-on':'toggle-off'} me-2"></i>
+                                ${r.estado==1?'Desactivar':'Activar'}
+                            </button>
+                        </li>
+                    </ul>
+                </div>` }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
         order: [[1, 'asc']], pageLength: 15, scrollX: true, autoWidth: false

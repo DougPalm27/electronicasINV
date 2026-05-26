@@ -16,7 +16,7 @@
             <tr>
               <th>#</th><th>Placa</th><th>Tipo</th><th>Transporte</th>
               <th>Plataforma</th><th>Destino</th>
-              <th class="text-center">Acceso</th><th class="text-center">Estado</th>
+              <th class="text-center">Estado</th>
               <th class="text-center">Acciones</th>
             </tr>
           </thead>

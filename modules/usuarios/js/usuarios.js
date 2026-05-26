@@ -53,24 +53,37 @@ $(document).ready(function () {
                 className: 'text-center',
                 orderable: false,
                 render: (d, t, r) => `
-                    <button class="btn btn-sm btn-warning btn-editar me-1"
-                            data-id="${r.id_usuario}"
-                            data-nombre="${r.nombre}"
-                            data-email="${r.email || ''}"
-                            data-rol="${r.id_rol || ''}"
-                            title="Editar usuario">
-                        <i class="bi bi-pencil"></i>
-                    </button>
-                    <button class="btn btn-sm btn-primary btn-reset me-1"
-                            data-id="${r.id_usuario}" data-nombre="${r.nombre}"
-                            title="Restablecer contraseña">
-                        <i class="bi bi-key"></i>
-                    </button>
-                    <button class="btn btn-sm ${r.activo == 1 ? 'btn-danger' : 'btn-success'} btn-toggle"
-                            data-id="${r.id_usuario}"
-                            title="${r.activo == 1 ? 'Desactivar' : 'Activar'}">
-                        <i class="bi bi-${r.activo == 1 ? 'person-slash' : 'person-check'}"></i>
-                    </button>`
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-primary dropdown-toggle py-1"
+                                type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li>
+                                <button class="dropdown-item btn-editar" type="button"
+                                        data-id="${r.id_usuario}"
+                                        data-nombre="${r.nombre}"
+                                        data-email="${r.email || ''}"
+                                        data-rol="${r.id_rol || ''}">
+                                    <i class="bi bi-pencil me-2 text-warning"></i>Editar
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dropdown-item btn-reset" type="button"
+                                        data-id="${r.id_usuario}" data-nombre="${r.nombre}">
+                                    <i class="bi bi-key me-2 text-secondary"></i>Restablecer contraseña
+                                </button>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button class="dropdown-item ${r.activo == 1 ? 'text-danger' : 'text-success'} btn-toggle"
+                                        type="button" data-id="${r.id_usuario}">
+                                    <i class="bi bi-${r.activo == 1 ? 'person-slash' : 'person-check'} me-2"></i>
+                                    ${r.activo == 1 ? 'Desactivar' : 'Activar'}
+                                </button>
+                            </li>
+                        </ul>
+                    </div>`
             }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },

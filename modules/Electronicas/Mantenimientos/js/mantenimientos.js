@@ -187,29 +187,43 @@ function listarMantenimientos() {
             {
                 data: null, title: "Acciones", orderable: false, searchable: false,
                 render: function (data, type, row) {
+                    const motivo    = escHtml(row.motivo_anulacion || '');
                     const btnAnular = (row.anulado != 1 && window.USUARIO_ROL === 'Administrador')
-                        ? `<button class="btn btn-sm btn-outline-danger btn-anular ms-1"
-                                   data-id="${row.id_mantenimiento}"
-                                   title="Anular mantenimiento">
-                               <i class="bi bi-slash-circle"></i>
-                           </button>`
+                        ? `<li><hr class="dropdown-divider"></li>
+                           <li>
+                               <button class="dropdown-item text-danger btn-anular" type="button"
+                                       data-id="${row.id_mantenimiento}">
+                                   <i class="bi bi-slash-circle me-2"></i>Anular
+                               </button>
+                           </li>`
                         : '';
                     return `
-                        <button class="btn btn-sm btn-info btn-ver-detalle me-1"
-                                data-id="${row.id_mantenimiento}"
-                                data-maquina="${escHtml(row.maquina)}"
-                                data-fecha="${escHtml(row.fecha_mantenimiento)}"
-                                data-anulado="${row.anulado}"
-                                data-motivo="${escHtml(row.motivo_anulacion || '')}"
-                                title="Ver detalle">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                        <a class="btn btn-sm btn-outline-secondary"
-                           href="./modules/Electronicas/Mantenimientos/reporte.php?id=${row.id_mantenimiento}"
-                           target="_blank" title="Imprimir / PDF">
-                            <i class="bi bi-file-earmark-pdf"></i>
-                        </a>
-                        ${btnAnular}`;
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-primary dropdown-toggle py-1"
+                                    type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                <li>
+                                    <button class="dropdown-item btn-ver-detalle" type="button"
+                                            data-id="${row.id_mantenimiento}"
+                                            data-maquina="${escHtml(row.maquina)}"
+                                            data-fecha="${escHtml(row.fecha_mantenimiento)}"
+                                            data-anulado="${row.anulado}"
+                                            data-motivo="${motivo}">
+                                        <i class="bi bi-eye me-2 text-info"></i>Ver detalle
+                                    </button>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item"
+                                       href="./modules/Electronicas/Mantenimientos/reporte.php?id=${row.id_mantenimiento}"
+                                       target="_blank">
+                                        <i class="bi bi-file-earmark-pdf me-2 text-secondary"></i>Imprimir / PDF
+                                    </a>
+                                </li>
+                                ${btnAnular}
+                            </ul>
+                        </div>`;
                 }
             }
         ],
@@ -597,34 +611,93 @@ function verDetalle(id_mantenimiento, maquina, fecha, anulado, motivo) {
 }
 
 function confirmarAnulacion(id) {
-    Swal.fire({
-        title: 'Anular mantenimiento',
-        html: `<p class="text-muted small mb-2">
-                   Esta acción marcará el registro como anulado.<br>
-                   <strong>Los movimientos de inventario no se revierten automáticamente.</strong>
-               </p>`,
-        icon: 'warning',
-        input: 'textarea',
-        inputLabel: 'Motivo de anulación',
-        inputPlaceholder: 'Describe el motivo...',
-        inputAttributes: { maxlength: 500, rows: 3 },
-        inputValidator: v => !v.trim() ? 'El motivo es obligatorio.' : null,
-        showCancelButton: true,
-        confirmButtonColor: '#dc3545',
-        confirmButtonText: '<i class="bi bi-slash-circle me-1"></i> Sí, anular',
-        cancelButtonText: 'Cancelar'
-    }).then(result => {
-        if (!result.isConfirmed) return;
-        $.post(CTRL, {
-            accion: 'anular',
-            id_mantenimiento: id,
-            motivo: result.value.trim()
-        }, function (resp) {
-            if (!resp.ok) { Swal.fire('Error', resp.mensaje, 'error'); return; }
-            tablaMantenimientos.ajax.reload(null, false);
-            Swal.fire({ icon: 'success', title: 'Anulado', timer: 1800, showConfirmButton: false });
-        }, 'json').fail(manejarError);
-    });
+    // Paso 1 — análisis previo
+    $.post(CTRL, { accion: 'verificarAnulacion', id_mantenimiento: id }, function (resp) {
+        if (!resp.ok) { Swal.fire('Error', resp.mensaje, 'error'); return; }
+
+        const d = resp.data;
+        let html = '<div style="text-align:left">';
+
+        // Solicitud vinculada
+        if (d.solicitud) {
+            html += `<div class="alert alert-warning py-2 mb-3 small">
+                <i class="bi bi-receipt me-1"></i>
+                Este mantenimiento fue generado desde la solicitud
+                <strong>#${d.solicitud.id_solicitud}</strong>
+                &ldquo;${escHtml(d.solicitud.descripcion)}&rdquo;<br>
+                La solicitud también quedará como <strong>Anulada</strong>.
+            </div>`;
+        }
+
+        // Qué SÍ se revertirá
+        if (d.revertibles.length) {
+            html += `<p class="fw-semibold small mb-1">
+                <i class="bi bi-check-circle text-success me-1"></i>Se revertirá automáticamente:
+            </p><ul class="small mb-3 ps-3">`;
+            d.revertibles.forEach(r => {
+                html += `<li><strong>${escHtml(r.repuesto)}</strong> — ${escHtml(r.info)}</li>`;
+            });
+            html += '</ul>';
+        }
+
+        // Qué NO se puede revertir
+        if (d.conflictos.length) {
+            html += `<p class="fw-semibold small mb-1 text-danger">
+                <i class="bi bi-exclamation-triangle me-1"></i>No se puede revertir automáticamente:
+            </p><ul class="small mb-3 ps-3 text-danger">`;
+            d.conflictos.forEach(c => {
+                html += `<li><strong>${escHtml(c.repuesto)}</strong> — ${escHtml(c.razon)}</li>`;
+            });
+            html += '</ul>';
+        }
+
+        if (!d.revertibles.length && !d.conflictos.length) {
+            html += '<p class="small text-muted mb-3">Este mantenimiento no tiene movimientos de inventario.</p>';
+        }
+
+        // Campo motivo
+        html += `<label class="form-label small fw-semibold">
+                     Motivo de anulación <span class="text-danger">*</span>
+                 </label>
+                 <textarea id="swal-motivo" class="form-control form-control-sm"
+                           rows="2" maxlength="500"
+                           placeholder="Describe el motivo..."></textarea>`;
+        html += '</div>';
+
+        // Paso 2 — confirmación y ejecución
+        Swal.fire({
+            title: 'Anular mantenimiento',
+            html,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            confirmButtonText: '<i class="bi bi-slash-circle me-1"></i> Confirmar anulación',
+            cancelButtonText: 'Cancelar',
+            didOpen: () => {
+                // Forzar scroll al inicio del contenido
+                Swal.getHtmlContainer().scrollTop = 0;
+            },
+            preConfirm: () => {
+                const motivo = document.getElementById('swal-motivo').value.trim();
+                if (!motivo) {
+                    Swal.showValidationMessage('El motivo es obligatorio.');
+                    return false;
+                }
+                return motivo;
+            }
+        }).then(result => {
+            if (!result.isConfirmed) return;
+            $.post(CTRL, {
+                accion: 'anular',
+                id_mantenimiento: id,
+                motivo: result.value
+            }, function (resp2) {
+                if (!resp2.ok) { Swal.fire('Error', resp2.mensaje, 'error'); return; }
+                tablaMantenimientos.ajax.reload(null, false);
+                Swal.fire({ icon: 'success', title: 'Anulado', timer: 1800, showConfirmButton: false });
+            }, 'json').fail(manejarError);
+        });
+    }, 'json').fail(manejarError);
 }
 
 function renderDetalle(data, anulado, motivo) {

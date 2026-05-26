@@ -123,48 +123,59 @@ function listarRepuestos() {
       {
         data: null,
         render: (data, type, row) => {
-          let botones = `
-            <button class="btn btn-warning btn-sm"
-                onclick='cargarEditarRepuesto(${JSON.stringify(row)})'
-                title="Editar">
-                <i class="bi bi-pencil"></i>
-            </button>`;
+          const id = row.id_repuesto;
 
-          if (row.maneja_serie == 1) {
-            botones += `
-              <button class="btn btn-secondary btn-sm" onclick="verDetalle(${row.id_repuesto})" title="Ver detalle por serie">
-                <i class="bi bi-box"></i>
-              </button>
-              <button class="btn btn-success btn-sm" onclick="abrirEntrada(${row.id_repuesto}, 1)" title="Registrar entrada por serie">
-                <i class="bi bi-plus-circle"></i>
-              </button>
-              <button class="btn btn-primary btn-sm" onclick="abrirSalida(${row.id_repuesto}, 1)" title="Registrar salida por serie">
-                <i class="bi bi-arrow-up-circle"></i>
-              </button>`;
-          } else {
-            botones += `
-              <button class="btn btn-info btn-sm btn-ver-kardex"
-                data-id="${row.id_repuesto}"
-                data-nombre="${(row.nombre  || '').replace(/"/g, '&quot;')}"
-                data-marca="${(row.marca    || '—').replace(/"/g, '&quot;')}"
-                data-modelo="${(row.modelo  || '—').replace(/"/g, '&quot;')}"
-                title="Ver kardex">
-                <i class="bi bi-journal-text"></i>
-              </button>
-              <button class="btn btn-success btn-sm" onclick="abrirEntrada(${row.id_repuesto}, 0)" title="Registrar entrada por cantidad">
-                <i class="bi bi-plus-circle"></i>
-              </button>
-              <button class="btn btn-primary btn-sm" onclick="abrirSalida(${row.id_repuesto}, 0)" title="Registrar salida por cantidad">
-                <i class="bi bi-arrow-up-circle"></i>
-              </button>`;
-          }
+          const itemsEspecificos = row.maneja_serie == 1
+            ? `<li>
+                   <button class="dropdown-item" type="button" onclick="verDetalle(${id})">
+                       <i class="bi bi-box me-2 text-secondary"></i>Ver series
+                   </button>
+               </li>
+               <li>
+                   <button class="dropdown-item" type="button" onclick="abrirEntrada(${id}, 1)">
+                       <i class="bi bi-plus-circle me-2 text-success"></i>Registrar entrada
+                   </button>
+               </li>
+               `
+            : `<li>
+                   <button class="dropdown-item btn-ver-kardex" type="button"
+                           data-id="${id}"
+                           data-nombre="${(row.nombre  || '').replace(/"/g, '&quot;')}"
+                           data-marca="${(row.marca    || '—').replace(/"/g, '&quot;')}"
+                           data-modelo="${(row.modelo  || '—').replace(/"/g, '&quot;')}">
+                       <i class="bi bi-journal-text me-2 text-info"></i>Ver kardex
+                   </button>
+               </li>
+               <li>
+                   <button class="dropdown-item" type="button" onclick="abrirEntrada(${id}, 0)">
+                       <i class="bi bi-plus-circle me-2 text-success"></i>Registrar entrada
+                   </button>
+               </li>
+               `;
 
-          botones += `
-            <button class="btn btn-danger btn-sm" onclick="eliminarRepuesto(${row.id_repuesto})" title="Desechar repuesto">
-              <i class="bi bi-trash"></i>
-            </button>`;
-
-          return botones;
+          return `
+            <div class="dropdown">
+                <button class="btn btn-sm btn-primary dropdown-toggle py-1"
+                        type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                    <li>
+                        <button class="dropdown-item" type="button"
+                                onclick='cargarEditarRepuesto(${JSON.stringify(row)})'>
+                            <i class="bi bi-pencil me-2 text-warning"></i>Editar
+                        </button>
+                    </li>
+                    ${itemsEspecificos}
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <button class="dropdown-item text-danger" type="button"
+                                onclick="eliminarRepuesto(${id})">
+                            <i class="bi bi-trash me-2"></i>Desechar
+                        </button>
+                    </li>
+                </ul>
+            </div>`;
         },
       },
     ],
@@ -709,10 +720,11 @@ function cargarKardex(id) {
                            <i class="bi bi-flag me-1"></i>Punto de partida
                          </span>`;
         } else if (esAnulacion) {
+          const detalle = m.observaciones || m.referencia;
           descripcion = `<span class="badge bg-warning text-dark me-1">
                            <i class="bi bi-arrow-counterclockwise me-1"></i>Ajuste por anulación
                          </span>
-                         <small class="text-muted">${m.referencia}</small>`;
+                         <small class="text-muted">${detalle}</small>`;
         } else if (anulado) {
           descripcion = `<span class="badge bg-secondary me-1">
                            <i class="bi bi-slash-circle me-1"></i>Anulado

@@ -162,15 +162,29 @@ function initDataTable(esAdmin) {
 }
 
 function botonesTabla(r, esAdmin) {
-    let btns = `<button class="btn btn-sm btn-outline-secondary btn-ver-compra me-1"
-        data-id="${r.id_solicitud_compra}" title="Ver detalle">
-        <i class="bi bi-eye"></i></button>`;
-    if (r.estado === 'Borrador') {
-        btns += `<button class="btn btn-sm btn-outline-primary btn-editar-compra"
-            data-id="${r.id_solicitud_compra}" title="Editar">
-            <i class="bi bi-pencil"></i></button>`;
-    }
-    return btns;
+    const btnEditar = (r.estado === 'Borrador')
+        ? `<li>
+               <button class="dropdown-item btn-editar-compra" type="button" data-id="${r.id_solicitud_compra}">
+                   <i class="bi bi-pencil me-2 text-warning"></i>Editar
+               </button>
+           </li>`
+        : '';
+
+    return `
+        <div class="dropdown">
+            <button class="btn btn-sm btn-primary dropdown-toggle py-1"
+                    type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-three-dots-vertical"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                <li>
+                    <button class="dropdown-item btn-ver-compra" type="button" data-id="${r.id_solicitud_compra}">
+                        <i class="bi bi-eye me-2 text-info"></i>Ver detalle
+                    </button>
+                </li>
+                ${btnEditar}
+            </ul>
+        </div>`;
 }
 
 /* ══════════════════════════════════════════════════════════════

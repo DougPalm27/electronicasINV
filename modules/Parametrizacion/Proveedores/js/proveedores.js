@@ -25,22 +25,33 @@ $(document).ready(function () {
                 className: 'text-center',
                 orderable: false,
                 render: row => `
-                    <button class="btn btn-sm btn-warning btn-editar me-1"
-                            data-id="${row.id_proveedor}"
-                            data-nombre="${row.nombre}"
-                            data-telefono="${row.telefono ?? ''}"
-                            data-correo="${row.correo ?? ''}"
-                            data-direccion="${row.direccion ?? ''}"
-                            title="Editar">
-                        <i class="bi bi-pencil"></i>
-                    </button>
-                    <button class="btn btn-sm btn-danger btn-eliminar"
-                            data-id="${row.id_proveedor}"
-                            data-nombre="${row.nombre}"
-                            data-repuestos="${row.total_repuestos}"
-                            title="Eliminar">
-                        <i class="bi bi-trash"></i>
-                    </button>`
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-primary dropdown-toggle py-1"
+                                type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li>
+                                <button class="dropdown-item btn-editar" type="button"
+                                        data-id="${row.id_proveedor}"
+                                        data-nombre="${row.nombre}"
+                                        data-telefono="${row.telefono ?? ''}"
+                                        data-correo="${row.correo ?? ''}"
+                                        data-direccion="${row.direccion ?? ''}">
+                                    <i class="bi bi-pencil me-2 text-warning"></i>Editar
+                                </button>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button class="dropdown-item text-danger btn-eliminar" type="button"
+                                        data-id="${row.id_proveedor}"
+                                        data-nombre="${row.nombre}"
+                                        data-repuestos="${row.total_repuestos}">
+                                    <i class="bi bi-trash me-2"></i>Eliminar
+                                </button>
+                            </li>
+                        </ul>
+                    </div>`
             }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },

@@ -70,16 +70,30 @@ function listarMaquinas() {
         data: null,
         render: function (data, type, row) {
           return `
-        <button class="btn btn-sm btn-warning me-1" onclick="cargarEditar(${row.id_maquina})" title="Editar">
-          <i class="bi bi-pencil"></i>
-        </button>
-        <button class="btn btn-sm btn-danger me-1" onclick="cambiarEstado(${row.id_maquina}, 3)" title="Dar de baja">
-          <i class="bi bi-slash-circle"></i>
-        </button>
-        <button class="btn btn-sm btn-secondary" onclick="verHistorial(${row.id_maquina})" title="Historial de mantenimientos">
-          <i class="bi bi-clock-history"></i>
-        </button>
-      `;
+        <div class="dropdown">
+            <button class="btn btn-sm btn-primary dropdown-toggle py-1"
+                    type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-three-dots-vertical"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                <li>
+                    <button class="dropdown-item" type="button" onclick="cargarEditar(${row.id_maquina})">
+                        <i class="bi bi-pencil me-2 text-warning"></i>Editar
+                    </button>
+                </li>
+                <li>
+                    <button class="dropdown-item" type="button" onclick="verHistorial(${row.id_maquina})">
+                        <i class="bi bi-clock-history me-2 text-secondary"></i>Historial
+                    </button>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <button class="dropdown-item text-danger" type="button" onclick="cambiarEstado(${row.id_maquina}, 3)">
+                        <i class="bi bi-slash-circle me-2"></i>Dar de baja
+                    </button>
+                </li>
+            </ul>
+        </div>`;
         },
       },
     ],

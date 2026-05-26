@@ -32,19 +32,31 @@ $(document).ready(function () {
                 className: 'text-center',
                 orderable: false,
                 render: (d, t, r) => `
-                    <button class="btn btn-sm btn-warning btn-editar-tr me-1"
-                            data-id="${r.id_transporte}"
-                            data-nombre="${escHtml(r.nombre)}"
-                            data-contacto="${escHtml(r.contacto || '')}"
-                            data-telefono="${escHtml(r.telefono || '')}"
-                            title="Editar">
-                        <i class="bi bi-pencil"></i>
-                    </button>
-                    <button class="btn btn-sm ${r.activo == 1 ? 'btn-danger' : 'btn-success'} btn-toggle-tr"
-                            data-id="${r.id_transporte}"
-                            title="${r.activo == 1 ? 'Desactivar' : 'Activar'}">
-                        <i class="bi bi-${r.activo == 1 ? 'toggle-on' : 'toggle-off'}"></i>
-                    </button>`
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-primary dropdown-toggle py-1"
+                                type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li>
+                                <button class="dropdown-item btn-editar-tr" type="button"
+                                        data-id="${r.id_transporte}"
+                                        data-nombre="${escHtml(r.nombre)}"
+                                        data-contacto="${escHtml(r.contacto || '')}"
+                                        data-telefono="${escHtml(r.telefono || '')}">
+                                    <i class="bi bi-pencil me-2 text-warning"></i>Editar
+                                </button>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button class="dropdown-item ${r.activo == 1 ? 'text-danger' : 'text-success'} btn-toggle-tr"
+                                        type="button" data-id="${r.id_transporte}">
+                                    <i class="bi bi-${r.activo == 1 ? 'toggle-on' : 'toggle-off'} me-2"></i>
+                                    ${r.activo == 1 ? 'Desactivar' : 'Activar'}
+                                </button>
+                            </li>
+                        </ul>
+                    </div>`
             }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },

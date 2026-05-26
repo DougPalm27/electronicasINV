@@ -94,13 +94,20 @@ try {
             response($resp, false, "Mantenimiento guardado correctamente");
             break;
 
+        case 'verificarAnulacion':
+            if (!$esAdmin) response([], true, 'Sin permisos.');
+            $id = (int)($_POST['id_mantenimiento'] ?? 0);
+            if (!$id) response([], true, 'ID inválido.');
+            response($model->verificarAnulacion($id));
+            break;
+
         case 'anular':
             if (!$esAdmin) response([], true, 'Solo el administrador puede anular mantenimientos.');
             $id     = (int)($_POST['id_mantenimiento'] ?? 0);
             $motivo = trim($_POST['motivo'] ?? '');
             if (!$id)     response([], true, 'ID inválido.');
             if (!$motivo) response([], true, 'Debes indicar el motivo de anulación.');
-            $model->anularMantenimiento($id, $motivo);
+            $model->ejecutarAnulacion($id, $motivo);
             response([], false, 'Mantenimiento anulado correctamente.');
             break;
 

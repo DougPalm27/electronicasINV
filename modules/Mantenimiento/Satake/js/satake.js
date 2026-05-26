@@ -147,21 +147,41 @@ function initTablaTareas() {
 }
 
 function botonesFilaTarea(r) {
-    let b = `<button class="btn btn-sm btn-outline-secondary btn-ver-tarea me-1"
-                 data-id="${r.id_tarea}" title="Ver detalle">
-                 <i class="bi bi-eye"></i></button>`;
-    if (esAdmin) {
-        b += `<button class="btn btn-sm btn-outline-primary btn-editar-tarea me-1"
-                  data-id="${r.id_tarea}" title="Editar">
-                  <i class="bi bi-pencil"></i></button>`;
-        const iconToggle = String(r.activo) === '1'
-            ? '<i class="bi bi-toggle-on text-success"></i>'
-            : '<i class="bi bi-toggle-off text-secondary"></i>';
-        b += `<button class="btn btn-sm btn-outline-secondary btn-toggle-tarea"
-                  data-id="${r.id_tarea}" title="Activar / Desactivar">
-                  ${iconToggle}</button>`;
-    }
-    return b;
+    const btnEditar = esAdmin
+        ? `<li>
+               <button class="dropdown-item btn-editar-tarea" type="button" data-id="${r.id_tarea}">
+                   <i class="bi bi-pencil me-2 text-warning"></i>Editar
+               </button>
+           </li>`
+        : '';
+
+    const iconToggle = String(r.activo) === '1'
+        ? '<i class="bi bi-toggle-on text-success me-2"></i>Desactivar'
+        : '<i class="bi bi-toggle-off text-secondary me-2"></i>Activar';
+    const btnToggle = esAdmin
+        ? `<li>
+               <button class="dropdown-item btn-toggle-tarea" type="button" data-id="${r.id_tarea}">
+                   ${iconToggle}
+               </button>
+           </li>`
+        : '';
+
+    return `
+        <div class="dropdown">
+            <button class="btn btn-sm btn-primary dropdown-toggle py-1"
+                    type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-three-dots-vertical"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                <li>
+                    <button class="dropdown-item btn-ver-tarea" type="button" data-id="${r.id_tarea}">
+                        <i class="bi bi-eye me-2 text-info"></i>Ver detalle
+                    </button>
+                </li>
+                ${btnEditar}
+                ${btnToggle}
+            </ul>
+        </div>`;
 }
 
 /* ═══════════════════════════════════════════════════════════════

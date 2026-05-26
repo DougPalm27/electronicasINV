@@ -40,27 +40,42 @@ $(document).ready(function () {
                 data: null,
                 className: 'text-center',
                 orderable: false,
-                render: (d, t, r) => `
-                    <button class="btn btn-sm btn-warning btn-editar me-1"
-                            data-id="${r.id_divisa}"
-                            data-nombre="${r.nombre}"
-                            data-simbolo="${r.simbolo}"
-                            data-tipo="${r.tipo_cambio}"
-                            title="Editar">
-                        <i class="bi bi-pencil"></i>
-                    </button>
-                    ${r.predeterminada != 1 ? `
-                    <button class="btn btn-sm btn-primary btn-pred me-1"
-                            data-id="${r.id_divisa}"
-                            data-nombre="${r.nombre}"
-                            title="Establecer como predeterminada">
-                        <i class="bi bi-star"></i>
-                    </button>
-                    <button class="btn btn-sm ${r.activo == 1 ? 'btn-danger' : 'btn-success'} btn-toggle"
-                            data-id="${r.id_divisa}"
-                            title="${r.activo == 1 ? 'Desactivar' : 'Activar'}">
-                        <i class="bi bi-${r.activo == 1 ? 'slash-circle' : 'check-circle'}"></i>
-                    </button>` : '<span class="text-muted small">Predeterminada</span>'}`
+                render: (d, t, r) => {
+                    const btnPredToggle = r.predeterminada != 1 ? `
+                        <li>
+                            <button class="dropdown-item btn-pred" type="button"
+                                    data-id="${r.id_divisa}" data-nombre="${r.nombre}">
+                                <i class="bi bi-star me-2 text-primary"></i>Establecer predeterminada
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <button class="dropdown-item ${r.activo == 1 ? 'text-danger' : 'text-success'} btn-toggle"
+                                    type="button" data-id="${r.id_divisa}">
+                                <i class="bi bi-${r.activo == 1 ? 'slash-circle' : 'check-circle'} me-2"></i>
+                                ${r.activo == 1 ? 'Desactivar' : 'Activar'}
+                            </button>
+                        </li>` : '';
+                    return `
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-primary dropdown-toggle py-1"
+                                type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li>
+                                <button class="dropdown-item btn-editar" type="button"
+                                        data-id="${r.id_divisa}"
+                                        data-nombre="${r.nombre}"
+                                        data-simbolo="${r.simbolo}"
+                                        data-tipo="${r.tipo_cambio}">
+                                    <i class="bi bi-pencil me-2 text-warning"></i>Editar
+                                </button>
+                            </li>
+                            ${btnPredToggle}
+                        </ul>
+                    </div>`;
+                }
             }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },

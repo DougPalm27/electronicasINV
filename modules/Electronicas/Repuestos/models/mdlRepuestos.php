@@ -412,6 +412,7 @@ class mdlRepuestos
                     m.stock_nuevo,
                     m.costo_unitario,
                     m.referencia,
+                    ISNULL(m.observaciones, '')        AS observaciones,
                     m.anulado,
                     ISNULL(m.tipo_entrada, '')         AS tipo_entrada,
                     ISNULL(p.nombre, '')               AS proveedor

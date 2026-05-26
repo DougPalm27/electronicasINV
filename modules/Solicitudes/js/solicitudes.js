@@ -592,17 +592,39 @@ $(document).ready(function () {
     }
 
     function botonesAccion(r, esAdmin) {
-        let btns = `<button class="btn btn-sm btn-info btn-ver me-1" data-id="${r.id_solicitud}" title="Ver detalle">
-                        <i class="bi bi-eye"></i></button>`;
-        if (esAdmin && r.estado === 'Pendiente') {
-            btns += `<button class="btn btn-sm btn-success me-1 btn-ver" data-id="${r.id_solicitud}" title="Revisar">
-                         <i class="bi bi-check-circle"></i></button>`;
-        }
-        if (!esAdmin && r.estado === 'Pendiente') {
-            btns += `<button class="btn btn-sm btn-outline-danger btn-cancelar" data-id="${r.id_solicitud}" title="Cancelar">
-                         <i class="bi bi-x-circle"></i></button>`;
-        }
-        return btns;
+        const btnRevisar = (esAdmin && r.estado === 'Pendiente')
+            ? `<li>
+                   <button class="dropdown-item btn-ver text-success" type="button" data-id="${r.id_solicitud}">
+                       <i class="bi bi-check-circle me-2 text-success"></i>Revisar
+                   </button>
+               </li>`
+            : '';
+
+        const btnCancelar = (!esAdmin && r.estado === 'Pendiente')
+            ? `<li><hr class="dropdown-divider"></li>
+               <li>
+                   <button class="dropdown-item text-danger btn-cancelar" type="button" data-id="${r.id_solicitud}">
+                       <i class="bi bi-x-circle me-2"></i>Cancelar
+                   </button>
+               </li>`
+            : '';
+
+        return `
+            <div class="dropdown">
+                <button class="btn btn-sm btn-primary dropdown-toggle py-1"
+                        type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                    <li>
+                        <button class="dropdown-item btn-ver" type="button" data-id="${r.id_solicitud}">
+                            <i class="bi bi-eye me-2 text-info"></i>Ver detalle
+                        </button>
+                    </li>
+                    ${btnRevisar}
+                    ${btnCancelar}
+                </ul>
+            </div>`;
     }
 
     function abrirModal(sel) {
