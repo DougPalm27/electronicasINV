@@ -257,5 +257,16 @@ foreach ($parametrizacion as $p) {
       <?php endif; ?>
       <?php endif; ?>
 
+      <!-- ── RRHH ────────────────────────────────────────── -->
+      <?php if (puedeVer('horariosMonitoreo')): ?>
+      <li class="nav-heading">RRHH</li>
+      <li class="nav-item">
+        <a class="<?= navLink('horariosMonitoreo', $mod) ?>" href="?module=horariosMonitoreo">
+          <i class="bi bi-calendar-week"></i>
+          <span>Horarios Monitoreo</span>
+        </a>
+      </li>
+      <?php endif; ?>
+
     </ul>
   </aside><!-- End Sidebar-->

@@ -71,7 +71,9 @@ if (empty($_GET['module'])) {
         'gpsCuentas'       => './modules/GPS/CuentasGPS/views/vw_cuentasGPS.php',
         'gpsTiposVehiculo' => './modules/GPS/Parametrizacion/TiposVehiculo/views/vw_tiposVehiculo.php',
         'gpsDestinos'      => './modules/GPS/Parametrizacion/Destinos/views/vw_destinos.php',
-        'gpsPlataformas'   => './modules/GPS/Parametrizacion/Plataformas/views/vw_plataformas.php',
+        'gpsPlataformas'       => './modules/GPS/Parametrizacion/Plataformas/views/vw_plataformas.php',
+        // ── RRHH ─────────────────────────────────────────────
+        'horariosMonitoreo'    => './modules/HorariosMonitoreo/views/vw_horario.php',
     ];
 
     if (isset($rutas[$module])) {
