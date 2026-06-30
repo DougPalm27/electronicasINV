@@ -76,6 +76,7 @@
               </button>
             </div>
             <div id="cal-estado-badge"></div>
+            <div id="cal-anular-btn"></div>
             <?php if ($esAdmin): ?>
             <button class="btn btn-outline-danger btn-sm" id="btnNuevaIncapacidad" title="Registrar incapacidad">
               <i class="bi bi-bandaid me-1"></i>Incapacidad

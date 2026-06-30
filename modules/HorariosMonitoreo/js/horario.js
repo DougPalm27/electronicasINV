@@ -78,7 +78,7 @@
             $('#cal-loading').hide();
             if (!r.ok || !r.data) {
                 $('#cal-empty').removeClass('d-none').find('#cal-empty-mes').text(MESES[mes-1] + ' ' + anio);
-                $('#cal-estado-badge').html('');
+                $('#cal-estado-badge, #cal-anular-btn').html('');
                 $('#cal-alertas').html('');
                 horarioActual = null;
                 actualizarBadgeExcepciones(0);
@@ -111,6 +111,25 @@
             archivado: '<span class="badge bg-secondary">Archivado</span>'
         };
         $('#cal-estado-badge').html(map[estado] || '');
+
+        if (window.USUARIO_ROL !== 'Administrador') { $('#cal-anular-btn').html(''); return; }
+        if (estado === 'borrador') {
+            $('#cal-anular-btn').html(
+                `<button class="btn btn-outline-danger btn-sm" id="btnAnularHorario"
+                         data-estado="borrador" title="Eliminar borrador">
+                    <i class="bi bi-trash"></i>
+                 </button>`
+            );
+        } else if (estado === 'activo') {
+            $('#cal-anular-btn').html(
+                `<button class="btn btn-outline-danger btn-sm" id="btnAnularHorario"
+                         data-estado="activo" title="Anular horario">
+                    <i class="bi bi-x-circle me-1"></i>Anular
+                 </button>`
+            );
+        } else {
+            $('#cal-anular-btn').html('');
+        }
     }
 
     function renderAlertas(data, mes, anio) {
@@ -614,6 +633,78 @@
                 confirmButtonText: 'Sí, activar',
                 cancelButtonText: 'Cancelar'
             }).then(r => { if (r.isConfirmed) guardarHorario(true); });
+        });
+
+        // Anular horario (borrador → eliminar | activo → revertir o eliminar)
+        $(document).on('click', '#btnAnularHorario', function () {
+            if (!horarioActual) return;
+            const estado   = $(this).data('estado');
+            const id       = horarioActual.id_horario_mes;
+            const mesLabel = MESES[viewMes - 1] + ' ' + viewAnio;
+
+            if (estado === 'borrador') {
+                Swal.fire({
+                    title: '¿Eliminar borrador?',
+                    html: `Se eliminará el borrador de <strong>${mesLabel}</strong>.<br>Esta acción no se puede deshacer.`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, eliminar',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#dc3545',
+                }).then(r => {
+                    if (!r.isConfirmed) return;
+                    $.post(CTRL, { accion: 'eliminarHorario', id_horario_mes: id }, function (res) {
+                        if (!res.ok) { Swal.fire('Error', res.mensaje, 'error'); return; }
+                        Swal.fire({ icon: 'success', title: 'Eliminado', text: res.mensaje, timer: 1800, showConfirmButton: false });
+                        horarioActual = null;
+                        $('#cal-anular-btn').html('');
+                        cargarHorario(viewMes, viewAnio);
+                    }, 'json');
+                });
+
+            } else if (estado === 'activo') {
+                Swal.fire({
+                    title: 'Anular horario activo',
+                    html: `El horario de <strong>${mesLabel}</strong> está activo.<br><br>
+                           <strong>Revertir a borrador</strong>: conserva los datos y permite corregirlos.<br>
+                           <strong>Eliminar completamente</strong>: borra el horario y todas sus excepciones.`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    showDenyButton: true,
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonText: '<i class="bi bi-arrow-counterclockwise me-1"></i>Revertir a borrador',
+                    denyButtonText:    '<i class="bi bi-trash me-1"></i>Eliminar todo',
+                    confirmButtonColor: '#fd7e14',
+                    denyButtonColor:    '#dc3545',
+                }).then(r => {
+                    if (r.isConfirmed) {
+                        $.post(CTRL, { accion: 'revertirHorario', id_horario_mes: id }, function (res) {
+                            if (!res.ok) { Swal.fire('Error', res.mensaje, 'error'); return; }
+                            Swal.fire({ icon: 'success', title: 'Revertido', text: res.mensaje, timer: 2000, showConfirmButton: false });
+                            cargarHorario(viewMes, viewAnio);
+                        }, 'json');
+                    } else if (r.isDenied) {
+                        Swal.fire({
+                            title: '¿Confirmas la eliminación?',
+                            html: `Se borrarán el horario y <strong>todas las excepciones e incapacidades</strong> de ${mesLabel}.<br>Esto no se puede deshacer.`,
+                            icon: 'error',
+                            showCancelButton: true,
+                            confirmButtonText: 'Sí, eliminar todo',
+                            cancelButtonText: 'Cancelar',
+                            confirmButtonColor: '#dc3545',
+                        }).then(r2 => {
+                            if (!r2.isConfirmed) return;
+                            $.post(CTRL, { accion: 'eliminarHorario', id_horario_mes: id }, function (res) {
+                                if (!res.ok) { Swal.fire('Error', res.mensaje, 'error'); return; }
+                                Swal.fire({ icon: 'success', title: 'Eliminado', text: res.mensaje, timer: 1800, showConfirmButton: false });
+                                horarioActual = null;
+                                $('#cal-anular-btn').html('');
+                                cargarHorario(viewMes, viewAnio);
+                            }, 'json');
+                        });
+                    }
+                });
+            }
         });
     }
 

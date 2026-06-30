@@ -131,10 +131,11 @@
                         <small class="text-muted">Agrega una o más tareas</small>
                     </div>
 
-                    <!-- Input para agregar tarea -->
+                    <!-- Select para agregar tarea desde catálogo Satake -->
                     <div class="input-group mb-2">
-                        <input type="text" id="inp_nueva_tarea" class="form-control"
-                               placeholder="Ej: Limpieza de filtros internos" maxlength="500">
+                        <select id="sel_nueva_tarea" class="form-select">
+                            <option value="">— Cargando tareas… —</option>
+                        </select>
                         <button type="button" class="btn btn-outline-primary" id="btnAgregarTarea">
                             <i class="bi bi-plus-lg"></i> Agregar
                         </button>

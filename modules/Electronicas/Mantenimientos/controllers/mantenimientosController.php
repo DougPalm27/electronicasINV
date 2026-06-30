@@ -52,6 +52,10 @@ try {
             response($model->listarRepuestosDisponibles());
             break;
 
+        case 'tareasActivas':
+            response($model->listarTareasActivasSatake());
+            break;
+
         case 'series':
             $id_rep = (int)($_POST['id_repuesto'] ?? 0);
             if (!$id_rep) response([], true, 'ID de repuesto inválido.');

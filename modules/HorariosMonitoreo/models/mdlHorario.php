@@ -272,6 +272,60 @@ class mdlHorario
         )->execute([$id_horario_mes]);
     }
 
+    // Revierte un horario activo a borrador (los datos se conservan, permite corregir)
+    public function revertirABorrador(int $id_horario_mes): void
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT estado FROM RRHH.HorarioMes WHERE id_horario_mes = ?"
+        );
+        $stmt->execute([$id_horario_mes]);
+        $h = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$h || $h['estado'] !== 'activo')
+            throw new RuntimeException('Solo se puede revertir un horario activo.');
+
+        $this->conn->prepare(
+            "UPDATE RRHH.HorarioMes
+             SET estado = 'borrador', fecha_activacion = NULL
+             WHERE id_horario_mes = ?"
+        )->execute([$id_horario_mes]);
+    }
+
+    // Elimina completamente un horario y todos sus datos relacionados
+    public function eliminarHorario(int $id_horario_mes): void
+    {
+        $this->conn->beginTransaction();
+        try {
+            // 1. ExcepcionTecnicos (hijo de ExcepcionesHorario)
+            $this->conn->prepare(
+                "DELETE FROM RRHH.ExcepcionTecnicos
+                 WHERE id_excepcion IN (
+                     SELECT id_excepcion FROM RRHH.ExcepcionesHorario
+                     WHERE id_horario_mes = ?
+                 )"
+            )->execute([$id_horario_mes]);
+
+            // 2. ExcepcionesHorario
+            $this->conn->prepare(
+                "DELETE FROM RRHH.ExcepcionesHorario WHERE id_horario_mes = ?"
+            )->execute([$id_horario_mes]);
+
+            // 3. HorarioMesDetalle
+            $this->conn->prepare(
+                "DELETE FROM RRHH.HorarioMesDetalle WHERE id_horario_mes = ?"
+            )->execute([$id_horario_mes]);
+
+            // 4. HorarioMes
+            $this->conn->prepare(
+                "DELETE FROM RRHH.HorarioMes WHERE id_horario_mes = ?"
+            )->execute([$id_horario_mes]);
+
+            $this->conn->commit();
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            throw $e;
+        }
+    }
+
     public function proponerRotacion(?int $targetMes = null, ?int $targetAnio = null): array
     {
         if ($targetMes === null || $targetAnio === null) {

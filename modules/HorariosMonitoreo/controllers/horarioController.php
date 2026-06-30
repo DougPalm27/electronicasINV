@@ -94,6 +94,22 @@ try {
             respH([], false, 'Borrador eliminado.');
             break;
 
+        case 'revertirHorario':
+            requireAdmin();
+            $id = (int)($_POST['id_horario_mes'] ?? 0);
+            if (!$id) respH([], true, 'ID inválido.');
+            $model->revertirABorrador($id);
+            respH([], false, 'Horario revertido a borrador. Ya puedes corregirlo y volver a activarlo.');
+            break;
+
+        case 'eliminarHorario':
+            requireAdmin();
+            $id = (int)($_POST['id_horario_mes'] ?? 0);
+            if (!$id) respH([], true, 'ID inválido.');
+            $model->eliminarHorario($id);
+            respH([], false, 'Horario eliminado completamente.');
+            break;
+
         case 'proponerRotacion':
             requireAdmin();
             $tMes  = isset($_POST['mes'])  ? (int)$_POST['mes']  : null;

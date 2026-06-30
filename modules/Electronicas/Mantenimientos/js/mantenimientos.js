@@ -57,11 +57,6 @@ $(document).ready(function () {
     // ── Agregar tarea con botón ──────────────────────────────
     $("#btnAgregarTarea").on("click", agregarTarea);
 
-    // ── Agregar tarea con Enter ──────────────────────────────
-    $("#inp_nueva_tarea").on("keydown", function (e) {
-        if (e.key === "Enter") { e.preventDefault(); agregarTarea(); }
-    });
-
     // ── Quitar tarea (delegado) ──────────────────────────────
     $("#listaTareas").on("click", ".btn-quitar-tarea", function () {
         const idx = parseInt($(this).data("idx"));
@@ -261,6 +256,28 @@ function cargarSelects() {
     cargarSelect("maquinas", "#id_maquina", "id_maquina");
     cargarSelectTipos();
     cargarSelectTecnicos();
+    cargarTareasActivas();
+}
+
+function cargarTareasActivas() {
+    $.post(CTRL, { accion: 'tareasActivas' }, function (resp) {
+        if (!resp.ok) return;
+        // Agrupar por frecuencia para usar <optgroup>
+        const grupos = {};
+        resp.data.forEach(t => {
+            if (!grupos[t.frecuencia]) grupos[t.frecuencia] = [];
+            grupos[t.frecuencia].push(t);
+        });
+        let html = '<option value="">— Selecciona una tarea —</option>';
+        Object.keys(grupos).forEach(frec => {
+            html += `<optgroup label="${escHtml(frec)}">`;
+            grupos[frec].forEach(t => {
+                html += `<option value="${t.id_tarea}" data-nombre="${escHtml(t.nombre)}">${escHtml(t.nombre)}</option>`;
+            });
+            html += '</optgroup>';
+        });
+        $('#sel_nueva_tarea').html(html);
+    }, 'json');
 }
 
 function cargarSelectTipos() {
@@ -311,14 +328,21 @@ function cargarSelectTecnicos() {
 // ════════════════════════════════════════════════════════════
 
 function agregarTarea() {
-    const texto = $("#inp_nueva_tarea").val().trim();
-    if (!texto) {
-        $("#inp_nueva_tarea").addClass("is-invalid").focus();
-        setTimeout(() => $("#inp_nueva_tarea").removeClass("is-invalid"), 1500);
+    const $sel   = $("#sel_nueva_tarea");
+    const id     = parseInt($sel.val());
+    const nombre = $sel.find("option:selected").data("nombre") || "";
+
+    if (!id || !nombre) {
+        $sel.addClass("is-invalid");
+        setTimeout(() => $sel.removeClass("is-invalid"), 1500);
         return;
     }
-    _tareas.push(texto);
-    $("#inp_nueva_tarea").val("").focus();
+    if (_tareas.some(t => t.id_tarea === id)) {
+        Swal.fire({ icon: "info", title: "Ya agregada", text: `"${nombre}" ya está en la lista.`, timer: 1800, showConfirmButton: false });
+        return;
+    }
+    _tareas.push({ id_tarea: id, nombre });
+    $sel.val("").focus();
     renderTareas();
 }
 
@@ -334,7 +358,7 @@ function renderTareas() {
         html += `
         <li class="list-group-item">
             <span class="tarea-numero">${i + 1}.</span>
-            <span class="tarea-texto">${escHtml(t)}</span>
+            <span class="tarea-texto">${escHtml(t.nombre)}</span>
             <button type="button" class="btn btn-sm btn-outline-danger btn-quitar-tarea" data-idx="${i}">
                 <i class="bi bi-x"></i>
             </button>
@@ -834,6 +858,7 @@ function limpiarModal() {
     _tareas = [];
     renderTareas();
     $("#emptyTareas").show();
+    $("#sel_nueva_tarea").val("").removeClass("is-invalid");
 
     // Repuestos
     _filasRepuestos = [];

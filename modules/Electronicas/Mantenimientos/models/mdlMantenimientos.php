@@ -210,6 +210,22 @@ class mdlMantenimientos
     }
 
     // ══════════════════════════════════════════════════════════════
+    // CATÁLOGO TAREAS SATAKE (para poblar el select del formulario)
+    // ══════════════════════════════════════════════════════════════
+
+    public function listarTareasActivasSatake(): array
+    {
+        return $this->conn->query(
+            "SELECT t.id_tarea, t.nombre,
+                    f.nombre AS frecuencia, f.orden AS frec_orden
+             FROM electronicas.SatakeTareas t
+             INNER JOIN electronicas.SatakeFrecuencias f ON f.id_frecuencia = t.id_frecuencia
+             WHERE t.activo = 1
+             ORDER BY f.orden, t.nombre"
+        )->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // TAREAS DE MANTENIMIENTO
     // ══════════════════════════════════════════════════════════════
 
@@ -220,13 +236,20 @@ class mdlMantenimientos
         )->execute([$id_mantenimiento]);
 
         $stmt = $this->conn->prepare(
-            "INSERT INTO electronicas.MantenimientoTareas (id_mantenimiento, descripcion, orden)
-             VALUES (?, ?, ?)"
+            "INSERT INTO electronicas.MantenimientoTareas (id_mantenimiento, id_tarea, descripcion, orden)
+             VALUES (?, ?, ?, ?)"
         );
         foreach ($tareas as $i => $tarea) {
-            $desc = is_string($tarea) ? trim($tarea) : trim($tarea['descripcion'] ?? '');
+            if (is_string($tarea)) {
+                $id_tarea = null;
+                $desc     = trim($tarea);
+            } else {
+                $tarea    = (array)$tarea;
+                $id_tarea = isset($tarea['id_tarea']) && $tarea['id_tarea'] !== '' ? (int)$tarea['id_tarea'] : null;
+                $desc     = trim($tarea['nombre'] ?? $tarea['descripcion'] ?? '');
+            }
             if ($desc !== '') {
-                $stmt->execute([$id_mantenimiento, $desc, $i]);
+                $stmt->execute([$id_mantenimiento, $id_tarea, $desc, $i]);
             }
         }
     }
