@@ -35,13 +35,14 @@
 
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="bi bi-tools me-2"></i>Registrar Mantenimiento
+                    <i class="bi bi-tools me-2"></i><span id="modalTitulo">Registrar Mantenimiento</span>
                 </h5>
                 <button class="btn-close" data-bs-dismiss="modal"></button>
             </div>
 
             <div class="modal-body">
                 <form id="formMantenimiento" novalidate>
+                    <input type="hidden" id="id_mantenimiento_edit">
 
                     <div class="row g-3">
 

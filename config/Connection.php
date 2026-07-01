@@ -4,7 +4,7 @@
             try {
                 // recio
                 
-                $serverName = "(localdb)\DOUGLAS";
+                $serverName = "localhost\SQLEXPRESS";
                 $database = "ElectronicasDB"; 
                 $user = 'dpalma';
                 $password = 'dpalma2729';

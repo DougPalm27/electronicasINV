@@ -211,6 +211,12 @@ function listarMantenimientos() {
                                         <i class="bi bi-eye me-2 text-info"></i>Ver detalle
                                     </button>
                                 </li>
+                                ${row.anulado != 1 ? `<li>
+                                    <button class="dropdown-item btn-editar" type="button"
+                                            data-id="${row.id_mantenimiento}">
+                                        <i class="bi bi-pencil me-2 text-warning"></i>Editar
+                                    </button>
+                                </li>` : ''}
                                 <li>
                                     <a class="dropdown-item"
                                        href="./modules/Electronicas/Mantenimientos/reporte.php?id=${row.id_mantenimiento}"
@@ -239,6 +245,12 @@ function listarMantenimientos() {
         const anulado = $(this).data("anulado");
         const motivo  = $(this).data("motivo");
         verDetalle(id, maquina, fecha, anulado, motivo);
+    });
+
+    // ── Editar mantenimiento ─────────────────────────────────
+    $("#tablaMantenimientos").on("click", ".btn-editar", function () {
+        const id = $(this).data("id");
+        cargarEdicion(id);
     });
 
     // ── Anular mantenimiento (solo admin) ────────────────────
@@ -605,13 +617,20 @@ function guardar() {
         .prop("disabled", true)
         .html('<span class="spinner-border spinner-border-sm me-1"></span> Guardando...');
 
-    $.post(CTRL, { accion: "guardar", losDatos: JSON.stringify(payload) }, function (resp) {
+    // Detectar si es edición o nuevo
+    const id_edit = $("#id_mantenimiento_edit").val();
+    const accion = id_edit ? "actualizar" : "guardar";
+    const datos = id_edit ? { accion, id_mantenimiento: id_edit, losDatos: JSON.stringify(payload) }
+                          : { accion, losDatos: JSON.stringify(payload) };
+
+    $.post(CTRL, datos, function (resp) {
         $btn.prop("disabled", false).html('<i class="bi bi-save me-1"></i> Guardar');
         if (!resp.ok) { Swal.fire("Error", resp.mensaje || "No se pudo guardar", "error"); return; }
         cerrarModal("#modalMantenimiento");
         limpiarModal();
         tablaMantenimientos.ajax.reload();
-        Swal.fire({ icon: "success", title: "Guardado", timer: 1800, showConfirmButton: false });
+        const msg = id_edit ? "Mantenimiento actualizado correctamente" : "Mantenimiento guardado correctamente";
+        Swal.fire({ icon: "success", title: "Éxito", text: msg, timer: 1800, showConfirmButton: false });
     }, "json").fail(manejarError);
 }
 
@@ -876,6 +895,80 @@ function limpiarModal() {
     } else {
         $("#id_tecnico").prop("disabled", false).val("-1");
     }
+
+    // Limpiar modo edición
+    $("#id_mantenimiento_edit").val("");
+    $("#modalTitulo").text("Registrar Mantenimiento");
+    $("#id_maquina").prop("disabled", false);
+}
+
+// ════════════════════════════════════════════════════════════
+// EDICIÓN
+// ════════════════════════════════════════════════════════════
+
+function cargarEdicion(id_mantenimiento) {
+    $.post(CTRL, { accion: "obtenerEdicion", id_mantenimiento }, function (resp) {
+        if (!resp.ok) {
+            Swal.fire("Error", resp.mensaje || "No se pudo cargar", "error");
+            return;
+        }
+
+        const data = resp.data;
+        if (!data.mantenimiento) {
+            Swal.fire("Error", "Mantenimiento no encontrado o ya está anulado", "error");
+            return;
+        }
+
+        limpiarModal();
+        cargarSelects();
+        cargarRepuestosDisponibles();
+
+        const m = data.mantenimiento;
+
+        // Marcar como edición
+        $("#id_mantenimiento_edit").val(id_mantenimiento);
+        $("#modalTitulo").text("Editar Mantenimiento");
+
+        // Llenar campos principales
+        setTimeout(() => {
+            $("#id_maquina").val(m.id_maquina).prop("disabled", true).change();
+            $("#id_tipo").val(m.id_tipo).change();
+            $("#id_tecnico").val(m.id_tecnico || "-1");
+            $("#fecha_mantenimiento").val(m.fecha_mantenimiento);
+            $("#proximo_mantenimiento").val(m.proximo_mantenimiento || "");
+            $("#descripcion").val(m.descripcion || "");
+
+            // Cargar tareas
+            _tareas = data.tareas.map(t => ({ id_tarea: null, nombre: t }));
+            renderTareas();
+
+            // Cargar repuestos
+            _filasRepuestos = data.repuestos.map(r => ({
+                id_repuesto:     r.id_repuesto,
+                maneja_serie:    parseInt(r.maneja_serie),
+                cantidad:        parseInt(r.cantidad),
+                costo_unitario:  parseFloat(r.costo_unitario),
+                series:          r.id_detalle_repuesto ? [r.id_detalle_repuesto] : []
+            }));
+            renderRepuestos();
+
+            // Cargar retiros
+            _filasRetiros = data.retiros.map(ret => ({
+                id_maquina_repuesto: ret.id_maquina_repuesto,
+                tipo_retiro:         ret.tipo_retiro,
+                observaciones:       ret.observaciones_retiro || ""
+            }));
+            renderRetiros();
+
+            abrirModal("#modalMantenimiento");
+        }, 100);
+
+    }, "json").fail(manejarError);
+}
+
+function limpiarModalEdicion() {
+    $("#id_mantenimiento_edit").val("");
+    $("#modalTitulo").text("Registrar Mantenimiento");
 }
 
 function abrirModal(sel) {

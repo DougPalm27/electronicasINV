@@ -36,6 +36,13 @@ try {
             ]);
             break;
 
+        case 'obtenerEdicion':
+            if (!$puedeMantenimiento) response([], true, 'Sin permisos.');
+            $id = (int)($_POST['id_mantenimiento'] ?? 0);
+            if (!$id) response([], true, 'ID inválido.');
+            response($model->obtenerParaEdicion($id));
+            break;
+
         case 'maquinas':
             response($model->listarMaquinas());
             break;
@@ -96,6 +103,38 @@ try {
             }
 
             response($resp, false, "Mantenimiento guardado correctamente");
+            break;
+
+        case 'actualizar':
+            if (!$puedeMantenimiento) response([], true, 'Sin permisos para actualizar mantenimientos.');
+            $id_mant = (int)($_POST['id_mantenimiento'] ?? 0);
+            $payload = $_POST["losDatos"] ?? null;
+            if (!$id_mant) response([], true, 'ID inválido.');
+            if (!$payload) response([], true, "No se recibieron datos");
+
+            $obj = json_decode($payload);
+            if (!$obj) response([], true, "Payload inválido");
+
+            // Extraer tareas
+            $tareas = isset($obj->tareas) ? (array)$obj->tareas : [];
+            unset($obj->tareas);
+
+            // Asegurar que repuestos/retiros sean arrays
+            if (!isset($obj->repuestos) || !is_array($obj->repuestos)) $obj->repuestos = [];
+            if (!isset($obj->retiros)   || !is_array($obj->retiros))   $obj->retiros   = [];
+
+            $resp = $model->actualizarMantenimiento($id_mant, $obj);
+
+            if (isset($resp["error"]) && $resp["error"] === true) {
+                response([], true, $resp["mensaje"]);
+            }
+
+            // Actualizar tareas
+            if (!empty($tareas)) {
+                $model->guardarTareas($id_mant, $tareas);
+            }
+
+            response($resp, false, "Mantenimiento actualizado correctamente");
             break;
 
         case 'verificarAnulacion':
