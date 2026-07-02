@@ -1,14 +1,13 @@
 <?php
+    require_once __DIR__ . '/env.php';
+
     class Connection{
         public function dbConnect(){
             try {
-                // recio
-                
-                $serverName = "localhost\SQLEXPRESS";
-                $database = "ElectronicasDB"; 
-                $user = 'dpalma';
-                $password = 'dpalma2729';
-                $port ="1443";
+                $serverName = env('DB_HOST', 'localhost\SQLEXPRESS');
+                $database   = env('DB_NAME', 'ElectronicasDB');
+                $user       = env('DB_USER');
+                $password   = env('DB_PASSWORD');
 
                 // Instanciar la conexion con la base de datos
                 $conn = new PDO("sqlsrv:server=$serverName; database=$database", $user, $password);

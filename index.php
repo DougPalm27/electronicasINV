@@ -157,7 +157,7 @@
       position: relative;
     }
 
-    .input-icon-wrap .bi {
+    .input-icon-wrap > .bi {
       position: absolute;
       left: .9rem;
       top: 50%;
