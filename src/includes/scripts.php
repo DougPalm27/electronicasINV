@@ -130,6 +130,11 @@ if (!empty($_GET['module'])) {
     if (isset($map[$mod])) {
         echo '<script src="' . $map[$mod] . '"></script>';
     }
+
+    // Módulo de eyectores: se usa dentro de la vista de Máquinas
+    if ($mod === 'maquinas') {
+        echo '<script src="./modules/Electronicas/Eyectores/js/eyectores.js"></script>';
+    }
 }
 ?>
 

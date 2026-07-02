@@ -1,7 +1,10 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/navContext.php';
+
 $nombreUsuario = $_SESSION['nombre']  ?? 'Usuario';
 $username      = $_SESSION['usuario'] ?? '';
+$seccionHeader = nombreSeccion(moduloActual());
 ?>
 <!-- ======= Header ======= -->
 <header id="header" class="header fixed-top d-flex align-items-center">
@@ -9,7 +12,7 @@ $username      = $_SESSION['usuario'] ?? '';
     <div class="d-flex align-items-center justify-content-between">
         <a href="inicio.php" class="logo d-flex align-items-center">
             <img src="./assets/img/trazabilidad.png" alt="">
-            <span class="d-none d-lg-block">Control de Repuestos</span>
+            <span class="d-none d-lg-block"><?= htmlspecialchars($seccionHeader) ?></span>
         </a>
         <i class="bi bi-list toggle-sidebar-btn"></i>
     </div>

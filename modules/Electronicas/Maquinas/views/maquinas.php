@@ -168,7 +168,7 @@
             </div>
 
             <div class="modal-body">
-                <table class="table table-sm" id="tablaRepuestosMaquina">
+                <table class="table table-hover w-100" id="tablaRepuestosMaquina">
                     <thead>
                         <tr>
                             <th>Repuesto</th>
@@ -184,3 +184,169 @@
         </div>
     </div>
 </div>
+
+<!-- ── Modal: Componentes — Barra de eyectores ─────────────── -->
+<div class="modal fade" id="modalEyectores" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0">
+                        <i class="bi bi-grid-3x3-gap me-2"></i>
+                        Eyectores — <span id="eyMaquinaNombre" class="fw-bold"></span>
+                    </h5>
+                    <div class="d-flex gap-3 flex-wrap mt-2 small">
+                        <span><span class="ey-legend bg-success"></span> OK</span>
+                        <span><span class="ey-legend bg-danger"></span> Falla</span>
+                        <span><span class="ey-legend bg-warning"></span> Advertencia</span>
+                        <span><span class="ey-legend bg-secondary"></span> Apagado</span>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <div id="eyContenido" style="min-height:200px">
+                    <div class="text-center py-5"><span class="spinner-border text-primary"></span></div>
+                </div>
+
+                <div class="row g-2 mt-3 d-none" id="eyStats">
+                    <div class="col-6 col-md-3">
+                        <div class="card border-0 shadow-sm text-center">
+                            <div class="card-body py-2">
+                                <span class="d-block fs-4 fw-bold text-success" id="eyOk">0</span>
+                                <small class="text-muted">OK</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card border-0 shadow-sm text-center">
+                            <div class="card-body py-2">
+                                <span class="d-block fs-4 fw-bold text-danger" id="eyFalla">0</span>
+                                <small class="text-muted">Fallas</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card border-0 shadow-sm text-center">
+                            <div class="card-body py-2">
+                                <span class="d-block fs-4 fw-bold text-warning" id="eyAdv">0</span>
+                                <small class="text-muted">Advertencias</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card border-0 shadow-sm text-center">
+                            <div class="card-body py-2">
+                                <span class="d-block fs-4 fw-bold text-secondary" id="eyOff">0</span>
+                                <small class="text-muted">Apagados</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-success d-none" id="btnInicializarBarra">
+                    <i class="bi bi-magic me-1"></i>Inicializar barra
+                </button>
+                <button class="btn btn-outline-primary d-none" id="btnModoSeleccion">
+                    <i class="bi bi-check2-square me-1"></i>Seleccionar varios
+                </button>
+                <button class="btn btn-outline-secondary d-none" id="btnLimpiarSeleccion">
+                    Limpiar
+                </button>
+                <button class="btn btn-primary d-none" id="btnAplicarSeleccion" disabled>
+                    <i class="bi bi-pencil-square me-1"></i>Cambiar estado (<span id="eySelCount">0</span>)
+                </button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .ey-legend {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        vertical-align: middle;
+    }
+    .ey-bar {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        user-select: none;
+    }
+    .ey-side {
+        border: 1px solid #dee2e6;
+        border-radius: 12px;
+        padding: 14px;
+        background: #f8f9fa;
+    }
+    .ey-side-title {
+        text-align: center;
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 12px;
+        color: #495057;
+    }
+    .ey-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    .ey-fila {
+        width: 48px;
+        font-size: 12px;
+        color: #6c757d;
+        flex-shrink: 0;
+    }
+    .ey-dots {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        flex: 1;
+    }
+    .ey-dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        transition: transform 0.12s ease;
+    }
+    .ey-dot:hover {
+        transform: scale(1.6);
+        z-index: 3;
+    }
+    .ey-dot.ey-selected {
+        outline: 2px solid #0d6efd;
+        outline-offset: 1px;
+        transform: scale(1.25);
+    }
+    .ey-tooltip {
+        position: fixed;
+        z-index: 2000;
+        background: #212529;
+        color: #fff;
+        font-size: 12px;
+        line-height: 1.2;
+        padding: 4px 8px;
+        border-radius: 6px;
+        pointer-events: none;
+        white-space: nowrap;
+        transform: translate(-50%, -100%);
+        opacity: 0;
+        transition: opacity 0.1s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    }
+    .ey-tooltip.show {
+        opacity: 1;
+    }
+    @media (max-width: 768px) {
+        .ey-bar { grid-template-columns: 1fr; }
+    }
+</style>

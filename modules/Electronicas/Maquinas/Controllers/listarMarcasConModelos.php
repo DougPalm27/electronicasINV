@@ -1,4 +1,7 @@
 <?php
+require_once "../../../../config/auth.php";
+requireLogin(true);
+
 include_once "../../../../config/Connection.php";
 
 header('Content-Type: application/json');

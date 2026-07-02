@@ -1,11 +1,15 @@
 let tablaMaquinas = null;
+let estadosMaquina = [];
+let modelosConEyectores = new Set();
 
 $(document).ready(function () {
   init();
 });
 
 function init() {
-  listarMaquinas();
+  // Carga los modelos que tienen barra de eyectores antes de dibujar la tabla,
+  // para que el dropdown muestre "Componentes" solo donde aplica.
+  cargarModelosConEyectores(listarMaquinas);
   listarMarcas();
   listarEstados();
 
@@ -17,6 +21,24 @@ function init() {
     let id_marca = $(this).val();
     listarModelos(id_marca);
   });
+
+  // Handlers delegados de la tabla (convención del proyecto)
+  $("#tablaMaquinas")
+    .on("click", ".btn-editar", function () {
+      cargarEditar($(this).data("id"));
+    })
+    .on("click", ".btn-historial", function () {
+      verHistorial($(this).data("id"));
+    })
+    .on("click", ".btn-repuestos", function () {
+      verRepuestos($(this).data("id"));
+    })
+    .on("click", ".btn-componentes", function () {
+      abrirEyectores($(this).data("id"));
+    })
+    .on("click", ".btn-baja", function () {
+      darDeBaja($(this).data("id"));
+    });
 }
 
 //////////////////////////////////////////////////////////
@@ -39,7 +61,6 @@ function listarMaquinas() {
           return [];
         }
 
-        actualizarCards(json);
         return json;
       },
       error: manejarErrorAjax,
@@ -77,18 +98,30 @@ function listarMaquinas() {
             </button>
             <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                 <li>
-                    <button class="dropdown-item" type="button" onclick="cargarEditar(${row.id_maquina})">
+                    <button class="dropdown-item btn-editar" type="button" data-id="${row.id_maquina}">
                         <i class="bi bi-pencil me-2 text-warning"></i>Editar
                     </button>
                 </li>
                 <li>
-                    <button class="dropdown-item" type="button" onclick="verHistorial(${row.id_maquina})">
+                    <button class="dropdown-item btn-historial" type="button" data-id="${row.id_maquina}">
                         <i class="bi bi-clock-history me-2 text-secondary"></i>Historial
                     </button>
                 </li>
+                <li>
+                    <button class="dropdown-item btn-repuestos" type="button" data-id="${row.id_maquina}">
+                        <i class="bi bi-box-seam me-2 text-primary"></i>Ver repuestos
+                    </button>
+                </li>
+                ${modelosConEyectores.has(String(row.id_modelo))
+                  ? `<li>
+                    <button class="dropdown-item btn-componentes" type="button" data-id="${row.id_maquina}">
+                        <i class="bi bi-grid-3x3-gap me-2 text-success"></i>Componentes
+                    </button>
+                </li>`
+                  : ""}
                 <li><hr class="dropdown-divider"></li>
                 <li>
-                    <button class="dropdown-item text-danger" type="button" onclick="cambiarEstado(${row.id_maquina}, 3)">
+                    <button class="dropdown-item text-danger btn-baja" type="button" data-id="${row.id_maquina}">
                         <i class="bi bi-slash-circle me-2"></i>Dar de baja
                     </button>
                 </li>
@@ -99,6 +132,27 @@ function listarMaquinas() {
     ],
     language: {
       url: "./modules/Electronicas/Maquinas/js/es-ES.json",
+    },
+  });
+}
+
+//////////////////////////////////////////////////////////
+// 🔩 EYECTORES — modelos habilitados
+//////////////////////////////////////////////////////////
+
+function cargarModelosConEyectores(callback) {
+  $.ajax({
+    url: "./modules/Electronicas/Eyectores/Controllers/modelosConEyectores.php",
+    type: "POST",
+    dataType: "json",
+    success: function (data) {
+      modelosConEyectores = new Set((data || []).map(String));
+    },
+    error: function () {
+      modelosConEyectores = new Set();
+    },
+    complete: function () {
+      if (callback) callback();
     },
   });
 }
@@ -156,6 +210,8 @@ function listarEstados() {
     type: "POST",
     dataType: "json",
     success: function (data) {
+      estadosMaquina = Array.isArray(data) ? data : [];
+
       let html = `<option value="-1">Seleccione un estado</option>`;
 
       data.forEach((e) => {
@@ -213,10 +269,8 @@ function cargarEditar(id) {
       $("#anio").val(d.anio);
       $("#ubicacion").val(d.ubicacion);
 
-      obtenerMarcaDesdeModelo(d.id_modelo, function (marca) {
-        $("#id_marca").val(marca);
-        listarModelos(marca, d.id_modelo);
-      });
+      $("#id_marca").val(d.id_marca);
+      listarModelos(d.id_marca, d.id_modelo);
 
       $("#btnGuardarMaquina").hide();
       $("#btnEditarMaquina").show();
@@ -251,6 +305,23 @@ function editarMaquina() {
 //////////////////////////////////////////////////////////
 // 🔄 ESTADO
 //////////////////////////////////////////////////////////
+
+function darDeBaja(id) {
+  const estado = estadosMaquina.find((e) =>
+    ["inactivo", "baja", "dado de baja"].includes((e.nombre || "").trim().toLowerCase()),
+  );
+
+  if (!estado) {
+    Swal.fire(
+      "Error",
+      "No se encontró un estado de baja en el catálogo de EstadoMaquina",
+      "error",
+    );
+    return;
+  }
+
+  cambiarEstado(id, estado.id_estado);
+}
 
 function cambiarEstado(id, estado) {
   Swal.fire({
@@ -341,7 +412,8 @@ function manejarRespuesta(resp, mensaje) {
       listarMaquinas();
     });
   } else {
-    Swal.fire("Error", "Operación fallida", "error");
+    const msg = (resp && resp[0] && resp[0].mensaje) || "Operación fallida";
+    Swal.fire("Error", msg, "error");
     console.error(resp);
   }
 }
@@ -350,28 +422,6 @@ function manejarErrorAjax(error) {
   console.error("Error AJAX:", error.responseText);
   Swal.fire("Error", "Error en el servidor", "error");
 }
-
-function actualizarCards(data) {
-  $("#cardActivas").text(data.filter((x) => x.estado === "Activa").length);
-  $("#cardMantenimiento").text(
-    data.filter((x) => x.estado === "Mantenimiento").length,
-  );
-  $("#cardBaja").text(data.filter((x) => x.estado === "Baja").length);
-}
-
-function obtenerMarcaDesdeModelo(id_modelo, callback) {
-  $.ajax({
-    url: "./modules/Electronicas/Maquinas/Controllers/listarMarcasConModelos.php",
-    type: "POST",
-    dataType: "json",
-    success: function (data) {
-      let r = data.find((x) => x.id_modelo == id_modelo);
-      if (r) callback(r.id_marca);
-    },
-  });
-}
-
-
 
 //////////////////////////////////////////////////////////
 // 📋 HISTORIAL DE MANTENIMIENTOS
@@ -424,8 +474,9 @@ function verHistorial(id_maquina) {
                   </p>`;
 
       resp.data.forEach(function (m) {
+        const anulado = Number(m.anulado) === 1;
         const badge  = tipoBadge[m.tipo]  || 'bg-secondary';
-        const borde  = tipoBorde[m.tipo]  || 'border-secondary';
+        const borde  = anulado ? 'border-danger' : (tipoBorde[m.tipo] || 'border-secondary');
 
         // Tabla de repuestos si tiene
         let repHtml = '';
@@ -480,11 +531,12 @@ function verHistorial(id_maquina) {
         }
 
         html += `
-          <div class="card mb-3 border-start border-4 ${borde} shadow-sm">
+          <div class="card mb-3 border-start border-4 ${borde} shadow-sm ${anulado ? 'opacity-75' : ''}">
             <div class="card-body py-2 px-3">
               <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                   <span class="badge ${badge}">${m.tipo}</span>
+                  ${anulado ? '<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Anulado</span>' : ''}
                   <span class="fw-semibold small">
                     <i class="bi bi-calendar3 me-1"></i>${m.fecha}
                   </span>
@@ -499,6 +551,7 @@ function verHistorial(id_maquina) {
                 </span>
               </div>
               ${m.descripcion ? `<p class="text-muted small mb-1 mt-1 border-top pt-1">${m.descripcion}</p>` : ''}
+              ${anulado && m.motivo_anulacion ? `<p class="text-danger small mb-1 mt-1 border-top pt-1"><i class="bi bi-x-circle me-1"></i><strong>Motivo de anulación:</strong> ${m.motivo_anulacion}</p>` : ''}
               ${repHtml}
             </div>
           </div>`;
@@ -630,11 +683,12 @@ function verRepuestos(id_maquina) {
       let html = "";
 
       data.forEach((r) => {
+        const simbolo = r.divisa_simbolo || window.DIVISA?.simbolo || "L.";
         html += `
           <tr>
             <td>${r.nombre}</td>
             <td>${r.estado}</td>
-            <td>${parseFloat(r.costo || 0).toFixed(2)}</td>
+            <td>${simbolo} ${parseFloat(r.costo || 0).toFixed(2)}</td>
             <td>${r.ultima_fecha || "-"}</td>
           </tr>
         `;

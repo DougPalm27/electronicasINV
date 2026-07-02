@@ -11,9 +11,34 @@ class mdlMaquinas extends Connection
         $this->conn = $database->dbConnect();
     }
 
+    // Valida costo y año; devuelve un mensaje de error o null si todo está bien.
+    private function validarDatos($losDatos)
+    {
+        if ((float) ($losDatos->costo ?? 0) < 0) {
+            return "El costo no puede ser negativo.";
+        }
+
+        $anio = trim((string) ($losDatos->anio ?? ''));
+        if ($anio !== '') {
+            $anioNum = (int) $anio;
+            $maxAnio = (int) date('Y') + 1;
+            if ($anioNum < 1900 || $anioNum > $maxAnio) {
+                return "El año de fabricación debe estar entre 1900 y $maxAnio.";
+            }
+        }
+
+        return null;
+    }
+
     public function guardarMaquina($losDatos)
     {
         header('Content-Type: application/json');
+
+        $error = $this->validarDatos($losDatos);
+        if ($error !== null) {
+            echo json_encode([["status" => "400", "mensaje" => $error]]);
+            exit;
+        }
 
         $sql = "INSERT INTO electronicas.Maquinas
             (
@@ -63,6 +88,12 @@ class mdlMaquinas extends Connection
     public function editarMaquina($losDatos)
     {
         header('Content-Type: application/json');
+
+        $error = $this->validarDatos($losDatos);
+        if ($error !== null) {
+            echo json_encode([["status" => "400", "mensaje" => $error]]);
+            exit;
+        }
 
         $sql = "UPDATE electronicas.Maquinas
             SET nombre = :nombre,
@@ -141,17 +172,20 @@ class mdlMaquinas extends Connection
         header('Content-Type: application/json');
 
         $sql = "SELECT
-                id_maquina,
-                nombre,
-                id_modelo,
-                serie,
-                comentarios,
-                id_estado,
-                costo,
-                anio,
-                ubicacion
-            FROM electronicas.Maquinas
-            WHERE id_maquina = :id_maquina";
+                mq.id_maquina,
+                mq.nombre,
+                mq.id_modelo,
+                mo.id_marca,
+                mq.serie,
+                mq.comentarios,
+                mq.id_estado,
+                mq.costo,
+                mq.anio,
+                mq.ubicacion
+            FROM electronicas.Maquinas mq
+            INNER JOIN electronicas.Modelos mo
+                ON mq.id_modelo = mo.id_modelo
+            WHERE mq.id_maquina = :id_maquina";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->bindParam(":id_maquina", $id_maquina);
@@ -262,24 +296,29 @@ class mdlMaquinas extends Connection
     {
         header('Content-Type: application/json');
 
-        $sql = "SELECT 
+        $sql = "SELECT
                 r.id_repuesto,
                 r.nombre,
                 r.costo,
+                ISNULL(dv.simbolo, 'L.') AS divisa_simbolo,
                 e.nombre AS estado,
-                MAX(m.fecha_mantenimiento) AS ultima_fecha
+                FORMAT(MAX(m.fecha_mantenimiento), 'dd/MM/yyyy') AS ultima_fecha
             FROM electronicas.Repuestos r
-            INNER JOIN electronicas.EstadoRepuestos e 
+            INNER JOIN electronicas.EstadoRepuestos e
                 ON r.id_estado = e.id_estado
-            LEFT JOIN electronicas.MantenimientoRepuestos mr 
+            LEFT JOIN electronicas.Divisas dv
+                ON dv.id_divisa = r.id_divisa
+            LEFT JOIN electronicas.MantenimientoRepuestos mr
                 ON r.id_repuesto = mr.id_repuesto
-            LEFT JOIN electronicas.Mantenimientos m 
+            LEFT JOIN electronicas.Mantenimientos m
                 ON mr.id_mantenimiento = m.id_mantenimiento
+               AND m.anulado = 0
             WHERE r.id_maquina_actual = :id_maquina
-            GROUP BY 
+            GROUP BY
                 r.id_repuesto,
-                r.nombre,'
+                r.nombre,
                 r.costo,
+                dv.simbolo,
                 e.nombre
             ORDER BY r.nombre";
 

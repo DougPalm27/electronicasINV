@@ -27,7 +27,9 @@ $sqlMant = "SELECT
                 tm.nombre                                   AS tipo,
                 ISNULL(t.nombre, 'Sin técnico')             AS tecnico,
                 ISNULL(m.descripcion, '')                   AS descripcion,
-                FORMAT(m.proximo_mantenimiento, 'dd/MM/yyyy') AS proximo
+                FORMAT(m.proximo_mantenimiento, 'dd/MM/yyyy') AS proximo,
+                m.anulado,
+                ISNULL(m.motivo_anulacion, '')              AS motivo_anulacion
             FROM electronicas.Mantenimientos m
             INNER JOIN electronicas.TipoMantenimiento tm ON tm.id_tipo    = m.id_tipo
             LEFT  JOIN electronicas.Tecnicos           t  ON t.id_tecnico = m.id_tecnico

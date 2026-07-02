@@ -938,8 +938,13 @@ function cargarEdicion(id_mantenimiento) {
             $("#proximo_mantenimiento").val(m.proximo_mantenimiento || "");
             $("#descripcion").val(m.descripcion || "");
 
-            // Cargar tareas
-            _tareas = data.tareas.map(t => ({ id_tarea: null, nombre: t }));
+            // Cargar tareas (como descripciones simples)
+            _tareas = data.tareas.map(t => {
+                if (typeof t === 'string') {
+                    return { id_tarea: null, nombre: t };
+                }
+                return { id_tarea: t.id_tarea || null, nombre: t.descripcion || t.nombre || '' };
+            });
             renderTareas();
 
             // Cargar repuestos

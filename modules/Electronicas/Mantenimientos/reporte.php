@@ -66,6 +66,16 @@ $totalCosto = array_sum(array_map(
     $repuestos
 ));
 
+/* ── Tareas realizadas ────────────────────────────────── */
+$stmtT = $conn->prepare("
+    SELECT descripcion, orden
+    FROM electronicas.MantenimientoTareas
+    WHERE id_mantenimiento = ?
+    ORDER BY orden
+");
+$stmtT->execute([$id]);
+$tareas = $stmtT->fetchAll(PDO::FETCH_ASSOC);
+
 /* ── Piezas retiradas ───────────────────────────────────── */
 $stmtRet = $conn->prepare("
     SELECT
@@ -329,6 +339,18 @@ $folio = str_pad($id, 6, '0', STR_PAD_LEFT);
         </div>
         <?php endif; ?>
     </div>
+
+    <!-- ── Tareas realizadas ────────────────────────── -->
+    <?php if ($tareas): ?>
+    <div class="section-title" style="background: #7c3aed">Tareas realizadas</div>
+    <div style="border:1px solid #ede9fe; border-top:none; padding:12px 14px; background:#faf5ff; border-radius:0 0 6px 6px; margin-bottom:16px">
+        <ol class="mb-0" style="margin-left:20px; color:#333; font-size:10pt">
+            <?php foreach ($tareas as $t): ?>
+                <li style="margin-bottom:4px"><?= e($t['descripcion']) ?></li>
+            <?php endforeach; ?>
+        </ol>
+    </div>
+    <?php endif; ?>
 
     <!-- ── Repuestos instalados ───────────────────────── -->
     <div class="section-title">Repuestos utilizados / instalados</div>
