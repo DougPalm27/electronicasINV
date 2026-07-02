@@ -132,13 +132,23 @@
                         <small class="text-muted">Agrega una o más tareas</small>
                     </div>
 
-                    <!-- Select para agregar tarea desde catálogo Satake -->
+                    <!-- Opción 1: Agregar del catálogo Satake -->
                     <div class="input-group mb-2">
                         <select id="sel_nueva_tarea" class="form-select">
-                            <option value="">— Cargando tareas… —</option>
+                            <option value="">— Catálogo de tareas —</option>
                         </select>
-                        <button type="button" class="btn btn-outline-primary" id="btnAgregarTarea">
-                            <i class="bi bi-plus-lg"></i> Agregar
+                        <button type="button" class="btn btn-outline-primary" id="btnAgregarTareaCatalogo">
+                            <i class="bi bi-plus-lg"></i> Del catálogo
+                        </button>
+                    </div>
+
+                    <!-- Opción 2: Agregar tarea personalizada -->
+                    <div class="input-group mb-2">
+                        <input type="text" id="inp_tarea_personalizada" class="form-control"
+                               placeholder="Escribe una tarea personalizada…"
+                               aria-label="Tarea personalizada">
+                        <button type="button" class="btn btn-outline-success" id="btnAgregarTareaPersonalizada">
+                            <i class="bi bi-plus-lg"></i> Personalizada
                         </button>
                     </div>
 
@@ -248,13 +258,19 @@
         font-weight: 600;
         color: #6c757d;
         min-width: 1.4rem;
+        flex-shrink: 0;
     }
     #listaTareas .tarea-texto {
         flex: 1;
         font-size: .9rem;
     }
+    #listaTareas .badge {
+        margin: 0 .25rem;
+        flex-shrink: 0;
+    }
     #listaTareas .btn-quitar-tarea {
         padding: .1rem .35rem;
         line-height: 1;
+        flex-shrink: 0;
     }
 </style>

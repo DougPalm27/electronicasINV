@@ -54,8 +54,19 @@ $(document).ready(function () {
         cargarInstalados(id);
     });
 
-    // ── Agregar tarea con botón ──────────────────────────────
-    $("#btnAgregarTarea").on("click", agregarTarea);
+    // ── Agregar tarea del catálogo ──────────────────────────────
+    $("#btnAgregarTareaCatalogo").on("click", agregarTareaCatalogo);
+
+    // ── Agregar tarea personalizada ──────────────────────────────
+    $("#btnAgregarTareaPersonalizada").on("click", agregarTareaPersonalizada);
+
+    // ── Enter en input personalizado ─────────────────────────────
+    $("#inp_tarea_personalizada").on("keypress", function (e) {
+        if (e.which === 13) { // Enter
+            agregarTareaPersonalizada();
+            return false;
+        }
+    });
 
     // ── Quitar tarea (delegado) ──────────────────────────────
     $("#listaTareas").on("click", ".btn-quitar-tarea", function () {
@@ -339,7 +350,8 @@ function cargarSelectTecnicos() {
 // TAREAS
 // ════════════════════════════════════════════════════════════
 
-function agregarTarea() {
+// ── Agregar tarea desde catálogo ────────────────────────
+function agregarTareaCatalogo() {
     const $sel   = $("#sel_nueva_tarea");
     const id     = parseInt($sel.val());
     const nombre = $sel.find("option:selected").data("nombre") || "";
@@ -358,6 +370,28 @@ function agregarTarea() {
     renderTareas();
 }
 
+// ── Agregar tarea personalizada ──────────────────────────
+function agregarTareaPersonalizada() {
+    const $inp = $("#inp_tarea_personalizada");
+    const desc = $inp.val().trim();
+
+    if (!desc) {
+        $inp.addClass("is-invalid");
+        setTimeout(() => $inp.removeClass("is-invalid"), 1500);
+        return;
+    }
+
+    // Evitar duplicados exactos
+    if (_tareas.some(t => t.nombre.toLowerCase() === desc.toLowerCase())) {
+        Swal.fire({ icon: "info", title: "Duplicada", text: `Ya existe una tarea similar en la lista.`, timer: 1800, showConfirmButton: false });
+        return;
+    }
+
+    _tareas.push({ id_tarea: null, nombre: desc });
+    $inp.val("").focus();
+    renderTareas();
+}
+
 function renderTareas() {
     if (!_tareas.length) {
         $("#listaTareas").empty();
@@ -367,10 +401,14 @@ function renderTareas() {
     $("#emptyTareas").hide();
     let html = "";
     _tareas.forEach((t, i) => {
+        const badge = t.id_tarea
+            ? '<span class="badge bg-info text-dark" style="font-size:.65rem">Catálogo</span>'
+            : '<span class="badge bg-warning text-dark" style="font-size:.65rem">Personalizada</span>';
         html += `
         <li class="list-group-item">
             <span class="tarea-numero">${i + 1}.</span>
             <span class="tarea-texto">${escHtml(t.nombre)}</span>
+            ${badge}
             <button type="button" class="btn btn-sm btn-outline-danger btn-quitar-tarea" data-idx="${i}">
                 <i class="bi bi-x"></i>
             </button>
@@ -878,6 +916,7 @@ function limpiarModal() {
     renderTareas();
     $("#emptyTareas").show();
     $("#sel_nueva_tarea").val("").removeClass("is-invalid");
+    $("#inp_tarea_personalizada").val("").removeClass("is-invalid");
 
     // Repuestos
     _filasRepuestos = [];
