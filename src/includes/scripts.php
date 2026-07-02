@@ -135,6 +135,11 @@ if (!empty($_GET['module'])) {
     if ($mod === 'maquinas') {
         echo '<script src="./modules/Electronicas/Eyectores/js/eyectores.js"></script>';
     }
+
+    // Directorio de custodios: se usa dentro de la vista de Credenciales GPS
+    if ($mod === 'gpsCredenciales') {
+        echo '<script src="./modules/GPS/Custodios/js/custodios.js"></script>';
+    }
 }
 ?>
 

@@ -118,7 +118,7 @@ $(document).ready(function () {
                 </div>` }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-        order: [[0, 'asc']], pageLength: 15, scrollX: true, autoWidth: false
+        order: [[0, 'asc']], pageLength: 15, autoWidth: false
     });
 
     // ── Agregar fila de placa ──────────────────────────────

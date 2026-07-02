@@ -8,10 +8,13 @@
         <button class="btn btn-primary" id="btnNuevoGPS">
           <i class="bi bi-plus-circle me-1"></i> Nuevo vehículo
         </button>
+        <button class="btn btn-outline-secondary" id="btnAbrirCustodios">
+          <i class="bi bi-person-vcard me-1"></i> Custodios
+        </button>
       </div>
 
       <div>
-        <table id="tblGPS" class="table table-striped w-100">
+        <table id="tblGPS" class="table table-hover w-100">
           <thead>
             <tr>
               <th>Placa</th><th>Tipo</th><th>Transporte</th>
@@ -24,6 +27,70 @@
         </table>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL — DIRECTORIO DE CUSTODIOS
+══════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalCustodiosDir" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title mb-0"><i class="bi bi-person-vcard me-1"></i> Custodios</h5>
+          <small class="text-muted">Directorio de nombres y teléfonos</small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        <div class="d-flex justify-content-end mb-3">
+          <button class="btn btn-primary" id="btnNuevoCustodio" type="button">
+            <i class="bi bi-plus-circle me-1"></i> Nuevo custodio
+          </button>
+        </div>
+
+        <!-- Panel de alta rápida (inline, sin modal secundario) -->
+        <div id="panelNuevoCustodio" class="border rounded p-3 mb-3 bg-light" style="display:none">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-6">
+              <label for="cus_new_nombre" class="form-label small mb-1">
+                Nombre <span class="text-danger">*</span>
+              </label>
+              <input type="text" class="form-control form-control-sm" id="cus_new_nombre"
+                     maxlength="150" placeholder="Nombre del custodio">
+            </div>
+            <div class="col-md-4">
+              <label for="cus_new_telefono" class="form-label small mb-1">Teléfono</label>
+              <input type="text" class="form-control form-control-sm" id="cus_new_telefono"
+                     maxlength="30" placeholder="Ej.: +504 9999-9999">
+            </div>
+            <div class="col-md-2 d-flex gap-1">
+              <button class="btn btn-success btn-sm flex-fill" id="btnGuardarNuevoCustodio" type="button">
+                <i class="bi bi-check-lg"></i> Guardar
+              </button>
+              <button class="btn btn-outline-secondary btn-sm" id="btnCancelarNuevoCustodio" type="button">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <table id="tblCustodios" class="table table-hover w-100">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Teléfono</th>
+              <th class="text-center">Estado</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+      </div>
     </div>
   </div>
 </div>
