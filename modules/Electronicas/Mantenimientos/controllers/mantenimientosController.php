@@ -30,7 +30,8 @@ try {
             $id = (int)($_POST['id_mantenimiento'] ?? 0);
             if (!$id) response([], true, "ID de mantenimiento inválido");
             response([
-                "tareas"     => $model->obtenerTareas($id),
+                "tareas"     => $model->obtenerTareasDescripcion($id),
+                "tareas_completas" => $model->obtenerTareas($id),
                 "instalados" => $model->obtenerDetalleMantenimiento($id),
                 "retiros"    => $model->obtenerRetirosMantenimiento($id)
             ]);

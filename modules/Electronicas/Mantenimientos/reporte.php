@@ -68,10 +68,16 @@ $totalCosto = array_sum(array_map(
 
 /* ── Tareas realizadas ────────────────────────────────── */
 $stmtT = $conn->prepare("
-    SELECT descripcion, orden
-    FROM electronicas.MantenimientoTareas
-    WHERE id_mantenimiento = ?
-    ORDER BY orden
+    SELECT
+        mt.descripcion,
+        mt.id_tarea_catalogo,
+        st.nombre AS tarea_catalogo_nombre,
+        CASE WHEN mt.id_tarea_catalogo IS NOT NULL THEN 'Catálogo' ELSE 'Personalizada' END AS tipo,
+        mt.orden
+    FROM electronicas.MantenimientoTareas mt
+    LEFT JOIN electronicas.SatakeTareas st ON st.id_tarea = mt.id_tarea_catalogo
+    WHERE mt.id_mantenimiento = ?
+    ORDER BY mt.orden
 ");
 $stmtT->execute([$id]);
 $tareas = $stmtT->fetchAll(PDO::FETCH_ASSOC);
@@ -343,13 +349,23 @@ $folio = str_pad($id, 6, '0', STR_PAD_LEFT);
     <!-- ── Tareas realizadas ────────────────────────── -->
     <?php if ($tareas): ?>
     <div class="section-title" style="background: #7c3aed">Tareas realizadas</div>
-    <div style="border:1px solid #ede9fe; border-top:none; padding:12px 14px; background:#faf5ff; border-radius:0 0 6px 6px; margin-bottom:16px">
-        <ol class="mb-0" style="margin-left:20px; color:#333; font-size:10pt">
+    <table style="width:100%; border-collapse:collapse; font-size:10pt; margin-bottom:16px">
+        <tbody>
             <?php foreach ($tareas as $t): ?>
-                <li style="margin-bottom:4px"><?= e($t['descripcion']) ?></li>
+            <tr style="border:1px solid #ede9fe; background:<?= $t['tipo'] === 'Catálogo' ? '#faf5ff' : '#fef3c7' ?>">
+                <td style="padding:6px 12px; width:30px; font-weight:700; color:#666"><?= ($t['orden'] + 1) ?>.</td>
+                <td style="padding:6px 12px; flex:1"><?= e($t['descripcion']) ?></td>
+                <td style="padding:6px 12px; text-align:right; font-size:8pt; color:#666">
+                    <?php if ($t['tipo'] === 'Catálogo'): ?>
+                        <span style="background:#dbeafe; color:#1e40af; padding:2px 6px; border-radius:3px">Catálogo</span>
+                    <?php else: ?>
+                        <span style="background:#fef08a; color:#92400e; padding:2px 6px; border-radius:3px">Personalizada</span>
+                    <?php endif; ?>
+                </td>
+            </tr>
             <?php endforeach; ?>
-        </ol>
-    </div>
+        </tbody>
+    </table>
     <?php endif; ?>
 
     <!-- ── Repuestos instalados ───────────────────────── -->

@@ -236,25 +236,40 @@ class mdlMantenimientos
         )->execute([$id_mantenimiento]);
 
         $stmt = $this->conn->prepare(
-            "INSERT INTO electronicas.MantenimientoTareas (id_mantenimiento, id_tarea, descripcion, orden)
+            "INSERT INTO electronicas.MantenimientoTareas
+                (id_mantenimiento, id_tarea_catalogo, descripcion, orden)
              VALUES (?, ?, ?, ?)"
         );
         foreach ($tareas as $i => $tarea) {
             if (is_string($tarea)) {
-                $id_tarea = null;
-                $desc     = trim($tarea);
+                $id_tarea_catalogo = null;
+                $desc              = trim($tarea);
             } else {
-                $tarea    = (array)$tarea;
-                $id_tarea = isset($tarea['id_tarea']) && $tarea['id_tarea'] !== '' ? (int)$tarea['id_tarea'] : null;
-                $desc     = trim($tarea['nombre'] ?? $tarea['descripcion'] ?? '');
+                $tarea             = (array)$tarea;
+                $id_tarea_catalogo = isset($tarea['id_tarea']) && $tarea['id_tarea'] !== ''
+                                   ? (int)$tarea['id_tarea']
+                                   : null;
+                $desc              = trim($tarea['nombre'] ?? $tarea['descripcion'] ?? '');
             }
             if ($desc !== '') {
-                $stmt->execute([$id_mantenimiento, $id_tarea, $desc, $i]);
+                $stmt->execute([$id_mantenimiento, $id_tarea_catalogo, $desc, $i]);
             }
         }
     }
 
     public function obtenerTareas(int $id_mantenimiento): array
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT id_mantenimiento_tarea, id_tarea_catalogo, descripcion
+             FROM electronicas.MantenimientoTareas
+             WHERE id_mantenimiento = ?
+             ORDER BY orden"
+        );
+        $stmt->execute([$id_mantenimiento]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function obtenerTareasDescripcion(int $id_mantenimiento): array
     {
         $stmt = $this->conn->prepare(
             "SELECT descripcion FROM electronicas.MantenimientoTareas
