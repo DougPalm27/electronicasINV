@@ -5,6 +5,7 @@ require_once __DIR__ . '/navContext.php';
 $nombreUsuario = $_SESSION['nombre']     ?? 'Usuario';
 $username      = $_SESSION['usuario']    ?? '';
 $rolUsuario    = $_SESSION['nombre_rol'] ?? '';
+$fotoUsuario   = $_SESSION['foto']       ?? null;
 $seccionHeader = nombreSeccion(moduloActual());
 $tituloModulo  = tituloModulo(moduloActual());
 
@@ -34,7 +35,11 @@ if ($iniciales === '') $iniciales = 'U';
             <li class="nav-item dropdown">
                 <a class="nav-link nav-profile d-flex align-items-center"
                    href="#" data-bs-toggle="dropdown">
-                    <span class="avatar-ini"><?= htmlspecialchars($iniciales) ?></span>
+                    <?php if ($fotoUsuario): ?>
+                        <img src="./<?= htmlspecialchars($fotoUsuario) ?>" alt="Foto de perfil" class="avatar-foto">
+                    <?php else: ?>
+                        <span class="avatar-ini"><?= htmlspecialchars($iniciales) ?></span>
+                    <?php endif; ?>
                     <span class="d-none d-md-block"><?= htmlspecialchars($nombreUsuario) ?></span>
                     <i class="bi bi-chevron-down d-none d-md-block" style="font-size:.6rem"></i>
                 </a>
@@ -45,6 +50,13 @@ if ($iniciales === '') $iniciales = 'U';
                         <span><?= htmlspecialchars($username) ?><?= $rolUsuario ? ' · ' . htmlspecialchars($rolUsuario) : '' ?></span>
                     </li>
                     <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center" href="#"
+                           id="btnAbrirPerfil">
+                            <i class="bi bi-person-circle me-2"></i>
+                            <span>Mi perfil</span>
+                        </a>
+                    </li>
                     <li>
                         <a class="dropdown-item d-flex align-items-center" href="#"
                            id="btnAbrirCambiarPassword">
@@ -108,4 +120,62 @@ if ($iniciales === '') $iniciales = 'U';
     </div>
 </div>
 
-<!-- Script de cambiar contraseña cargado desde scripts.php (después de jQuery) -->
+<!-- ── Modal: Mi perfil (global) ─────────────────────────── -->
+<div class="modal fade" id="modalPerfil" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-circle me-2"></i>Mi perfil</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+
+                <div class="text-center mb-3">
+                    <?php if ($fotoUsuario): ?>
+                        <img src="./<?= htmlspecialchars($fotoUsuario) ?>" alt="Foto de perfil" class="perfil-foto">
+                    <?php else: ?>
+                        <span class="perfil-ini"><?= htmlspecialchars($iniciales) ?></span>
+                    <?php endif; ?>
+                </div>
+
+                <input type="file" id="perfilInputFoto" class="d-none"
+                       accept="image/jpeg, image/png, image/webp">
+
+                <div class="d-flex justify-content-center gap-2 mb-1">
+                    <button type="button" class="btn btn-sm btn-primary" id="btnCambiarFoto">
+                        <i class="bi bi-camera me-1"></i><?= $fotoUsuario ? 'Cambiar foto' : 'Subir foto' ?>
+                    </button>
+                    <?php if ($fotoUsuario): ?>
+                    <button type="button" class="btn btn-sm btn-outline-danger" id="btnQuitarFoto">
+                        <i class="bi bi-trash me-1"></i>Quitar
+                    </button>
+                    <?php endif; ?>
+                </div>
+                <p class="text-center text-muted mb-4" style="font-size:.72rem">
+                    JPG, PNG o WebP · máx. 2 MB
+                </p>
+
+                <div class="border rounded p-3">
+                    <div class="row mb-2">
+                        <div class="col-4 text-muted small">Nombre</div>
+                        <div class="col-8 small fw-semibold"><?= htmlspecialchars($nombreUsuario) ?></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-4 text-muted small">Usuario</div>
+                        <div class="col-8 small"><?= htmlspecialchars($username) ?></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-4 text-muted small">Rol</div>
+                        <div class="col-8 small"><?= $rolUsuario ? htmlspecialchars($rolUsuario) : '<span class="text-muted">Sin rol asignado</span>' ?></div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts de perfil y cambiar contraseña cargados desde scripts.php (después de jQuery) -->

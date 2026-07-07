@@ -19,7 +19,8 @@ class mdlModelos
                     mo.id_marca,
                     ma.nombre AS marca,
                     mo.id_tipo_modelo,
-                    tm.nombre AS tipo_modelo
+                    tm.nombre AS tipo_modelo,
+                    mo.imagen
                 FROM electronicas.Modelos mo
                 INNER JOIN electronicas.Marcas ma
                     ON mo.id_marca = ma.id_marca
@@ -61,13 +62,14 @@ class mdlModelos
             return ["error" => true, "mensaje" => "Ya existe un modelo con ese nombre para la marca seleccionada"];
         }
 
-        $sql = "INSERT INTO electronicas.Modelos (nombre, id_marca, id_tipo_modelo, activo)
-                VALUES (?, ?, ?, 1)";
+        $sql = "INSERT INTO electronicas.Modelos (nombre, id_marca, id_tipo_modelo, imagen, activo)
+                VALUES (?, ?, ?, ?, 1)";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([
             $data["nombre"],
             $data["id_marca"],
-            $data["id_tipo_modelo"] ?: null
+            $data["id_tipo_modelo"] ?: null,
+            $data["imagen"] ?? null
         ]);
 
         return ["ok" => true, "id" => $this->conn->lastInsertId()];
@@ -85,20 +87,44 @@ class mdlModelos
             return ["error" => true, "mensaje" => "Ya existe un modelo con ese nombre para la marca seleccionada"];
         }
 
-        $sql = "UPDATE electronicas.Modelos SET
-                    nombre          = ?,
-                    id_marca        = ?,
-                    id_tipo_modelo  = ?
-                WHERE id_modelo = ? AND activo = 1";
+        if (!empty($data["imagen_set"])) {
+            $sql = "UPDATE electronicas.Modelos SET
+                        nombre          = ?,
+                        id_marca        = ?,
+                        id_tipo_modelo  = ?,
+                        imagen          = ?
+                    WHERE id_modelo = ? AND activo = 1";
+            $params = [
+                $data["nombre"],
+                $data["id_marca"],
+                $data["id_tipo_modelo"] ?: null,
+                $data["imagen"],
+                $data["id_modelo"]
+            ];
+        } else {
+            $sql = "UPDATE electronicas.Modelos SET
+                        nombre          = ?,
+                        id_marca        = ?,
+                        id_tipo_modelo  = ?
+                    WHERE id_modelo = ? AND activo = 1";
+            $params = [
+                $data["nombre"],
+                $data["id_marca"],
+                $data["id_tipo_modelo"] ?: null,
+                $data["id_modelo"]
+            ];
+        }
         $stmt = $this->conn->prepare($sql);
-        $stmt->execute([
-            $data["nombre"],
-            $data["id_marca"],
-            $data["id_tipo_modelo"] ?: null,
-            $data["id_modelo"]
-        ]);
+        $stmt->execute($params);
 
         return ["ok" => true];
+    }
+
+    public function obtenerImagen($id)
+    {
+        $stmt = $this->conn->prepare("SELECT imagen FROM electronicas.Modelos WHERE id_modelo = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetchColumn() ?: null;
     }
 
     public function eliminar($id)

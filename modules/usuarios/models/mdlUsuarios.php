@@ -91,6 +91,24 @@ class mdlUsuarios
         $stmt->execute([$id]);
     }
 
+    // ── Foto de perfil ─────────────────────────────────────
+    public function obtenerFoto(int $id): ?string
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT foto FROM electronicas.Usuarios WHERE id_usuario = ?"
+        );
+        $stmt->execute([$id]);
+        return $stmt->fetchColumn() ?: null;
+    }
+
+    public function actualizarFoto(int $id, ?string $ruta): void
+    {
+        $stmt = $this->conn->prepare(
+            "UPDATE electronicas.Usuarios SET foto = ? WHERE id_usuario = ?"
+        );
+        $stmt->execute([$ruta, $id]);
+    }
+
     // ── Cambiar propia contraseña ──────────────────────────
     public function cambiarPassword(int $id, string $actual, string $nueva): void
     {

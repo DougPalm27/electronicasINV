@@ -2,37 +2,74 @@
 <div class="row mb-3">
     <div class="col-12">
         <div class="card shadow-sm border-0">
-            <div class="card-body d-flex justify-content-between align-items-center">
+            <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
                     <h5 class="mb-0">Máquinas</h5>
                     <small class="text-muted">Registro general del área de electrónicas</small>
                 </div>
-                <button class="btn btn-primary" id="btnNuevaMaquina" data-bs-toggle="modal" data-bs-target="#modalMaquina">
-                    <i class="bi bi-plus-circle"></i> Nueva Máquina
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-success" id="btnVerTablaCompleta">
+                        <i class="bi bi-table me-1"></i> Ver tabla completa
+                    </button>
+                    <button class="btn btn-primary" id="btnNuevaMaquina" data-bs-toggle="modal" data-bs-target="#modalMaquina">
+                        <i class="bi bi-plus-circle"></i> Nueva Máquina
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card shadow-sm border-0">
-    <div class="card-body">
-        <table class="table table-hover w-100" id="tablaMaquinas">
-            <thead>
-                <tr>
-                    <th>Nombre</th>
-                    <th>Marca</th>
-                    <th>Modelo</th>
-                    <th>Serie</th>
-                    <th>Año</th>
-                    <th>Ubicación</th>
-                    <th>Costo</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+<!-- ── Vista de tarjetas por modelo ────────────────────────── -->
+<div id="seccionCards">
+    <div class="d-flex justify-content-end mb-3">
+        <input type="search" class="form-control" id="buscarModelo"
+               placeholder="Buscar modelo, marca o tipo…" style="max-width:280px">
+    </div>
+    <div class="row g-3" id="gridModelos">
+        <div class="col-12 text-center py-5">
+            <span class="spinner-border text-primary"></span>
+        </div>
+    </div>
+</div>
+
+<!-- ── Vista de detalle (máquinas del modelo) ──────────────── -->
+<div id="seccionDetalle" class="d-none">
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-body d-flex align-items-center gap-3 py-2">
+                    <button class="btn btn-sm btn-secondary" id="btnVolverCards">
+                        <i class="bi bi-arrow-left me-1"></i>Volver
+                    </button>
+                    <div>
+                        <h6 class="mb-0" id="detalleTitulo"></h6>
+                        <small class="text-muted" id="detalleSubtitulo"></small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+            <table class="table table-hover w-100" id="tablaMaquinas">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Marca</th>
+                        <th>Modelo</th>
+                        <th>Serie</th>
+                        <th>Año</th>
+                        <th>Ubicación</th>
+                        <th>Costo</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -266,6 +303,37 @@
 </div>
 
 <style>
+    /* ── Tarjetas por modelo ── */
+    .modelo-card {
+        cursor: pointer;
+        transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    }
+    .modelo-card:hover {
+        transform: translateY(-2px);
+        border-color: #156b45 !important;
+        box-shadow: 0 8px 20px rgba(28, 33, 40, .08);
+    }
+    .mc-img {
+        height: 132px;
+        background: #f6f7f9;
+        border-bottom: 1px solid #eef0f3;
+        border-radius: 10px 10px 0 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+    .mc-img img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .mc-img .mc-placeholder {
+        font-size: 2.4rem;
+        color: #c2cdc7;
+    }
+    .mc-badges .badge { margin-right: .25rem; }
+
     .ey-legend {
         display: inline-block;
         width: 12px;

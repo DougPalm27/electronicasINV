@@ -1,12 +1,16 @@
 let tablaMaquinas = null;
 let estadosMaquina = [];
 let modelosConEyectores = new Set();
+let maquinasData = [];      // dataset completo (se agrupa en cards y alimenta la tabla)
+let modeloActual;           // undefined = vista cards · null = todas · id = modelo filtrado
 
 $(document).ready(function () {
   init();
 });
 
 function init() {
+  initTabla();
+
   // Carga los modelos que tienen barra de eyectores antes de dibujar la tabla,
   // para que el dropdown muestre "Componentes" solo donde aplica.
   cargarModelosConEyectores(listarMaquinas);
@@ -16,6 +20,14 @@ function init() {
   $("#btnNuevaMaquina").click(limpiarModalMaquina);
   $("#btnGuardarMaquina").click(guardarMaquina);
   $("#btnEditarMaquina").click(editarMaquina);
+
+  // Navegación cards ↔ detalle
+  $("#btnVolverCards").click(mostrarCards);
+  $("#btnVerTablaCompleta").click(() => mostrarDetalle(null));
+  $("#buscarModelo").on("input", filtrarCards);
+  $("#gridModelos").on("click", ".modelo-card", function () {
+    mostrarDetalle($(this).data("modelo"));
+  });
 
   $("#id_marca").change(function () {
     let id_marca = $(this).val();
@@ -46,25 +58,26 @@ function init() {
 //////////////////////////////////////////////////////////
 
 function listarMaquinas() {
-  if ($.fn.DataTable.isDataTable("#tablaMaquinas")) {
-    $("#tablaMaquinas").DataTable().destroy();
-  }
-
-  tablaMaquinas = $("#tablaMaquinas").DataTable({
-    ajax: {
-      url: "./modules/Electronicas/Maquinas/Controllers/listarMaquinas.php",
-      type: "POST",
-      dataType: "json",
-      dataSrc: function (json) {
-        if (!Array.isArray(json)) {
-          console.error("Respuesta inválida:", json);
-          return [];
-        }
-
-        return json;
-      },
-      error: manejarErrorAjax,
+  $.ajax({
+    url: "./modules/Electronicas/Maquinas/Controllers/listarMaquinas.php",
+    type: "POST",
+    dataType: "json",
+    success: function (json) {
+      if (!Array.isArray(json)) {
+        console.error("Respuesta inválida:", json);
+        return;
+      }
+      maquinasData = json;
+      renderCards();
+      refrescarTabla();
     },
+    error: manejarErrorAjax,
+  });
+}
+
+function initTabla() {
+  tablaMaquinas = $("#tablaMaquinas").DataTable({
+    data: [],
     columns: [
       { data: "nombre", defaultContent: "" },
       { data: "marca", defaultContent: "" },
@@ -134,6 +147,128 @@ function listarMaquinas() {
       url: "./modules/Electronicas/Maquinas/js/es-ES.json",
     },
   });
+}
+
+//////////////////////////////////////////////////////////
+// 🃏 CARDS POR MODELO
+//////////////////////////////////////////////////////////
+
+function renderCards() {
+  const grupos = {};
+
+  maquinasData.forEach((m) => {
+    const k = String(m.id_modelo);
+    if (!grupos[k]) {
+      grupos[k] = {
+        id_modelo: m.id_modelo,
+        modelo: m.modelo,
+        marca: m.marca,
+        tipo: m.tipo_modelo,
+        imagen: m.modelo_imagen,
+        total: 0,
+        activas: 0,
+        mantenimiento: 0,
+        inactivas: 0,
+      };
+    }
+    const g = grupos[k];
+    g.total++;
+    if (m.estado === "Activo") g.activas++;
+    else if (m.estado === "Mantenimiento") g.mantenimiento++;
+    else g.inactivas++;
+  });
+
+  const lista = Object.values(grupos).sort((a, b) =>
+    (a.marca + " " + a.modelo).localeCompare(b.marca + " " + b.modelo, "es"),
+  );
+
+  if (lista.length === 0) {
+    $("#gridModelos").html(`
+      <div class="col-12 text-center py-5 text-muted">
+        <i class="bi bi-cpu" style="font-size:2.5rem"></i>
+        <p class="mt-2 mb-0">No hay máquinas registradas todavía.</p>
+      </div>`);
+    return;
+  }
+
+  let html = "";
+  lista.forEach((g) => {
+    const texto = `${g.marca} ${g.modelo} ${g.tipo || ""}`.toLowerCase();
+    const imagen = g.imagen
+      ? `<img src="./${g.imagen}" alt="${g.modelo}" loading="lazy">`
+      : `<i class="bi bi-cpu mc-placeholder"></i>`;
+
+    const badges =
+      (g.activas       ? `<span class="badge bg-success">${g.activas} activa${g.activas !== 1 ? "s" : ""}</span>` : "") +
+      (g.mantenimiento ? `<span class="badge bg-warning">${g.mantenimiento} en mant.</span>` : "") +
+      (g.inactivas     ? `<span class="badge bg-secondary">${g.inactivas} inactiva${g.inactivas !== 1 ? "s" : ""}</span>` : "");
+
+    html += `
+      <div class="col-12 col-sm-6 col-lg-4 col-xxl-3 col-card-modelo" data-texto="${texto}">
+        <div class="card shadow-sm border-0 modelo-card h-100" data-modelo="${g.id_modelo}">
+          <div class="mc-img">${imagen}</div>
+          <div class="card-body pb-3">
+            <small class="text-muted">${g.marca}${g.tipo ? " · " + g.tipo : ""}</small>
+            <h6 class="mt-1 mb-2">${g.modelo}</h6>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+              <span class="small fw-semibold">${g.total} máquina${g.total !== 1 ? "s" : ""}</span>
+              <span class="mc-badges">${badges}</span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  });
+
+  $("#gridModelos").html(html);
+  filtrarCards();
+}
+
+function filtrarCards() {
+  const q = ($("#buscarModelo").val() || "").trim().toLowerCase();
+  $("#gridModelos .col-card-modelo").each(function () {
+    $(this).toggle(String($(this).data("texto")).includes(q));
+  });
+}
+
+function mostrarDetalle(idModelo) {
+  modeloActual = idModelo;
+  refrescarTabla();
+
+  $("#seccionCards").addClass("d-none");
+  $("#seccionDetalle").removeClass("d-none");
+}
+
+function mostrarCards() {
+  modeloActual = undefined;
+  $("#seccionDetalle").addClass("d-none");
+  $("#seccionCards").removeClass("d-none");
+}
+
+function refrescarTabla() {
+  if (!tablaMaquinas) return;
+
+  const filtrado = modeloActual === null || modeloActual === undefined
+    ? maquinasData
+    : maquinasData.filter((m) => String(m.id_modelo) === String(modeloActual));
+
+  tablaMaquinas.clear().rows.add(filtrado).draw();
+
+  // Encabezado del detalle
+  if (modeloActual === null) {
+    $("#detalleTitulo").text("Todas las máquinas");
+    $("#detalleSubtitulo").text(`${maquinasData.length} máquina${maquinasData.length !== 1 ? "s" : ""} registrada${maquinasData.length !== 1 ? "s" : ""}`);
+  } else if (modeloActual !== undefined) {
+    const ref = filtrado[0];
+    if (ref) {
+      $("#detalleTitulo").text(`${ref.marca} ${ref.modelo}`);
+      $("#detalleSubtitulo").text(
+        `${filtrado.length} máquina${filtrado.length !== 1 ? "s" : ""}${ref.tipo_modelo ? " · " + ref.tipo_modelo : ""}`,
+      );
+    } else {
+      // El modelo quedó sin máquinas (p. ej. tras editar): volver a las cards
+      mostrarCards();
+    }
+  }
 }
 
 //////////////////////////////////////////////////////////

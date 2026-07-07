@@ -95,6 +95,37 @@ a:hover { color: var(--hc-verde-hover); }
     letter-spacing: .02em;
 }
 
+.avatar-foto {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--hc-borde);
+}
+
+/* Foto grande del modal "Mi perfil" */
+.perfil-foto {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--hc-borde);
+}
+
+.perfil-ini {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background: var(--hc-verde-tinte);
+    color: var(--hc-verde);
+    font-size: 1.9rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: .02em;
+}
+
 .dropdown-header h6 { font-size: .82rem; margin: 0; }
 .dropdown-header span { font-size: .72rem; color: var(--hc-texto-3); }
 

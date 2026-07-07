@@ -1,4 +1,5 @@
 let tablaModelos = null;
+let quitarImagenFlag = false;
 
 $(document).ready(function () {
     init();
@@ -20,6 +21,23 @@ function init() {
     $("#btnGuardarModelo").click(guardarModelo);
     $("#btnActualizarModelo").click(actualizarModelo);
     $("#modalModelo").on("hidden.bs.modal", limpiarModal);
+
+    // Vista previa al elegir archivo
+    $("#imagen_modelo").on("change", function () {
+        const file = this.files[0];
+        if (!file) return;
+        quitarImagenFlag = false;
+        $("#previewImagen").attr("src", URL.createObjectURL(file));
+        $("#previewImagenWrap").removeClass("d-none");
+    });
+
+    // Quitar imagen (marca para borrar al actualizar)
+    $("#btnQuitarImagen").click(function () {
+        quitarImagenFlag = true;
+        $("#imagen_modelo").val("");
+        $("#previewImagen").attr("src", "");
+        $("#previewImagenWrap").addClass("d-none");
+    });
 }
 
 //////////////////////////////////////////////////////////
@@ -46,6 +64,13 @@ function listarModelos() {
             },
         },
         columns: [
+            {
+                data: "imagen",
+                orderable: false,
+                render: (d) => d
+                    ? `<img src="./${d}" alt="" style="width:46px;height:34px;object-fit:cover;border-radius:6px;border:1px solid #e4e7ec">`
+                    : `<span class="text-muted"><i class="bi bi-image" style="font-size:1.1rem"></i></span>`,
+            },
             { data: "nombre" },
             { data: "marca" },
             {
@@ -83,7 +108,7 @@ function listarModelos() {
             },
         ],
         language: { url: "./modules/Electronicas/Repuestos/js/es-ES.json" },
-        order: [[1, "asc"], [0, "asc"]],
+        order: [[2, "asc"], [1, "asc"]],
     });
 }
 
@@ -130,25 +155,45 @@ function cargarTipos() {
 function guardarModelo() {
     if (!validar()) return;
 
-    $.post(
-        "./modules/Parametrizacion/Modelos/controllers/modelosController.php",
-        {
-            accion:          "guardar",
-            nombre:          $("#nombre_modelo").val().trim(),
-            id_marca:        $("#id_marca_modelo").val(),
-            id_tipo_modelo:  $("#id_tipo_modelo").val(),
-        },
-        function (resp) {
+    enviarModelo("guardar", "Modelo creado");
+}
+
+/** Envía el formulario (con imagen opcional) vía FormData. */
+function enviarModelo(accion, mensajeExito) {
+    const fd = new FormData();
+    fd.append("accion",         accion);
+    fd.append("nombre",         $("#nombre_modelo").val().trim());
+    fd.append("id_marca",       $("#id_marca_modelo").val());
+    fd.append("id_tipo_modelo", $("#id_tipo_modelo").val());
+
+    if (accion === "editar") {
+        fd.append("id_modelo",     $("#id_modelo").val());
+        fd.append("quitar_imagen", quitarImagenFlag ? "1" : "0");
+    }
+
+    const archivo = $("#imagen_modelo")[0].files[0];
+    if (archivo) fd.append("imagen", archivo);
+
+    $.ajax({
+        url: "./modules/Parametrizacion/Modelos/controllers/modelosController.php",
+        type: "POST",
+        data: fd,
+        processData: false,
+        contentType: false,
+        dataType: "json",
+        success: function (resp) {
             if (!resp.ok) {
                 Swal.fire("Error", resp.mensaje, "error");
                 return;
             }
             cerrarModal();
             listarModelos();
-            Swal.fire({ icon: "success", title: "Listo", text: "Modelo creado", timer: 1500, showConfirmButton: false });
+            Swal.fire({ icon: "success", title: "Listo", text: mensajeExito, timer: 1500, showConfirmButton: false });
         },
-        "json"
-    );
+        error: function () {
+            Swal.fire("Error", "Error en el servidor", "error");
+        },
+    });
 }
 
 function editarModelo(row) {
@@ -157,6 +202,12 @@ function editarModelo(row) {
     $("#nombre_modelo").val(row.nombre);
     $("#id_marca_modelo").val(row.id_marca);
     $("#id_tipo_modelo").val(row.id_tipo_modelo || "");
+
+    if (row.imagen) {
+        $("#previewImagen").attr("src", "./" + row.imagen);
+        $("#previewImagenWrap").removeClass("d-none");
+    }
+
     $("#tituloModalModelo").text("Editar Modelo");
     $("#btnGuardarModelo").addClass("d-none");
     $("#btnActualizarModelo").removeClass("d-none");
@@ -166,26 +217,7 @@ function editarModelo(row) {
 function actualizarModelo() {
     if (!validar()) return;
 
-    $.post(
-        "./modules/Parametrizacion/Modelos/controllers/modelosController.php",
-        {
-            accion:          "editar",
-            id_modelo:       $("#id_modelo").val(),
-            nombre:          $("#nombre_modelo").val().trim(),
-            id_marca:        $("#id_marca_modelo").val(),
-            id_tipo_modelo:  $("#id_tipo_modelo").val(),
-        },
-        function (resp) {
-            if (!resp.ok) {
-                Swal.fire("Error", resp.mensaje, "error");
-                return;
-            }
-            cerrarModal();
-            listarModelos();
-            Swal.fire({ icon: "success", title: "Listo", text: "Modelo actualizado", timer: 1500, showConfirmButton: false });
-        },
-        "json"
-    );
+    enviarModelo("editar", "Modelo actualizado");
 }
 
 function eliminarModelo(id, nombre) {
@@ -255,6 +287,9 @@ function cerrarModal() {
 function limpiarModal() {
     $("#formModelo")[0].reset();
     $("#id_modelo").val("");
+    quitarImagenFlag = false;
+    $("#previewImagen").attr("src", "");
+    $("#previewImagenWrap").addClass("d-none");
     limpiarErrores();
 }
 

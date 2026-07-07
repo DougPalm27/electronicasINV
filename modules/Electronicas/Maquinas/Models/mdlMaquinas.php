@@ -133,7 +133,7 @@ class mdlMaquinas extends Connection
     {
         header('Content-Type: application/json');
 
-        $sql = "SELECT 
+        $sql = "SELECT
                 mq.id_maquina,
                 mq.nombre,
                 mq.serie,
@@ -144,6 +144,8 @@ class mdlMaquinas extends Connection
                 mq.anio,
                 mq.ubicacion,
                 mo.nombre AS modelo,
+                mo.imagen AS modelo_imagen,
+                tm.nombre AS tipo_modelo,
                 ma.nombre AS marca,
                 em.nombre AS estado
             FROM electronicas.Maquinas mq
@@ -153,6 +155,8 @@ class mdlMaquinas extends Connection
                 ON mo.id_marca = ma.id_marca
             INNER JOIN electronicas.EstadoMaquina em
                 ON mq.id_estado = em.id_estado
+            LEFT JOIN electronicas.TiposModelo tm
+                ON mo.id_tipo_modelo = tm.id_tipo_modelo
             ORDER BY mq.id_maquina DESC";
 
         $stmt = $this->conn->prepare($sql);

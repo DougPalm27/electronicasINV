@@ -92,6 +92,66 @@ try {
             resp([], false, 'Estado actualizado.');
             break;
 
+        case 'actualizarFoto': {
+            // Autoservicio: siempre sobre el usuario en sesión
+            $id = (int)$_SESSION['id_usuario'];
+
+            if (empty($_FILES['foto']) || $_FILES['foto']['error'] === UPLOAD_ERR_NO_FILE) {
+                resp([], true, 'No se recibió ninguna imagen.');
+            }
+
+            $file = $_FILES['foto'];
+            if ($file['error'] !== UPLOAD_ERR_OK) {
+                resp([], true, "Error al subir la imagen (código {$file['error']}).");
+            }
+            if ($file['size'] > 2 * 1024 * 1024) {
+                resp([], true, 'La imagen no puede superar 2 MB.');
+            }
+
+            // Validar tipo real del archivo, no solo la extensión
+            $mime = mime_content_type($file['tmp_name']);
+            $extPorMime = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+            if (!isset($extPorMime[$mime])) {
+                resp([], true, 'Formato no permitido: usa JPG, PNG o WebP.');
+            }
+
+            $dir = __DIR__ . '/../../../assets/img/usuarios/';
+            if (!is_dir($dir)) mkdir($dir, 0775, true);
+
+            $nombreArchivo = 'usuario_' . $id . '_' . uniqid() . '.' . $extPorMime[$mime];
+            if (!move_uploaded_file($file['tmp_name'], $dir . $nombreArchivo)) {
+                resp([], true, 'No se pudo guardar la imagen en el servidor.');
+            }
+            $ruta = 'assets/img/usuarios/' . $nombreArchivo;
+
+            // Reemplazar en BD y limpiar la foto anterior del disco
+            $anterior = $model->obtenerFoto($id);
+            $model->actualizarFoto($id, $ruta);
+            if ($anterior && strpos($anterior, 'assets/img/usuarios/') === 0) {
+                $abs = __DIR__ . '/../../../' . $anterior;
+                if (is_file($abs)) @unlink($abs);
+            }
+
+            $_SESSION['foto'] = $ruta;
+            resp(['foto' => $ruta], false, 'Foto de perfil actualizada.');
+            break;
+        }
+
+        case 'quitarFoto': {
+            $id = (int)$_SESSION['id_usuario'];
+
+            $anterior = $model->obtenerFoto($id);
+            $model->actualizarFoto($id, null);
+            if ($anterior && strpos($anterior, 'assets/img/usuarios/') === 0) {
+                $abs = __DIR__ . '/../../../' . $anterior;
+                if (is_file($abs)) @unlink($abs);
+            }
+
+            $_SESSION['foto'] = null;
+            resp([], false, 'Foto de perfil eliminada.');
+            break;
+        }
+
         case 'cambiarPassword':
             $id     = (int)$_SESSION['id_usuario'];
             $actual = $_POST['password_actual'] ?? '';

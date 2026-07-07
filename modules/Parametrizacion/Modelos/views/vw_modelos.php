@@ -19,6 +19,7 @@
         <table class="table table-hover w-100" id="tablaModelos">
             <thead>
                 <tr>
+                    <th style="width:70px">Imagen</th>
                     <th>Nombre</th>
                     <th>Marca</th>
                     <th>Tipo</th>
@@ -66,6 +67,23 @@
                         <select id="id_tipo_modelo" class="form-select">
                             <option value="">-- Seleccione --</option>
                         </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="imagen_modelo" class="form-label">Imagen (opcional)</label>
+                        <input type="file" id="imagen_modelo" class="form-control"
+                               accept="image/jpeg, image/png, image/webp">
+                        <div class="form-text">JPG, PNG o WebP, máx. 2 MB. Se muestra en la pantalla de Máquinas.</div>
+                    </div>
+
+                    <div class="mb-2 d-none" id="previewImagenWrap">
+                        <div class="d-flex align-items-start gap-2">
+                            <img id="previewImagen" src="" alt="Imagen del modelo"
+                                 style="max-height:110px;max-width:100%;border-radius:8px;border:1px solid #e4e7ec">
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="btnQuitarImagen">
+                                <i class="bi bi-trash me-1"></i>Quitar
+                            </button>
+                        </div>
                     </div>
 
                 </form>

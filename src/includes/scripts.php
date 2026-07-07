@@ -138,9 +138,83 @@ if (!empty($_GET['module'])) {
 ?>
 
 <script>
-/* ── Cambiar contraseña (topnav) — después de jQuery ──────── */
+/* ── Perfil y cambiar contraseña (topnav) — después de jQuery ── */
 $(function() {
     const CTRL_USR = './modules/Usuarios/controllers/usuariosController.php';
+
+    /* ── Mi perfil: foto ── */
+    $('#btnAbrirPerfil').on('click', function(e) {
+        e.preventDefault();
+        const el = document.getElementById('modalPerfil');
+        (bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el)).show();
+    });
+
+    $('#btnCambiarFoto').on('click', function() {
+        $('#perfilInputFoto').trigger('click');
+    });
+
+    $('#perfilInputFoto').on('change', function() {
+        const archivo = this.files[0];
+        if (!archivo) return;
+
+        if (archivo.size > 2 * 1024 * 1024) {
+            Swal.fire({ icon: 'warning', title: 'Imagen muy pesada', text: 'Máximo 2 MB.' });
+            this.value = '';
+            return;
+        }
+
+        const fd = new FormData();
+        fd.append('accion', 'actualizarFoto');
+        fd.append('foto', archivo);
+
+        $('#btnCambiarFoto').prop('disabled', true)
+            .html('<span class="spinner-border spinner-border-sm me-1"></span> Subiendo...');
+
+        $.ajax({
+            url: CTRL_USR,
+            type: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false,
+            dataType: 'json',
+            success: function(resp) {
+                if (!resp.ok) {
+                    $('#btnCambiarFoto').prop('disabled', false)
+                        .html('<i class="bi bi-camera me-1"></i>Cambiar foto');
+                    Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje });
+                    return;
+                }
+                Swal.fire({ icon: 'success', title: '¡Listo!', text: resp.mensaje,
+                            timer: 1200, showConfirmButton: false })
+                    .then(function() { window.location.reload(); });
+            },
+            error: function() {
+                $('#btnCambiarFoto').prop('disabled', false)
+                    .html('<i class="bi bi-camera me-1"></i>Cambiar foto');
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Error en el servidor.' });
+            }
+        });
+    });
+
+    $('#btnQuitarFoto').on('click', function() {
+        Swal.fire({
+            title: '¿Quitar tu foto de perfil?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, quitar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#dc3545'
+        }).then(function(r) {
+            if (!r.isConfirmed) return;
+            $.post(CTRL_USR, { accion: 'quitarFoto' }, function(resp) {
+                if (!resp.ok) {
+                    Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje });
+                    return;
+                }
+                window.location.reload();
+            }, 'json');
+        });
+    });
 
     $('#btnAbrirCambiarPassword').on('click', function(e) {
         e.preventDefault();

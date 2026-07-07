@@ -17,7 +17,7 @@ class mdlLogin
      */
     public function buscarUsuario(string $username): ?array
     {
-        $sql = "SELECT u.id_usuario, u.username, u.password_hash, u.nombre,
+        $sql = "SELECT u.id_usuario, u.username, u.password_hash, u.nombre, u.foto,
                        u.id_rol, r.nombre AS nombre_rol,
                        ISNULL(r.puede_ejecutar_mantenimiento, 0) AS puede_ejecutar_mantenimiento
                 FROM electronicas.Usuarios u
