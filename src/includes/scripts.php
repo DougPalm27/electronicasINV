@@ -116,10 +116,10 @@ if ($mostrarBienvenida) {
 
     $avatarBienvenida = $fotoBienvenida
         ? '<img src="./' . htmlspecialchars($fotoBienvenida) . '" alt="" '
-          . 'style="width:84px;height:84px;border-radius:50%;object-fit:cover;'
-          . 'border:3px solid #e9f3ee;box-shadow:0 4px 14px rgba(21,107,69,.18)">'
-        : '<span style="width:84px;height:84px;border-radius:50%;background:#e9f3ee;color:#156b45;'
-          . 'font-size:1.7rem;font-weight:600;display:inline-flex;align-items:center;'
+          . 'style="width:140px;height:140px;border-radius:50%;object-fit:cover;'
+          . 'border:4px solid #e9f3ee;box-shadow:0 6px 22px rgba(21,107,69,.22)">'
+        : '<span style="width:140px;height:140px;border-radius:50%;background:#e9f3ee;color:#156b45;'
+          . 'font-size:2.8rem;font-weight:600;display:inline-flex;align-items:center;'
           . 'justify-content:center;letter-spacing:.02em">'
           . htmlspecialchars($inicialesBienvenida) . '</span>';
 ?>
@@ -127,19 +127,19 @@ if ($mostrarBienvenida) {
 $(function () {
     Swal.fire({
         html: <?= json_encode(
-            '<div style="padding:.25rem 0">'
+            '<div style="padding:.75rem 0 .5rem">'
             . $avatarBienvenida
-            . '<h5 style="margin:.9rem 0 0;font-weight:600;color:#1c2128">'
+            . '<h3 style="margin:1.25rem 0 0;font-weight:600;font-size:1.45rem;color:#1c2128">'
             . htmlspecialchars($saludoBienvenida) . ', ' . htmlspecialchars($nombreBienvenida)
-            . '</h5>'
-            . '<p style="margin:.3rem 0 0;color:#8a919c;font-size:.82rem">Qué bueno verte de nuevo</p>'
+            . '</h3>'
+            . '<p style="margin:.45rem 0 0;color:#8a919c;font-size:1rem">Qué bueno verte de nuevo</p>'
             . '</div>'
         ) ?>,
         showConfirmButton: false,
-        timer: 2600,
+        timer: 3000,
         timerProgressBar: true,
-        width: 340,
-        padding: '1.25rem'
+        width: 480,
+        padding: '1.75rem'
     });
 });
 </script>
