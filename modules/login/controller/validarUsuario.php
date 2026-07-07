@@ -19,6 +19,7 @@ if ($username !== '' && $password !== '') {
             $_SESSION['nombre']     = $usuario['nombre'];
             $_SESSION['id_usuario'] = (int)$usuario['id_usuario'];
             $_SESSION['foto']       = $usuario['foto'] ?? null;
+            $_SESSION['bienvenida_pendiente'] = true;
             $_SESSION['id_rol']                       = $usuario['id_rol'] ? (int)$usuario['id_rol'] : null;
             $_SESSION['nombre_rol']                   = $usuario['nombre_rol'] ?? null;
             $_SESSION['puede_ejecutar_mantenimiento'] = (bool)(int)($usuario['puede_ejecutar_mantenimiento'] ?? 0);

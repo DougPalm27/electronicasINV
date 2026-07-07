@@ -92,6 +92,59 @@ try {
     }
 </script>
 
+<?php
+/* ── Bienvenida al iniciar sesión (se muestra una sola vez) ── */
+$mostrarBienvenida = !empty($_SESSION['bienvenida_pendiente']);
+if ($mostrarBienvenida) {
+    unset($_SESSION['bienvenida_pendiente']);
+
+    $horaActual = (int)date('G');
+    if ($horaActual < 12)      $saludoBienvenida = 'Buenos días';
+    elseif ($horaActual < 18)  $saludoBienvenida = 'Buenas tardes';
+    else                       $saludoBienvenida = 'Buenas noches';
+
+    $nombreBienvenida = $_SESSION['nombre'] ?? 'Usuario';
+    $fotoBienvenida   = $_SESSION['foto']   ?? null;
+
+    $inicialesBienvenida = '';
+    foreach (preg_split('/\s+/', trim($nombreBienvenida)) as $palabraB) {
+        if ($palabraB === '') continue;
+        $inicialesBienvenida .= mb_strtoupper(mb_substr($palabraB, 0, 1));
+        if (mb_strlen($inicialesBienvenida) >= 2) break;
+    }
+    if ($inicialesBienvenida === '') $inicialesBienvenida = 'U';
+
+    $avatarBienvenida = $fotoBienvenida
+        ? '<img src="./' . htmlspecialchars($fotoBienvenida) . '" alt="" '
+          . 'style="width:84px;height:84px;border-radius:50%;object-fit:cover;'
+          . 'border:3px solid #e9f3ee;box-shadow:0 4px 14px rgba(21,107,69,.18)">'
+        : '<span style="width:84px;height:84px;border-radius:50%;background:#e9f3ee;color:#156b45;'
+          . 'font-size:1.7rem;font-weight:600;display:inline-flex;align-items:center;'
+          . 'justify-content:center;letter-spacing:.02em">'
+          . htmlspecialchars($inicialesBienvenida) . '</span>';
+?>
+<script>
+$(function () {
+    Swal.fire({
+        html: <?= json_encode(
+            '<div style="padding:.25rem 0">'
+            . $avatarBienvenida
+            . '<h5 style="margin:.9rem 0 0;font-weight:600;color:#1c2128">'
+            . htmlspecialchars($saludoBienvenida) . ', ' . htmlspecialchars($nombreBienvenida)
+            . '</h5>'
+            . '<p style="margin:.3rem 0 0;color:#8a919c;font-size:.82rem">Qué bueno verte de nuevo</p>'
+            . '</div>'
+        ) ?>,
+        showConfirmButton: false,
+        timer: 2600,
+        timerProgressBar: true,
+        width: 340,
+        padding: '1.25rem'
+    });
+});
+</script>
+<?php } ?>
+
 <!-- ── JS por módulo ───────────────────────────────────────── -->
 <?php
 echo '<script src="./modules/dasboard/js/dash.js"></script>';

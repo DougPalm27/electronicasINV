@@ -5,6 +5,9 @@
  * - En controladores JSON: devuelve {"ok":false,"session":false} para que el JS intercepte.
  */
 
+// Zona horaria de la aplicación (XAMPP trae Europe/Berlin por defecto)
+date_default_timezone_set('America/Tegucigalpa');
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -23,6 +26,7 @@ function requireLogin(bool $asJson = false): void
         exit;
     }
 
-    header('Location: /Electronicas/index.php');
+    // Relativo: solo las páginas de la raíz (inicio.php, selector.php) usan el modo HTML
+    header('Location: ./index.php');
     exit;
 }
