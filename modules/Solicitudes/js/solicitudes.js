@@ -172,6 +172,7 @@ $(document).ready(function () {
             return `<option value="${r.id_repuesto}"
                             data-stock="${r.stock}"
                             data-serie="${r.maneja_serie}"
+                            data-comprometido="${r.comprometido || 0}"
                             data-marca="${r.marca  || ''}"
                             data-modelo="${r.modelo || ''}"
                     >${r.nombre}${detalle}${serieTag}</option>`;
@@ -214,24 +215,28 @@ $(document).ready(function () {
         const opt    = $(this).find(':selected');
         const stock  = parseInt(opt.data('stock') || 0);
         const serie  = parseInt(opt.data('serie')  || 0);
+        const comp   = parseInt(opt.data('comprometido') || 0);
         const $item  = $(this).closest('.rep-item');
         const $badge = $item.find('.td-stock');
         const $inp   = $item.find('.inp-cantidad');
+
+        // Cantidad ya pedida en otras solicitudes pendientes
+        const compTag = comp > 0 ? ` (${comp} comprom.)` : '';
 
         if (!$(this).val()) {
             $badge.text('—').removeClass().addClass('badge badge-stock-ok td-stock');
             return;
         }
         if (serie) {
-            $badge.text(`${stock} disp.`).removeClass()
+            $badge.text(`${stock} disp.${compTag}`).removeClass()
                   .addClass('badge badge-stock-warn td-stock');
             $inp.attr('max', stock);
         } else if (stock === 0) {
             $badge.text('Sin stock').removeClass()
                   .addClass('badge badge-stock-bad td-stock');
         } else {
-            $badge.text(`${stock} disp.`).removeClass()
-                  .addClass(`badge ${stock <= 2 ? 'badge-stock-warn' : 'badge-stock-ok'} td-stock`);
+            $badge.text(`${stock} disp.${compTag}`).removeClass()
+                  .addClass(`badge ${(stock <= 2 || comp > 0) ? 'badge-stock-warn' : 'badge-stock-ok'} td-stock`);
             $inp.attr('max', stock);
         }
     });
@@ -466,11 +471,15 @@ $(document).ready(function () {
 
                 maq.repuestos.forEach(rep => {
                     const stockOk = rep.stock_actual >= rep.cantidad;
-                    const stockBadge = rep.stock_actual == 0
+                    const comp    = parseInt(rep.comprometido_otras || 0);
+                    const compTag = comp > 0
+                        ? `<br><small class="text-muted" title="Cantidad pedida en otras solicitudes pendientes">${comp} comprom. en otras</small>`
+                        : '';
+                    const stockBadge = (rep.stock_actual == 0
                         ? `<span class="badge badge-stock-bad">Sin stock</span>`
                         : stockOk
                             ? `<span class="badge badge-stock-ok">${rep.stock_actual} disp.</span>`
-                            : `<span class="badge badge-stock-warn">⚠ ${rep.stock_actual} disp.</span>`;
+                            : `<span class="badge badge-stock-warn">⚠ ${rep.stock_actual} disp.</span>`) + compTag;
 
                     const ctrlBadge = rep.maneja_serie == 1
                         ? '<span class="badge bg-info text-dark">Serie</span>'

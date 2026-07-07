@@ -81,6 +81,7 @@ $(document).ready(function () {
             // Los tres cargaron (o fallaron) → inicializar
             poblarSelectDivisas();
             initDataTable(esAdmin);
+            precargarDesdeRepuestos();
         }
     }
 
@@ -330,6 +331,31 @@ function aplicarTipo($item, tipo) {
         $extDiv.hide();
         $catDiv.show();
     }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PRECARGA DESDE REPUESTOS (botón "Solicitar compra" en stock bajo)
+══════════════════════════════════════════════════════════════ */
+function precargarDesdeRepuestos() {
+    const raw = sessionStorage.getItem('compraPrecargada');
+    if (!raw) return;
+    sessionStorage.removeItem('compraPrecargada');
+
+    let datos;
+    try { datos = JSON.parse(raw); } catch (e) { return; }
+    if (!datos || !datos.id_repuesto) return;
+
+    const rep = _repuestos.find(r => String(r.id_repuesto) === String(datos.id_repuesto));
+
+    abrirModalNueva();
+    $('#compra_descripcion').val(rep
+        ? `Reposición de stock: ${rep.nombre}`
+        : 'Reposición de stock');
+    agregarItem({
+        id_repuesto:         datos.id_repuesto,
+        cantidad_solicitada: datos.cantidad || 1,
+        costo_unitario:      rep && parseFloat(rep.costo_promedio) > 0 ? rep.costo_promedio : ''
+    });
 }
 
 /* ══════════════════════════════════════════════════════════════

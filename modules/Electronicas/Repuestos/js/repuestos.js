@@ -1,4 +1,5 @@
 let tablaRepuestos = null;
+const ES_ADMIN = window.USUARIO_ROL === "Administrador";
 
 $(document).ready(function () {
   init();
@@ -26,6 +27,70 @@ function init() {
     });
   });
 
+  // Ajuste negativo de inventario (merma, daño, conteo físico) — solo admin
+  $(document).on("click", ".btn-ajuste-inv", function () {
+    const id     = $(this).data("id");
+    const stock  = parseInt($(this).data("stock")) || 0;
+    const nombre = $(this).data("nombre");
+
+    Swal.fire({
+      title: "Ajuste negativo de inventario",
+      html: `
+        <p class="mb-2 text-start small">${nombre} — stock actual: <b>${stock}</b></p>
+        <input type="number" id="swal-aj-cant" class="form-control mb-2"
+               min="1" max="${stock}" placeholder="Cantidad a descontar">
+        <textarea id="swal-aj-motivo" class="form-control" rows="2"
+                  placeholder="Motivo (merma, daño, conteo físico...)"></textarea>`,
+      showCancelButton: true,
+      confirmButtonText: "Registrar ajuste",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#d33",
+      preConfirm: () => {
+        const cantidad = parseInt($("#swal-aj-cant").val());
+        const motivo   = $("#swal-aj-motivo").val().trim();
+        if (!cantidad || cantidad <= 0) {
+          Swal.showValidationMessage("Ingresa una cantidad válida");
+          return false;
+        }
+        if (cantidad > stock) {
+          Swal.showValidationMessage(`La cantidad no puede exceder el stock (${stock})`);
+          return false;
+        }
+        if (!motivo) {
+          Swal.showValidationMessage("El motivo es obligatorio");
+          return false;
+        }
+        return { cantidad, motivo };
+      },
+    }).then((res) => {
+      if (!res.isConfirmed) return;
+      $.post(
+        "./modules/Electronicas/Repuestos/Controllers/repuestosController.php",
+        { accion: "ajusteNegativo", id_repuesto: id, cantidad: res.value.cantidad, motivo: res.value.motivo },
+        function (resp) {
+          if (!resp.ok) {
+            Swal.fire("Error", resp.mensaje || "Error al registrar el ajuste", "error");
+            return;
+          }
+          listarRepuestos();
+          Swal.fire({ icon: "success", title: "Listo", text: "Ajuste registrado", timer: 1800, showConfirmButton: false });
+        },
+        "json"
+      );
+    });
+  });
+
+  // Solicitar compra desde stock bajo → abre el módulo de compras precargado
+  $(document).on("click", ".btn-solicitar-compra", function () {
+    const stock = parseInt($(this).data("stock")) || 0;
+    const min   = parseInt($(this).data("min")) || 0;
+    sessionStorage.setItem("compraPrecargada", JSON.stringify({
+      id_repuesto: $(this).data("id"),
+      cantidad: Math.max(1, min - stock),
+    }));
+    window.location.href = "?module=compras";
+  });
+
   // Kardex — delegación para capturar botones generados por DataTable
   $(document).on("click", ".btn-ver-kardex", function () {
     const btn = $(this);
@@ -33,7 +98,9 @@ function init() {
       btn.data("id"),
       btn.data("nombre"),
       btn.data("marca"),
-      btn.data("modelo")
+      btn.data("modelo"),
+      parseInt(btn.data("stock")) || 0,
+      parseFloat(btn.data("costo")) || 0
     );
   });
 
@@ -132,6 +199,16 @@ function listarRepuestos() {
                    </button>
                </li>
                <li>
+                   <button class="dropdown-item btn-ver-kardex" type="button"
+                           data-id="${id}"
+                           data-nombre="${(row.nombre  || '').replace(/"/g, '&quot;')}"
+                           data-marca="${(row.marca    || '—').replace(/"/g, '&quot;')}"
+                           data-modelo="${(row.modelo  || '—').replace(/"/g, '&quot;')}"
+                           data-stock="${row.stock}" data-costo="${row.costo_promedio || 0}">
+                       <i class="bi bi-journal-text me-2 text-info"></i>Ver kardex
+                   </button>
+               </li>
+               <li>
                    <button class="dropdown-item" type="button" onclick="abrirEntrada(${id}, 1)">
                        <i class="bi bi-plus-circle me-2 text-success"></i>Registrar entrada
                    </button>
@@ -142,7 +219,8 @@ function listarRepuestos() {
                            data-id="${id}"
                            data-nombre="${(row.nombre  || '').replace(/"/g, '&quot;')}"
                            data-marca="${(row.marca    || '—').replace(/"/g, '&quot;')}"
-                           data-modelo="${(row.modelo  || '—').replace(/"/g, '&quot;')}">
+                           data-modelo="${(row.modelo  || '—').replace(/"/g, '&quot;')}"
+                           data-stock="${row.stock}" data-costo="${row.costo_promedio || 0}">
                        <i class="bi bi-journal-text me-2 text-info"></i>Ver kardex
                    </button>
                </li>
@@ -151,7 +229,25 @@ function listarRepuestos() {
                        <i class="bi bi-plus-circle me-2 text-success"></i>Registrar entrada
                    </button>
                </li>
+               ${ES_ADMIN ? `
+               <li>
+                   <button class="dropdown-item btn-ajuste-inv" type="button"
+                           data-id="${id}" data-stock="${row.stock}"
+                           data-nombre="${(row.nombre || '').replace(/"/g, '&quot;')}">
+                       <i class="bi bi-clipboard-minus me-2 text-danger"></i>Ajuste de inventario
+                   </button>
+               </li>` : ''}
                `;
+
+          const stockBajo = row.stock_minimo && parseInt(row.stock) <= parseInt(row.stock_minimo);
+          const itemSolicitarCompra = stockBajo
+            ? `<li>
+                   <button class="dropdown-item btn-solicitar-compra" type="button"
+                           data-id="${id}" data-stock="${row.stock}" data-min="${row.stock_minimo}">
+                       <i class="bi bi-cart-plus me-2 text-primary"></i>Solicitar compra
+                   </button>
+               </li>`
+            : '';
 
           return `
             <div class="dropdown">
@@ -167,13 +263,15 @@ function listarRepuestos() {
                         </button>
                     </li>
                     ${itemsEspecificos}
+                    ${itemSolicitarCompra}
+                    ${ES_ADMIN ? `
                     <li><hr class="dropdown-divider"></li>
                     <li>
                         <button class="dropdown-item text-danger" type="button"
                                 onclick="eliminarRepuesto(${id})">
                             <i class="bi bi-trash me-2"></i>Desechar
                         </button>
-                    </li>
+                    </li>` : ''}
                 </ul>
             </div>`;
         },
@@ -455,7 +553,13 @@ function guardarEntrada() {
       url: "./modules/Electronicas/Repuestos/Controllers/repuestosController.php",
       type: "POST",
       dataType: "json",
-      data: { accion: "entradaSerie", id_repuesto: id, series: series },
+      data: {
+        accion:       "entradaSerie",
+        id_repuesto:  id,
+        series:       series,
+        id_proveedor: $("#id_proveedor_mov").val(),
+        tipo_entrada: $("#tipo_entrada_mov").val(),
+      },
       success: function (resp) {
         if (!resp.ok) {
           Swal.fire("Error", resp.mensaje || "Error al guardar", "error");
@@ -534,9 +638,8 @@ function abrirSalida(id_repuesto, manejaSerie) {
   $("#id_repuesto_salida").val(id_repuesto);
   $("#maneja_serie_salida").val(manejaSerie);
   $("#id_maquina_salida").val("").removeClass("is-invalid");
-  $("#referencia_salida").val("MANTENIMIENTO");
+  $("#referencia_salida").val("SALIDA MANUAL");
   $("#cantidad_salida").val("");
-  $("#costo_salida").val("");
   $("#series_salida").html("").trigger("change");
 
   if (parseInt(manejaSerie) === 1) {
@@ -582,7 +685,7 @@ function guardarSalida() {
   const id_repuesto = $("#id_repuesto_salida").val();
   const manejaSerie = $("#maneja_serie_salida").val();
   const id_maquina  = $("#id_maquina_salida").val();
-  const referencia  = $("#referencia_salida").val().trim() || "MANTENIMIENTO";
+  const referencia  = $("#referencia_salida").val().trim() || "SALIDA MANUAL";
   let valido        = true;
 
   if (!id_repuesto) {
@@ -628,7 +731,6 @@ function guardarSalida() {
 
   } else {
     const cantidad = parseInt($("#cantidad_salida").val());
-    const costo    = parseFloat($("#costo_salida").val()) || 0;
 
     if (!cantidad || cantidad <= 0) {
       marcarInvalido("#cantidad_salida", "Ingresa una cantidad válida");
@@ -641,7 +743,7 @@ function guardarSalida() {
       url: "./modules/Electronicas/Repuestos/Controllers/repuestosController.php",
       type: "POST",
       dataType: "json",
-      data: { accion: "salida", id_repuesto, id_maquina, cantidad, costo, referencia },
+      data: { accion: "salida", id_repuesto, id_maquina, cantidad, referencia },
       success: function (resp) {
         if (!resp.ok) {
           Swal.fire("Error", resp.mensaje || "Error al registrar la salida", "error");
@@ -666,60 +768,104 @@ function guardarSalida() {
 let _kardexIdRepuesto = null;
 let _kardexInfo       = { nombre: '', marca: '', modelo: '' };
 
-function verKardex(id, nombre, marca, modelo) {
+function verKardex(id, nombre, marca, modelo, stock, costoPromedio) {
   _kardexIdRepuesto = id;
-  _kardexInfo       = { nombre, marca, modelo };
+  _kardexInfo       = { nombre, marca, modelo, stock: stock || 0, costo: costoPromedio || 0 };
 
   // Título del modal
   $('#kardexTituloNombre').text(nombre);
   $('#kardexTituloMeta').text([marca, modelo].filter(v => v && v !== '—').join(' · '));
 
+  // Valuación actual del inventario de este repuesto
+  const valorActual = (_kardexInfo.stock * _kardexInfo.costo);
+  $('#kardexValorActual').text(
+    `L ${valorActual.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  );
+
+  // Reiniciar filtro de período
+  $('#kardex_desde').val('');
+  $('#kardex_hasta').val('');
+
   cargarKardex(id);
   abrirModal("#modalKardex");
+}
+
+function aplicarFiltroKardex() {
+  if (_kardexIdRepuesto) cargarKardex(_kardexIdRepuesto);
+}
+
+function limpiarFiltroKardex() {
+  $('#kardex_desde').val('');
+  $('#kardex_hasta').val('');
+  if (_kardexIdRepuesto) cargarKardex(_kardexIdRepuesto);
+}
+
+function fmtLps(n) {
+  return parseFloat(n || 0).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function cargarKardex(id) {
   $.post(
     "./modules/Electronicas/Repuestos/Controllers/repuestosController.php",
-    { accion: "kardex", id_repuesto: id },
+    {
+      accion: "kardex",
+      id_repuesto: id,
+      desde: $('#kardex_desde').val(),
+      hasta: $('#kardex_hasta').val(),
+    },
     function (resp) {
       if (!resp.ok) {
         Swal.fire("Error", resp.mensaje, "error");
         return;
       }
 
-      if (!resp.data || resp.data.length === 0) {
-        $("#tablaKardex tbody").html(
-          `<tr><td colspan="7" class="text-center text-muted py-3">Sin movimientos registrados</td></tr>`
-        );
+      const movimientos  = resp.data.movimientos || [];
+      const saldoInicial = parseInt(resp.data.saldo_inicial) || 0;
+      const hayFiltro    = $('#kardex_desde').val() || $('#kardex_hasta').val();
+
+      // ── Fila de saldo inicial del período ──────────────────
+      let html = `
+        <tr class="table-primary">
+          <td class="text-nowrap small">—</td>
+          <td><span class="badge bg-primary me-1">
+                <i class="bi bi-flag me-1"></i>Saldo inicial${hayFiltro ? ' del período' : ''}
+              </span></td>
+          <td class="text-center"><span class="text-muted">—</span></td>
+          <td class="text-center"><span class="text-muted">—</span></td>
+          <td class="text-end small">—</td>
+          <td class="text-end small">—</td>
+          <td class="text-end"><strong>${saldoInicial}</strong></td>
+          <td></td>
+        </tr>`;
+
+      if (movimientos.length === 0) {
+        html += `<tr><td colspan="8" class="text-center text-muted py-3">Sin movimientos en el período</td></tr>`;
+        $("#tablaKardex tbody").html(html);
+        $("#kardexResumen").html('');
         return;
       }
 
-      // Los datos vienen ASC (más antiguo primero).
-      // El primer elemento del array es el más antiguo → "Punto de partida".
-      const idxPrimero = 0;
+      // Totales del período (incluye anulados y sus contra-movimientos: se netean)
+      let totEntU = 0, totSalU = 0, totEntL = 0, totSalL = 0;
 
-      let html = "";
-      resp.data.forEach((m, idx) => {
+      movimientos.forEach((m) => {
         const anulado     = parseInt(m.anulado) === 1;
         const esAnulacion = m.referencia && m.referencia.startsWith('ANULACION');
-        const esPrimero   = idx === idxPrimero;
         const esEntrada   = parseInt(m.id_tipo_movimiento) === 1;
+        const cantidad    = parseInt(m.cantidad) || 0;
+        const costo       = parseFloat(m.costo_unitario) || 0;
+        const importe     = cantidad * costo;
+
+        if (esEntrada) { totEntU += cantidad; totEntL += importe; }
+        else           { totSalU += cantidad; totSalL += importe; }
 
         // ── Clase de fila ──────────────────────────────────────
-        let trClass = '';
-        if (esPrimero)     trClass = 'table-primary';
-        else if (anulado)  trClass = 'table-secondary';
-
+        const trClass     = anulado ? 'table-secondary' : '';
         const strikeStyle = anulado ? 'style="text-decoration:line-through;opacity:.6"' : '';
 
         // ── Columna Descripción ────────────────────────────────
         let descripcion = '';
-        if (esPrimero) {
-          descripcion = `<span class="badge bg-primary me-1">
-                           <i class="bi bi-flag me-1"></i>Punto de partida
-                         </span>`;
-        } else if (esAnulacion) {
+        if (esAnulacion) {
           const detalle = m.observaciones || m.referencia;
           descripcion = `<span class="badge bg-warning text-dark me-1">
                            <i class="bi bi-arrow-counterclockwise me-1"></i>Ajuste por anulación
@@ -735,7 +881,7 @@ function cargarKardex(id) {
                            ${m.tipo}
                          </span>`;
         }
-        if (!esAnulacion && !esPrimero && !anulado) {
+        if (!esAnulacion && !anulado) {
           if (m.tipo_entrada && m.tipo_entrada !== 'Compra') {
             descripcion += ` <span class="badge bg-warning text-dark">${m.tipo_entrada}</span>`;
           }
@@ -744,21 +890,27 @@ function cargarKardex(id) {
           } else if (m.referencia && m.referencia !== 'COMPRA' && m.referencia !== 'MANTENIMIENTO') {
             descripcion += `<small class="text-muted ms-1">${m.referencia}</small>`;
           }
+          if (m.observaciones && m.referencia && m.referencia.startsWith('AJUSTE')) {
+            descripcion += ` <small class="text-muted">— ${m.observaciones}</small>`;
+          }
+        }
+        if (m.usuario) {
+          descripcion += ` <small class="text-muted">· ${m.usuario}</small>`;
         }
 
         // ── Entradas / Salidas (columnas separadas) ────────────
         const cantEntrada = (!anulado && esEntrada)
-          ? `<span class="fw-semibold">${m.cantidad}</span>`
+          ? `<span class="fw-semibold">${cantidad}</span>`
           : `<span class="text-muted">—</span>`;
         const cantSalida  = (!anulado && !esEntrada)
-          ? `<span class="fw-semibold">${m.cantidad}</span>`
+          ? `<span class="fw-semibold">${cantidad}</span>`
           : `<span class="text-muted">—</span>`;
 
         const cantEntradaFinal = anulado
-          ? `<span class="text-muted" ${strikeStyle}>${esEntrada ? m.cantidad : '—'}</span>`
+          ? `<span class="text-muted" ${strikeStyle}>${esEntrada ? cantidad : '—'}</span>`
           : cantEntrada;
         const cantSalidaFinal  = anulado
-          ? `<span class="text-muted" ${strikeStyle}>${!esEntrada ? m.cantidad : '—'}</span>`
+          ? `<span class="text-muted" ${strikeStyle}>${!esEntrada ? cantidad : '—'}</span>`
           : cantSalida;
 
         // ── Saldo (stock_nuevo) ────────────────────────────────
@@ -766,9 +918,9 @@ function cargarKardex(id) {
           ? `<span class="text-muted" ${strikeStyle}>${parseInt(m.stock_nuevo)}</span>`
           : `<strong>${parseInt(m.stock_nuevo)}</strong>`;
 
-        // ── Botón anular ───────────────────────────────────────
+        // ── Botón anular (solo Administrador) ──────────────────
         let btnAnular = '';
-        if (!anulado && !esAnulacion && !esPrimero) {
+        if (ES_ADMIN && !anulado && !esAnulacion) {
           btnAnular = `<button class="btn btn-sm btn-danger"
                          onclick="confirmarAnulacion(${m.id_movimiento})"
                          title="Anular este movimiento">
@@ -782,13 +934,27 @@ function cargarKardex(id) {
             <td>${descripcion}</td>
             <td class="text-center">${cantEntradaFinal}</td>
             <td class="text-center">${cantSalidaFinal}</td>
-            <td class="text-end small" ${strikeStyle}>${parseFloat(m.costo_unitario || 0).toFixed(2)}</td>
+            <td class="text-end small" ${strikeStyle}>${costo.toFixed(2)}</td>
+            <td class="text-end small" ${strikeStyle}>${importe > 0 ? fmtLps(importe) : '—'}</td>
             <td class="text-end">${saldo}</td>
             <td class="text-center">${btnAnular}</td>
           </tr>`;
       });
 
       $("#tablaKardex tbody").html(html);
+
+      // ── Resumen del período ──────────────────────────────────
+      const saldoFinal = parseInt(movimientos[movimientos.length - 1].stock_nuevo);
+      $("#kardexResumen").html(`
+        <span><i class="bi bi-box-arrow-in-down text-success me-1"></i>
+          Entradas: <strong>${totEntU}</strong> uds · L ${fmtLps(totEntL)}</span>
+        <span><i class="bi bi-box-arrow-up text-danger me-1"></i>
+          Salidas: <strong>${totSalU}</strong> uds · L ${fmtLps(totSalL)}</span>
+        <span><i class="bi bi-flag me-1"></i>
+          Saldo inicial: <strong>${saldoInicial}</strong></span>
+        <span><i class="bi bi-flag-fill me-1"></i>
+          Saldo final: <strong>${saldoFinal}</strong></span>
+      `);
     },
     "json"
   );
@@ -849,6 +1015,16 @@ function imprimirKardex() {
   });
 
   const tablaHtml = tablaClone.outerHTML;
+
+  // Período filtrado y resumen de totales
+  const desde   = $('#kardex_desde').val();
+  const hasta   = $('#kardex_hasta').val();
+  const periodo = (desde || hasta)
+    ? `Período: ${desde || 'inicio'} → ${hasta || 'hoy'}`
+    : 'Historial completo';
+  const resumenHtml = document.getElementById('kardexResumen')
+    ? document.getElementById('kardexResumen').innerHTML
+    : '';
 
   const ventana = window.open('', '_blank', 'width=950,height=750');
   ventana.document.write(`
@@ -912,11 +1088,15 @@ function imprimirKardex() {
         <div class="right">
           <div>Fecha de impresión: <strong>${fecha} ${hora}</strong></div>
           <div>Impreso por: <strong>${usuario}</strong></div>
-          <div>Sistema Electronicas — Honducafe</div>
+          <div>${periodo} · Valuación en Lempiras (L)</div>
         </div>
       </div>
 
       ${tablaHtml}
+
+      <div class="footer-print" style="justify-content:flex-start;gap:24px;">
+        ${resumenHtml}
+      </div>
 
       <div class="footer-print">
         <span>Honducafe — Sistema de Control de Inventario</span>
@@ -952,10 +1132,10 @@ function verDetalle(id) {
             <td>${d.estado}</td>
             <td>${d.id_maquina_actual || "-"}</td>
             <td>
-              <button class="btn btn-warning btn-sm"
+              ${ES_ADMIN ? `<button class="btn btn-warning btn-sm"
                 onclick="abrirEditarDetalle(${d.id_detalle_repuesto}, '${d.serie}', ${d.id_estado_repuesto}, ${d.id_maquina_actual || 0})">
                 <i class="bi bi-pencil"></i>
-              </button>
+              </button>` : '<span class="text-muted">—</span>'}
             </td>
           </tr>`;
       });

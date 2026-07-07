@@ -194,6 +194,55 @@ class mdlRepuestos
     //////////////////////////////////////////////////////////
     public function eliminarRepuesto($id)
     {
+        $rep = $this->obtenerInfoRepuesto($id);
+        if (!$rep) {
+            return ["error" => true, "mensaje" => "Repuesto no encontrado"];
+        }
+
+        // Bloquear si aún hay existencias
+        if ((int)$rep["maneja_serie"] === 1) {
+            $stmt = $this->conn->prepare(
+                "SELECT COUNT(*) FROM electronicas.RepuestosDetalle
+                 WHERE id_repuesto = ? AND id_estado_repuesto = 1"
+            );
+            $stmt->execute([$id]);
+            $disponibles = (int)$stmt->fetchColumn();
+            if ($disponibles > 0) {
+                return ["error" => true, "mensaje" => "No se puede desechar: tiene $disponibles serie(s) disponibles en inventario"];
+            }
+        } elseif ((int)$rep["stock"] > 0) {
+            return ["error" => true, "mensaje" => "No se puede desechar: tiene stock existente ({$rep['stock']} unidades)"];
+        }
+
+        // Bloquear si está en solicitudes de repuestos pendientes
+        $stmt = $this->conn->prepare(
+            "SELECT COUNT(*)
+             FROM electronicas.SolicitudesDetalle sd
+             INNER JOIN electronicas.SolicitudesMaquinas sm
+                 ON sm.id_solicitud_maquina = sd.id_solicitud_maquina
+             INNER JOIN electronicas.SolicitudesRepuestos sr
+                 ON sr.id_solicitud = sm.id_solicitud
+             WHERE sd.id_repuesto = ? AND sr.estado = 'Pendiente'"
+        );
+        $stmt->execute([$id]);
+        if ((int)$stmt->fetchColumn() > 0) {
+            return ["error" => true, "mensaje" => "No se puede desechar: está incluido en solicitudes de repuestos pendientes"];
+        }
+
+        // Bloquear si está en solicitudes de compra activas
+        $stmt = $this->conn->prepare(
+            "SELECT COUNT(*)
+             FROM electronicas.SolicitudesCompraDetalle det
+             INNER JOIN electronicas.SolicitudesCompra sc
+                 ON sc.id_solicitud_compra = det.id_solicitud_compra
+             WHERE det.id_repuesto = ?
+               AND sc.estado IN ('Borrador','Pendiente','Aprobada','Ordenada','Recibida parcial')"
+        );
+        $stmt->execute([$id]);
+        if ((int)$stmt->fetchColumn() > 0) {
+            return ["error" => true, "mensaje" => "No se puede desechar: está incluido en solicitudes de compra activas"];
+        }
+
         $sql = "UPDATE electronicas.Repuestos SET id_estado = 5 WHERE id_repuesto = ?";
         $stmt = $this->conn->prepare($sql);
         return $stmt->execute([$id]);
@@ -213,35 +262,75 @@ class mdlRepuestos
             return ["error" => true, "mensaje" => "Este repuesto se controla por serie. Usa 'Entrada por serie'"];
         }
 
-        $stockActual = (int)$rep["stock"];
-        $nuevoStock  = $stockActual + (int)$data["cantidad"];
+        $cantidad = (int)$data["cantidad"];
+        $costo    = (float)$data["costo"];
 
-        $sql = "INSERT INTO electronicas.MovimientosRepuestos
-                    (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
-                     stock_anterior, stock_nuevo, referencia, id_proveedor, tipo_entrada)
-                VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)";
+        $this->conn->beginTransaction();
+        try {
+            // Incremento atómico: evita perder movimientos concurrentes.
+            // Si la entrada trae costo, recalcula el promedio ponderado sobre
+            // los valores vigentes de la fila (mismo criterio que la recepción de OC)
+            if ($costo > 0) {
+                $stmtUpd = $this->conn->prepare(
+                    "UPDATE electronicas.Repuestos
+                     SET costo_promedio = CASE
+                             WHEN stock > 0 THEN ROUND(
+                                 (stock * costo_promedio + CAST(? AS INT) * CAST(? AS DECIMAL(18,6)))
+                                 / (stock + CAST(? AS INT)), 4)
+                             ELSE CAST(? AS DECIMAL(18,6))
+                         END,
+                         stock = stock + CAST(? AS INT)
+                     OUTPUT DELETED.stock AS stock_anterior, INSERTED.stock AS stock_nuevo
+                     WHERE id_repuesto = ?"
+                );
+                $stmtUpd->execute([
+                    $cantidad, $costo, $cantidad,
+                    $costo, $cantidad, $data["id_repuesto"]
+                ]);
+            } else {
+                $stmtUpd = $this->conn->prepare(
+                    "UPDATE electronicas.Repuestos
+                     SET stock = stock + ?
+                     OUTPUT DELETED.stock AS stock_anterior, INSERTED.stock AS stock_nuevo
+                     WHERE id_repuesto = ?"
+                );
+                $stmtUpd->execute([$cantidad, $data["id_repuesto"]]);
+            }
+            $stocks = $stmtUpd->fetch(PDO::FETCH_ASSOC);
+            if (!$stocks) {
+                throw new RuntimeException("Repuesto no encontrado");
+            }
 
-        $stmt = $this->conn->prepare($sql);
-        $stmt->execute([
-            $data["id_repuesto"],
-            $data["cantidad"],
-            $data["costo"],
-            $stockActual,
-            $nuevoStock,
-            $data["referencia"],
-            $data["id_proveedor"] ?: null,
-            $data["tipo_entrada"]  ?? 'Compra',
-        ]);
+            $sql = "INSERT INTO electronicas.MovimientosRepuestos
+                        (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
+                         stock_anterior, stock_nuevo, referencia, id_proveedor, tipo_entrada)
+                    VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)";
 
-        $this->actualizarStock($data["id_repuesto"], $nuevoStock);
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute([
+                $data["id_repuesto"],
+                $cantidad,
+                $data["costo"],
+                $stocks["stock_anterior"],
+                $stocks["stock_nuevo"],
+                $data["referencia"],
+                $data["id_proveedor"] ?: null,
+                $data["tipo_entrada"]  ?? 'Compra',
+            ]);
 
-        return true;
+            $this->conn->commit();
+            return true;
+
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            return ["error" => true, "mensaje" => $e->getMessage()];
+        }
     }
 
     //////////////////////////////////////////////////////////
     // ENTRADA POR SERIE (solo para repuestos por serie)
     //////////////////////////////////////////////////////////
-    public function entradaSerie($id_repuesto, $series)
+    public function entradaSerie($id_repuesto, $series, $id_proveedor = null, $tipo_entrada = 'Compra')
     {
         // Bloquear si el repuesto NO maneja serie
         $rep = $this->obtenerInfoRepuesto($id_repuesto);
@@ -255,35 +344,62 @@ class mdlRepuestos
         $errores    = [];
         $insertadas = 0;
 
-        foreach ($series as $serie) {
+        $this->conn->beginTransaction();
+        try {
+            foreach ($series as $serie) {
 
-            $serie = trim($serie);
-            if ($serie === "") continue;
+                $serie = trim($serie);
+                if ($serie === "") continue;
 
-            $sqlCheck = "SELECT COUNT(*) FROM electronicas.RepuestosDetalle WHERE serie = ?";
-            $stmtCheck = $this->conn->prepare($sqlCheck);
-            $stmtCheck->execute([$serie]);
+                $sqlCheck = "SELECT COUNT(*) FROM electronicas.RepuestosDetalle WHERE serie = ?";
+                $stmtCheck = $this->conn->prepare($sqlCheck);
+                $stmtCheck->execute([$serie]);
 
-            if ($stmtCheck->fetchColumn() > 0) {
-                $errores[] = $serie;
-                continue;
+                if ($stmtCheck->fetchColumn() > 0) {
+                    $errores[] = $serie;
+                    continue;
+                }
+
+                $sql = "INSERT INTO electronicas.RepuestosDetalle
+                            (id_repuesto, serie, id_estado_repuesto)
+                        OUTPUT INSERTED.id_detalle_repuesto
+                        VALUES (?, ?, 1)";
+
+                $stmt = $this->conn->prepare($sql);
+                $stmt->execute([$id_repuesto, $serie]);
+                $id_det_rep = (int)$stmt->fetchColumn();
+
+                // Saldo corrido: conteo de series disponibles tras el ingreso
+                $saldoNuevo = $this->contarSeriesDisponibles($id_repuesto);
+
+                // Movimiento de entrada en el kardex (una fila por serie)
+                $this->conn->prepare(
+                    "INSERT INTO electronicas.MovimientosRepuestos
+                        (id_repuesto, id_detalle_repuesto, id_tipo_movimiento, cantidad,
+                         costo_unitario, stock_anterior, stock_nuevo, referencia,
+                         id_proveedor, tipo_entrada)
+                     VALUES (?, ?, 1, 1, 0, ?, ?, 'ENTRADA SERIE', ?, ?)"
+                )->execute([
+                    $id_repuesto, $id_det_rep,
+                    $saldoNuevo - 1, $saldoNuevo,
+                    $id_proveedor ?: null, $tipo_entrada
+                ]);
+
+                $insertadas++;
             }
 
-            $sql = "INSERT INTO electronicas.RepuestosDetalle
-                        (id_repuesto, serie, id_estado_repuesto)
-                    VALUES (?, ?, 1)";
+            $this->conn->commit();
 
-            $stmt = $this->conn->prepare($sql);
-            $stmt->execute([$id_repuesto, $serie]);
+            return [
+                "ok"         => true,
+                "insertadas" => $insertadas,
+                "duplicadas" => $errores
+            ];
 
-            $insertadas++;
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            return ["error" => true, "mensaje" => $e->getMessage()];
         }
-
-        return [
-            "ok"         => true,
-            "insertadas" => $insertadas,
-            "duplicadas" => $errores
-        ];
     }
 
     //////////////////////////////////////////////////////////
@@ -300,48 +416,68 @@ class mdlRepuestos
             return ["error" => true, "mensaje" => "Este repuesto se controla por serie. Usa 'Salida por serie'"];
         }
 
-        $stockActual = (int)$rep["stock"];
-        $cantidad    = (int)$data["cantidad"];
+        $cantidad = (int)$data["cantidad"];
 
         if ($cantidad <= 0) {
             return ["error" => true, "mensaje" => "Cantidad inválida"];
         }
 
-        if ($stockActual < $cantidad) {
-            return ["error" => true, "mensaje" => "Stock insuficiente (disponible: $stockActual)"];
+        $this->conn->beginTransaction();
+        try {
+            // Descuento atómico: la condición stock >= cantidad evita stock negativo
+            // ante operaciones concurrentes. La salida se valora al costo promedio
+            // vigente (método de promedio ponderado), no a un costo digitado.
+            $stmtUpd = $this->conn->prepare(
+                "UPDATE electronicas.Repuestos
+                 SET stock = stock - ?
+                 OUTPUT DELETED.stock          AS stock_anterior,
+                        INSERTED.stock         AS stock_nuevo,
+                        DELETED.costo_promedio AS costo_promedio
+                 WHERE id_repuesto = ? AND stock >= ?"
+            );
+            $stmtUpd->execute([$cantidad, $data["id_repuesto"], $cantidad]);
+            $stocks = $stmtUpd->fetch(PDO::FETCH_ASSOC);
+
+            if (!$stocks) {
+                $this->conn->rollBack();
+                $disponible = (int)$this->obtenerStock($data["id_repuesto"]);
+                return ["error" => true, "mensaje" => "Stock insuficiente (disponible: $disponible)"];
+            }
+
+            $sql = "INSERT INTO electronicas.MovimientosRepuestos
+                        (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
+                         stock_anterior, stock_nuevo, id_maquina, referencia)
+                    VALUES (?, 2, ?, ?, ?, ?, ?, ?)";
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute([
+                $data["id_repuesto"],
+                $cantidad,
+                $stocks["costo_promedio"],
+                $stocks["stock_anterior"],
+                $stocks["stock_nuevo"],
+                $data["id_maquina"],
+                $data["referencia"]
+            ]);
+
+            $this->conn->commit();
+
+            return [
+                "ok"             => true,
+                "stock_anterior" => (int)$stocks["stock_anterior"],
+                "stock_nuevo"    => (int)$stocks["stock_nuevo"]
+            ];
+
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            return ["error" => true, "mensaje" => $e->getMessage()];
         }
-
-        $nuevoStock = $stockActual - $cantidad;
-
-        $sql = "INSERT INTO electronicas.MovimientosRepuestos
-                    (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
-                     stock_anterior, stock_nuevo, id_maquina, referencia)
-                VALUES (?, 2, ?, ?, ?, ?, ?, ?)";
-
-        $stmt = $this->conn->prepare($sql);
-        $stmt->execute([
-            $data["id_repuesto"],
-            $cantidad,
-            $data["costo"],
-            $stockActual,
-            $nuevoStock,
-            $data["id_maquina"],
-            $data["referencia"]
-        ]);
-
-        $this->actualizarStock($data["id_repuesto"], $nuevoStock);
-
-        return [
-            "ok"             => true,
-            "stock_anterior" => $stockActual,
-            "stock_nuevo"    => $nuevoStock
-        ];
     }
 
     //////////////////////////////////////////////////////////
     // SALIDA POR SERIE (solo para repuestos por serie)
     //////////////////////////////////////////////////////////
-    public function salidaSerie($id_repuesto, $id_maquina, $series, $referencia = 'MANTENIMIENTO')
+    public function salidaSerie($id_repuesto, $id_maquina, $series, $referencia = 'SALIDA MANUAL')
     {
         // Bloquear si el repuesto NO maneja serie
         $rep = $this->obtenerInfoRepuesto($id_repuesto);
@@ -355,53 +491,143 @@ class mdlRepuestos
         $procesadas = 0;
         $errores    = [];
 
-        foreach ($series as $id_detalle) {
+        // Toda salida se valora al costo promedio vigente del repuesto
+        $costoSalida = (float)($rep['costo_promedio'] ?? 0);
 
-            $sqlVal = "SELECT id_detalle_repuesto, serie, id_estado_repuesto
-                       FROM electronicas.RepuestosDetalle
-                       WHERE id_detalle_repuesto = ? AND id_repuesto = ?";
-            $stmtVal = $this->conn->prepare($sqlVal);
-            $stmtVal->execute([$id_detalle, $id_repuesto]);
-            $detalle = $stmtVal->fetch(PDO::FETCH_ASSOC);
+        $this->conn->beginTransaction();
+        try {
+            foreach ($series as $id_detalle) {
 
-            if (!$detalle) {
-                $errores[] = "Serie no encontrada: " . $id_detalle;
-                continue;
+                // Cambio de estado atómico: solo procesa si la serie sigue disponible,
+                // evita que dos salidas concurrentes tomen la misma serie
+                $sqlUpd = "UPDATE electronicas.RepuestosDetalle
+                           SET id_estado_repuesto = 2, id_maquina_actual = ?
+                           OUTPUT INSERTED.serie
+                           WHERE id_detalle_repuesto = ? AND id_repuesto = ?
+                             AND id_estado_repuesto = 1";
+                $stmtUpd = $this->conn->prepare($sqlUpd);
+                $stmtUpd->execute([$id_maquina, $id_detalle, $id_repuesto]);
+                $fila = $stmtUpd->fetch(PDO::FETCH_ASSOC);
+
+                if (!$fila) {
+                    $errores[] = "Serie no encontrada o no disponible: " . $id_detalle;
+                    continue;
+                }
+
+                // Saldo corrido: conteo de series disponibles tras la salida
+                $saldoNuevo = $this->contarSeriesDisponibles($id_repuesto);
+
+                $sqlMov = "INSERT INTO electronicas.MovimientosRepuestos
+                               (id_repuesto, id_detalle_repuesto, id_tipo_movimiento, cantidad,
+                                costo_unitario, stock_anterior, stock_nuevo, id_maquina, referencia)
+                           VALUES (?, ?, 2, 1, ?, ?, ?, ?, ?)";
+                $stmtMov = $this->conn->prepare($sqlMov);
+                $stmtMov->execute([
+                    $id_repuesto, $id_detalle, $costoSalida,
+                    $saldoNuevo + 1, $saldoNuevo,
+                    $id_maquina, $referencia
+                ]);
+
+                $procesadas++;
             }
 
-            if ((int)$detalle["id_estado_repuesto"] !== 1) {
-                $errores[] = "La serie no está disponible: " . $detalle["serie"];
-                continue;
+            if ($procesadas === 0) {
+                $this->conn->rollBack();
+                return ["error" => true, "mensaje" => "No se pudo procesar ninguna serie", "errores" => $errores];
             }
 
-            $sqlUpd = "UPDATE electronicas.RepuestosDetalle
-                       SET id_estado_repuesto = 2, id_maquina_actual = ?
-                       WHERE id_detalle_repuesto = ?";
-            $stmtUpd = $this->conn->prepare($sqlUpd);
-            $stmtUpd->execute([$id_maquina, $id_detalle]);
+            $this->conn->commit();
+            return ["ok" => true, "procesadas" => $procesadas, "errores" => $errores];
 
-            $sqlMov = "INSERT INTO electronicas.MovimientosRepuestos
-                           (id_repuesto, id_detalle_repuesto, id_tipo_movimiento, cantidad,
-                            costo_unitario, stock_anterior, stock_nuevo, id_maquina, referencia)
-                       VALUES (?, ?, 2, 1, 0, 0, 0, ?, ?)";
-            $stmtMov = $this->conn->prepare($sqlMov);
-            $stmtMov->execute([$id_repuesto, $id_detalle, $id_maquina, $referencia]);
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            return ["error" => true, "mensaje" => $e->getMessage()];
+        }
+    }
 
-            $procesadas++;
+    //////////////////////////////////////////////////////////
+    // AJUSTE NEGATIVO (merma, pérdida, daño, conteo físico)
+    // Salida sin máquina destino; requiere motivo.
+    //////////////////////////////////////////////////////////
+    public function ajusteNegativo($id_repuesto, $cantidad, $motivo)
+    {
+        $rep = $this->obtenerInfoRepuesto($id_repuesto);
+        if (!$rep) {
+            return ["error" => true, "mensaje" => "Repuesto no encontrado"];
+        }
+        if ((int)$rep["maneja_serie"] === 1) {
+            return ["error" => true, "mensaje" => "Este repuesto se controla por serie. Da de baja la serie desde 'Ver series'"];
         }
 
-        if ($procesadas === 0) {
-            return ["error" => true, "mensaje" => "No se pudo procesar ninguna serie", "errores" => $errores];
+        $cantidad = (int)$cantidad;
+        if ($cantidad <= 0) {
+            return ["error" => true, "mensaje" => "Cantidad inválida"];
         }
 
-        return ["ok" => true, "procesadas" => $procesadas, "errores" => $errores];
+        $this->conn->beginTransaction();
+        try {
+            $stmtUpd = $this->conn->prepare(
+                "UPDATE electronicas.Repuestos
+                 SET stock = stock - ?
+                 OUTPUT DELETED.stock          AS stock_anterior,
+                        INSERTED.stock         AS stock_nuevo,
+                        DELETED.costo_promedio AS costo_promedio
+                 WHERE id_repuesto = ? AND stock >= ?"
+            );
+            $stmtUpd->execute([$cantidad, $id_repuesto, $cantidad]);
+            $stocks = $stmtUpd->fetch(PDO::FETCH_ASSOC);
+
+            if (!$stocks) {
+                $this->conn->rollBack();
+                $disponible = (int)$this->obtenerStock($id_repuesto);
+                return ["error" => true, "mensaje" => "Stock insuficiente (disponible: $disponible)"];
+            }
+
+            $this->conn->prepare(
+                "INSERT INTO electronicas.MovimientosRepuestos
+                    (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
+                     stock_anterior, stock_nuevo, id_maquina, referencia, observaciones)
+                 VALUES (?, 2, ?, ?, ?, ?, NULL, 'AJUSTE INVENTARIO', ?)"
+            )->execute([
+                $id_repuesto,
+                $cantidad,
+                $stocks["costo_promedio"],
+                $stocks["stock_anterior"],
+                $stocks["stock_nuevo"],
+                $motivo
+            ]);
+
+            $this->conn->commit();
+
+            return [
+                "ok"          => true,
+                "stock_nuevo" => (int)$stocks["stock_nuevo"]
+            ];
+
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            return ["error" => true, "mensaje" => $e->getMessage()];
+        }
     }
 
     //////////////////////////////////////////////////////////
     // KARDEX
     //////////////////////////////////////////////////////////
-    public function obtenerKardex($id)
+    public function obtenerKardex($id, $desde = null, $hasta = null)
     {
+        // Saldo inicial del período: último saldo registrado antes de la fecha de inicio
+        $saldoInicial = 0;
+        if ($desde) {
+            $stmtSI = $this->conn->prepare(
+                "SELECT TOP 1 stock_nuevo
+                 FROM electronicas.MovimientosRepuestos
+                 WHERE id_repuesto = ? AND fecha_movimiento < ?
+                 ORDER BY fecha_movimiento DESC, id_movimiento DESC"
+            );
+            $stmtSI->execute([$id, $desde]);
+            $saldoInicial = (int)($stmtSI->fetchColumn() ?: 0);
+        }
+
         $sql = "SELECT
                     m.id_movimiento,
                     FORMAT(m.fecha_movimiento, 'dd/MM/yyyy HH:mm') AS fecha_movimiento,
@@ -415,19 +641,38 @@ class mdlRepuestos
                     ISNULL(m.observaciones, '')        AS observaciones,
                     m.anulado,
                     ISNULL(m.tipo_entrada, '')         AS tipo_entrada,
-                    ISNULL(p.nombre, '')               AS proveedor
+                    ISNULL(p.nombre, '')               AS proveedor,
+                    ISNULL(u.nombre, '')               AS usuario
                 FROM electronicas.MovimientosRepuestos m
                 INNER JOIN electronicas.TiposMovimientoRepuesto t
                     ON m.id_tipo_movimiento = t.id_tipo_movimiento
                 LEFT  JOIN electronicas.Proveedores p
                     ON p.id_proveedor = m.id_proveedor
-                WHERE m.id_repuesto = ?
-                ORDER BY m.fecha_movimiento ASC";
+                LEFT  JOIN electronicas.Usuarios u
+                    ON u.id_usuario = m.id_usuario
+                WHERE m.id_repuesto = ?";
+
+        $params = [$id];
+
+        if ($desde) {
+            $sql .= " AND m.fecha_movimiento >= ?";
+            $params[] = $desde;
+        }
+        if ($hasta) {
+            // Inclusivo: hasta el final del día indicado
+            $sql .= " AND m.fecha_movimiento < DATEADD(DAY, 1, CAST(? AS DATE))";
+            $params[] = $hasta;
+        }
+
+        $sql .= " ORDER BY m.fecha_movimiento ASC, m.id_movimiento ASC";
 
         $stmt = $this->conn->prepare($sql);
-        $stmt->execute([$id]);
+        $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return [
+            "saldo_inicial" => $saldoInicial,
+            "movimientos"   => $stmt->fetchAll(PDO::FETCH_ASSOC)
+        ];
     }
 
     //////////////////////////////////////////////////////////
@@ -437,7 +682,7 @@ class mdlRepuestos
     {
         // 1. Obtener el movimiento original
         $sqlGet = "SELECT m.id_movimiento, m.id_repuesto, m.id_tipo_movimiento,
-                          m.cantidad, m.costo_unitario, m.anulado,
+                          m.cantidad, m.costo_unitario, m.anulado, m.referencia,
                           r.stock, r.maneja_serie
                    FROM electronicas.MovimientosRepuestos m
                    INNER JOIN electronicas.Repuestos r ON r.id_repuesto = m.id_repuesto
@@ -460,51 +705,123 @@ class mdlRepuestos
             return ['error' => true, 'mensaje' => 'Los movimientos por serie no se pueden anular desde aquí.'];
         }
 
-        $stockActual  = (int)$mov['stock'];
+        $referencia = (string)($mov['referencia'] ?? '');
+
+        // Las salidas de solicitudes aprobadas generan mantenimiento + instalación:
+        // deben revertirse anulando el mantenimiento, no desde el kardex
+        if (strpos($referencia, 'SOL-') === 0) {
+            return [
+                'error'   => true,
+                'mensaje' => 'Este movimiento proviene de una solicitud aprobada. Para revertirlo, anula el mantenimiento generado desde el módulo de Mantenimientos.'
+            ];
+        }
+
         $cantidad     = (int)$mov['cantidad'];
         $id_repuesto  = (int)$mov['id_repuesto'];
         $esEntrada    = (int)$mov['id_tipo_movimiento'] === 1;
+        $tipoInverso  = $esEntrada ? 2 : 1;
 
-        // 2. Verificar que el stock resultante no quede negativo
-        if ($esEntrada) {
-            // Anular una entrada = restar del stock
-            if ($stockActual < $cantidad) {
-                return [
-                    'error'  => true,
-                    'mensaje' => "No se puede anular: el stock actual ($stockActual) es menor que la cantidad del movimiento ($cantidad)."
-                ];
+        $this->conn->beginTransaction();
+        try {
+            // 2. Marcar original como anulado — la condición anulado = 0 evita
+            //    que dos anulaciones concurrentes del mismo movimiento pasen ambas
+            $sqlAnul = "UPDATE electronicas.MovimientosRepuestos
+                        SET anulado = 1
+                        WHERE id_movimiento = ? AND anulado = 0";
+            $stmtAnul = $this->conn->prepare($sqlAnul);
+            $stmtAnul->execute([$id_movimiento]);
+            if ($stmtAnul->rowCount() === 0) {
+                throw new RuntimeException('Este movimiento ya fue anulado.');
             }
-            $nuevoStock      = $stockActual - $cantidad;
-            $tipoInverso     = 2; // salida
-        } else {
-            // Anular una salida = sumar al stock
-            $nuevoStock      = $stockActual + $cantidad;
-            $tipoInverso     = 1; // entrada
+
+            // 3. Revertir stock de forma atómica
+            if ($esEntrada) {
+                // Anular una entrada = restar del stock (sin dejarlo negativo)
+                $sqlStock = "UPDATE electronicas.Repuestos
+                             SET stock = stock - ?
+                             OUTPUT DELETED.stock AS stock_anterior, INSERTED.stock AS stock_nuevo
+                             WHERE id_repuesto = ? AND stock >= ?";
+                $params = [$cantidad, $id_repuesto, $cantidad];
+            } else {
+                // Anular una salida = sumar al stock
+                $sqlStock = "UPDATE electronicas.Repuestos
+                             SET stock = stock + ?
+                             OUTPUT DELETED.stock AS stock_anterior, INSERTED.stock AS stock_nuevo
+                             WHERE id_repuesto = ?";
+                $params = [$cantidad, $id_repuesto];
+            }
+            $stmtStock = $this->conn->prepare($sqlStock);
+            $stmtStock->execute($params);
+            $stocks = $stmtStock->fetch(PDO::FETCH_ASSOC);
+
+            if (!$stocks) {
+                $disponible = (int)$this->obtenerStock($id_repuesto);
+                throw new RuntimeException(
+                    "No se puede anular: el stock actual ($disponible) es menor que la cantidad del movimiento ($cantidad)."
+                );
+            }
+
+            // 4. Si la entrada proviene de una recepción de OC, revertir también
+            //    lo recibido en la solicitud de compra (mantiene ambos módulos en sincronía)
+            if ($esEntrada && preg_match('/^OC-0*(\d+)/', $referencia, $mOC)) {
+                $id_sc = (int)$mOC[1];
+
+                $stmtDet = $this->conn->prepare(
+                    "SELECT TOP 1 id_detalle
+                     FROM electronicas.SolicitudesCompraDetalle
+                     WHERE id_solicitud_compra = ? AND id_repuesto = ?
+                       AND cantidad_recibida >= ?
+                     ORDER BY id_detalle"
+                );
+                $stmtDet->execute([$id_sc, $id_repuesto, $cantidad]);
+                $id_det = $stmtDet->fetchColumn();
+
+                if (!$id_det) {
+                    throw new RuntimeException(
+                        "No se encontró el ítem de la orden de compra #$id_sc con cantidad recibida suficiente para revertir."
+                    );
+                }
+
+                $this->conn->prepare(
+                    "UPDATE electronicas.SolicitudesCompraDetalle
+                     SET cantidad_recibida = cantidad_recibida - ?
+                     WHERE id_detalle = ?"
+                )->execute([$cantidad, $id_det]);
+
+                // La solicitud vuelve a tener pendientes
+                $this->conn->prepare(
+                    "UPDATE electronicas.SolicitudesCompra
+                     SET estado = 'Recibida parcial'
+                     WHERE id_solicitud_compra = ? AND estado = 'Recibida'"
+                )->execute([$id_sc]);
+            }
+
+            // 5. Insertar movimiento inverso
+            $observaciones = 'Anulación de ' . ($esEntrada ? 'entrada' : 'salida')
+                . " #$id_movimiento" . ($referencia !== '' ? " (ref: $referencia)" : '');
+
+            $sqlInv = "INSERT INTO electronicas.MovimientosRepuestos
+                           (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
+                            stock_anterior, stock_nuevo, referencia, observaciones, anulado)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)";
+            $this->conn->prepare($sqlInv)->execute([
+                $id_repuesto,
+                $tipoInverso,
+                $cantidad,
+                $mov['costo_unitario'],
+                $stocks['stock_anterior'],
+                $stocks['stock_nuevo'],
+                'ANULACION #' . $id_movimiento,
+                $observaciones,
+            ]);
+
+            $this->conn->commit();
+            return ['ok' => true, 'stock_nuevo' => (int)$stocks['stock_nuevo']];
+
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            return ['error' => true, 'mensaje' => $e->getMessage()];
         }
-
-        // 3. Marcar original como anulado
-        $sqlAnul = "UPDATE electronicas.MovimientosRepuestos SET anulado = 1 WHERE id_movimiento = ?";
-        $this->conn->prepare($sqlAnul)->execute([$id_movimiento]);
-
-        // 4. Insertar movimiento inverso
-        $sqlInv = "INSERT INTO electronicas.MovimientosRepuestos
-                       (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
-                        stock_anterior, stock_nuevo, referencia, anulado)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, 0)";
-        $this->conn->prepare($sqlInv)->execute([
-            $id_repuesto,
-            $tipoInverso,
-            $cantidad,
-            $mov['costo_unitario'],
-            $stockActual,
-            $nuevoStock,
-            'ANULACION #' . $id_movimiento,
-        ]);
-
-        // 5. Actualizar stock
-        $this->actualizarStock($id_repuesto, $nuevoStock);
-
-        return ['ok' => true, 'stock_nuevo' => $nuevoStock];
     }
 
     //////////////////////////////////////////////////////////
@@ -530,43 +847,107 @@ class mdlRepuestos
     }
 
     //////////////////////////////////////////////////////////
-    // EDITAR DETALLE
+    // EDITAR / CAMBIAR ESTADO DETALLE
+    // Si el cambio de estado altera la disponibilidad de la
+    // serie, queda registrado como ajuste en el kardex.
     //////////////////////////////////////////////////////////
     public function editarDetalle($data)
     {
-        $sql = "UPDATE electronicas.RepuestosDetalle SET
-                    serie              = ?,
-                    id_estado_repuesto = ?,
-                    id_maquina_actual  = ?
-                WHERE id_detalle_repuesto = ?";
-
-        $stmt = $this->conn->prepare($sql);
-
-        return $stmt->execute([
-            $data["serie"],
-            $data["estado"],
-            $data["maquina"] ?: null,
-            $data["id"]
-        ]);
+        return $this->actualizarDetalleConKardex($data, true);
     }
 
-    //////////////////////////////////////////////////////////
-    // CAMBIAR ESTADO DETALLE
-    //////////////////////////////////////////////////////////
     public function cambiarEstadoDetalle($data)
     {
-        $sql = "UPDATE electronicas.RepuestosDetalle SET
-                    id_estado_repuesto = ?,
-                    id_maquina_actual  = ?
-                WHERE id_detalle_repuesto = ?";
+        return $this->actualizarDetalleConKardex($data, false);
+    }
 
-        $stmt = $this->conn->prepare($sql);
+    private function actualizarDetalleConKardex(array $data, bool $incluirSerie)
+    {
+        // Estado actual de la serie
+        $stmt = $this->conn->prepare(
+            "SELECT id_repuesto, id_estado_repuesto, serie
+             FROM electronicas.RepuestosDetalle
+             WHERE id_detalle_repuesto = ?"
+        );
+        $stmt->execute([$data["id"]]);
+        $actual = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$actual) {
+            return ["error" => true, "mensaje" => "Serie no encontrada"];
+        }
 
-        return $stmt->execute([
-            $data["estado"],
-            $data["maquina"] ?: null,
-            $data["id"]
-        ]);
+        // Validar serie duplicada si se está renombrando
+        if ($incluirSerie && $data["serie"] !== $actual["serie"]) {
+            $chk = $this->conn->prepare(
+                "SELECT COUNT(*) FROM electronicas.RepuestosDetalle
+                 WHERE serie = ? AND id_detalle_repuesto != ?"
+            );
+            $chk->execute([$data["serie"], $data["id"]]);
+            if ((int)$chk->fetchColumn() > 0) {
+                return ["error" => true, "mensaje" => "La serie '{$data['serie']}' ya existe en otro registro"];
+            }
+        }
+
+        $estadoAnt = (int)$actual["id_estado_repuesto"];
+        $estadoNvo = (int)$data["estado"];
+
+        $this->conn->beginTransaction();
+        try {
+            if ($incluirSerie) {
+                $this->conn->prepare(
+                    "UPDATE electronicas.RepuestosDetalle SET
+                        serie              = ?,
+                        id_estado_repuesto = ?,
+                        id_maquina_actual  = ?
+                     WHERE id_detalle_repuesto = ?"
+                )->execute([$data["serie"], $estadoNvo, $data["maquina"] ?: null, $data["id"]]);
+            } else {
+                $this->conn->prepare(
+                    "UPDATE electronicas.RepuestosDetalle SET
+                        id_estado_repuesto = ?,
+                        id_maquina_actual  = ?
+                     WHERE id_detalle_repuesto = ?"
+                )->execute([$estadoNvo, $data["maquina"] ?: null, $data["id"]]);
+            }
+
+            // Si el cambio altera la disponibilidad, dejar rastro en el kardex
+            $eraDisponible = $estadoAnt === 1;
+            $esDisponible  = $estadoNvo === 1;
+
+            if ($eraDisponible !== $esDisponible) {
+                $saldoNuevo = $this->contarSeriesDisponibles($actual["id_repuesto"]);
+                $tipoMov    = $esDisponible ? 1 : 2;
+                $saldoAnt   = $esDisponible ? $saldoNuevo - 1 : $saldoNuevo + 1;
+
+                $stmtN = $this->conn->prepare(
+                    "SELECT id_estado, nombre FROM electronicas.EstadoRepuestos
+                     WHERE id_estado IN (?, ?)"
+                );
+                $stmtN->execute([$estadoAnt, $estadoNvo]);
+                $nombres = $stmtN->fetchAll(PDO::FETCH_KEY_PAIR);
+
+                $obs = "Cambio de estado manual de la serie '{$actual['serie']}': "
+                     . ($nombres[$estadoAnt] ?? $estadoAnt) . " → " . ($nombres[$estadoNvo] ?? $estadoNvo);
+
+                $this->conn->prepare(
+                    "INSERT INTO electronicas.MovimientosRepuestos
+                        (id_repuesto, id_detalle_repuesto, id_tipo_movimiento, cantidad,
+                         costo_unitario, stock_anterior, stock_nuevo, id_maquina,
+                         referencia, observaciones)
+                     VALUES (?, ?, ?, 1, 0, ?, ?, ?, 'AJUSTE SERIE', ?)"
+                )->execute([
+                    $actual["id_repuesto"], $data["id"], $tipoMov,
+                    $saldoAnt, $saldoNuevo,
+                    $data["maquina"] ?: null, $obs
+                ]);
+            }
+
+            $this->conn->commit();
+            return true;
+
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            return ["error" => true, "mensaje" => $e->getMessage()];
+        }
     }
 
     //////////////////////////////////////////////////////////
@@ -643,10 +1024,21 @@ class mdlRepuestos
     //////////////////////////////////////////////////////////
     public function obtenerInfoRepuesto($id)
     {
-        $sql = "SELECT id_repuesto, maneja_serie, stock FROM electronicas.Repuestos WHERE id_repuesto = ?";
+        $sql = "SELECT id_repuesto, maneja_serie, stock, costo_promedio
+                FROM electronicas.Repuestos WHERE id_repuesto = ?";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([$id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    private function contarSeriesDisponibles($id_repuesto): int
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT COUNT(*) FROM electronicas.RepuestosDetalle
+             WHERE id_repuesto = ? AND id_estado_repuesto = 1"
+        );
+        $stmt->execute([$id_repuesto]);
+        return (int)$stmt->fetchColumn();
     }
 
     public function obtenerStock($id)

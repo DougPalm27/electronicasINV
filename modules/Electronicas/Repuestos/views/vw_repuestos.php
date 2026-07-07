@@ -289,8 +289,9 @@
                             <input type="number" class="form-control" id="cantidad_salida" min="1">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="costo_salida" class="form-label">Costo unitario</label>
-                            <input type="number" class="form-control" id="costo_salida" step="0.01" min="0">
+                            <label class="form-label">Costo unitario</label>
+                            <input type="text" class="form-control" value="Automático (costo promedio)" disabled
+                                   title="La salida se valora al costo promedio vigente del repuesto">
                         </div>
                     </div>
                 </div>
@@ -334,6 +335,29 @@
             </div>
 
             <div class="modal-body">
+
+                <!-- Filtro de período + valuación -->
+                <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+                    <div>
+                        <label class="form-label small mb-0">Desde</label>
+                        <input type="date" class="form-control form-control-sm" id="kardex_desde">
+                    </div>
+                    <div>
+                        <label class="form-label small mb-0">Hasta</label>
+                        <input type="date" class="form-control form-control-sm" id="kardex_hasta">
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="aplicarFiltroKardex()">
+                        <i class="bi bi-funnel me-1"></i>Aplicar
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="limpiarFiltroKardex()">
+                        Limpiar
+                    </button>
+                    <div class="ms-auto text-end small">
+                        <div class="text-muted">Valuación en Lempiras (L)</div>
+                        <div>Inventario actual: <strong id="kardexValorActual">—</strong></div>
+                    </div>
+                </div>
+
                 <div class="table-responsive">
                     <table class="table table-sm table-hover align-middle" id="tablaKardex">
                         <thead class="table-light">
@@ -346,7 +370,8 @@
                                 <th class="text-center" style="width:90px">
                                     <i class="bi bi-box-arrow-up me-1"></i>Salidas
                                 </th>
-                                <th class="text-end" style="width:100px">Costo unit.</th>
+                                <th class="text-end" style="width:100px">Costo unit. (L)</th>
+                                <th class="text-end" style="width:110px">Importe (L)</th>
                                 <th class="text-end" style="width:90px">Saldo</th>
                                 <th class="text-center" style="width:80px">Anular</th>
                             </tr>
@@ -354,8 +379,12 @@
                         <tbody></tbody>
                     </table>
                 </div>
+
+                <!-- Totales del período -->
+                <div id="kardexResumen" class="d-flex flex-wrap gap-4 mt-2 small border-top pt-2"></div>
+
                 <div class="d-flex gap-3 mt-2 small text-muted">
-                    <span><span class="badge bg-primary me-1">Punto de partida</span> Primer movimiento registrado</span>
+                    <span><span class="badge bg-primary me-1">Saldo inicial</span> Existencia al inicio del período</span>
                     <span><span class="badge bg-secondary me-1">Anulado</span> Movimiento revertido</span>
                     <span><span class="badge bg-warning text-dark me-1">Ajuste</span> Movimiento de corrección</span>
                 </div>

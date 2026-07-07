@@ -9,7 +9,15 @@ include_once "../models/mdlRepuestos.php";
 
 $model = new mdlRepuestos();
 
-$accion = $_POST['accion'] ?? '';
+$accion  = $_POST['accion'] ?? '';
+$esAdmin = ($_SESSION['nombre_rol'] ?? '') === 'Administrador';
+
+// Acciones destructivas o de auditoría: solo Administrador
+$accionesAdmin = ['eliminar', 'anularMovimiento', 'editarDetalle', 'cambiarEstadoDetalle', 'ajusteNegativo'];
+if (in_array($accion, $accionesAdmin, true) && !$esAdmin) {
+    echo json_encode(["ok" => false, "data" => [], "mensaje" => "Sin permisos para esta acción"]);
+    exit;
+}
 
 function response($data = [], $error = false, $mensaje = "")
 {
@@ -139,7 +147,9 @@ try {
         case 'eliminar':
             $id = $_POST["id_repuesto"] ?? null;
             if (!$id) response([], true, "ID inválido");
-            response($model->eliminarRepuesto($id), false, "Repuesto eliminado");
+            $resp = $model->eliminarRepuesto($id);
+            if (is_array($resp) && isset($resp["error"])) response([], true, $resp["mensaje"]);
+            response($resp, false, "Repuesto eliminado");
             break;
 
         //////////////////////////////////////////////////////////
@@ -160,13 +170,15 @@ try {
             if ($costo < 0)
                 response([], true, "El costo no puede ser negativo");
 
+            $tipo_entrada = trim($_POST["tipo_entrada"] ?? '') ?: 'Compra';
+
             $data = [
                 "id_repuesto"  => $id_repuesto,
                 "cantidad"     => $cantidad,
                 "costo"        => $costo,
-                "referencia"   => 'COMPRA',
+                "referencia"   => mb_strtoupper($tipo_entrada, 'UTF-8'),
                 "id_proveedor" => $_POST["id_proveedor"] ?? null,
-                "tipo_entrada" => $_POST["tipo_entrada"] ?? 'Compra',
+                "tipo_entrada" => $tipo_entrada,
             ];
 
             $resp = $model->entradaRepuesto($data);
@@ -176,8 +188,10 @@ try {
 
 
         case 'entradaSerie':
-            $id_repuesto = $_POST['id_repuesto'] ?? null;
-            $series      = $_POST['series'] ?? [];
+            $id_repuesto  = $_POST['id_repuesto'] ?? null;
+            $series       = $_POST['series'] ?? [];
+            $id_proveedor = $_POST['id_proveedor'] ?? null;
+            $tipo_entrada = $_POST['tipo_entrada'] ?? 'Compra';
 
             if (!$id_repuesto)
                 response([], true, "Repuesto inválido");
@@ -185,7 +199,7 @@ try {
             if (empty($series))
                 response([], true, "Debes ingresar al menos una serie");
 
-            $resp = $model->entradaSerie($id_repuesto, $series);
+            $resp = $model->entradaSerie($id_repuesto, $series, $id_proveedor, $tipo_entrada);
             if (is_array($resp) && isset($resp["error"])) response([], true, $resp["mensaje"]);
             response($resp);
             break;
@@ -208,12 +222,12 @@ try {
             if (!$id_maquina)
                 response([], true, "Debes indicar la máquina destino");
 
+            // El costo de la salida lo determina el modelo (costo promedio vigente)
             $data = [
                 "id_repuesto" => $id_repuesto,
                 "cantidad"    => $cantidad,
-                "costo"       => $_POST["costo"] ?? 0,
                 "id_maquina"  => $id_maquina,
-                "referencia"  => $_POST["referencia"] ?? 'MANTENIMIENTO'
+                "referencia"  => $_POST["referencia"] ?? 'SALIDA MANUAL'
             ];
 
             $resp = $model->salidaRepuesto($data);
@@ -228,7 +242,7 @@ try {
         case 'salidaSerie':
             $id_repuesto = $_POST["id_repuesto"] ?? null;
             $id_maquina  = $_POST["id_maquina"] ?? null;
-            $referencia  = $_POST["referencia"] ?? 'MANTENIMIENTO';
+            $referencia  = $_POST["referencia"] ?? 'SALIDA MANUAL';
             $series      = $_POST["series"] ?? [];
 
             if (!is_array($series)) {
@@ -251,8 +265,10 @@ try {
         //////////////////////////////////////////////////////////
 
         case 'kardex':
-            $id = $_POST["id_repuesto"] ?? 0;
-            response($model->obtenerKardex($id));
+            $id    = $_POST["id_repuesto"] ?? 0;
+            $desde = trim($_POST["desde"] ?? '') ?: null;
+            $hasta = trim($_POST["hasta"] ?? '') ?: null;
+            response($model->obtenerKardex($id, $desde, $hasta));
             break;
 
         case 'anularMovimiento':
@@ -275,11 +291,15 @@ try {
         case 'editarDetalle':
             $data = [
                 "id"     => $_POST["id_detalle_repuesto"] ?? null,
-                "serie"  => $_POST["serie"] ?? '',
+                "serie"  => trim($_POST["serie"] ?? ''),
                 "estado" => $_POST["id_estado_repuesto"] ?? null,
                 "maquina"=> $_POST["id_maquina_actual"] ?? null
             ];
-            response($model->editarDetalle($data), false, "Detalle actualizado");
+            if (!$data["id"] || !$data["serie"] || !$data["estado"])
+                response([], true, "Datos incompletos");
+            $resp = $model->editarDetalle($data);
+            if (is_array($resp) && isset($resp["error"])) response([], true, $resp["mensaje"]);
+            response($resp, false, "Detalle actualizado");
             break;
 
         case 'cambiarEstadoDetalle':
@@ -288,7 +308,32 @@ try {
                 "estado" => $_POST["id_estado_repuesto"] ?? null,
                 "maquina"=> $_POST["id_maquina_actual"] ?? null
             ];
-            response($model->cambiarEstadoDetalle($data), false, "Estado actualizado");
+            if (!$data["id"] || !$data["estado"])
+                response([], true, "Datos incompletos");
+            $resp = $model->cambiarEstadoDetalle($data);
+            if (is_array($resp) && isset($resp["error"])) response([], true, $resp["mensaje"]);
+            response($resp, false, "Estado actualizado");
+            break;
+
+        //////////////////////////////////////////////////////////
+        // AJUSTE NEGATIVO DE INVENTARIO
+        //////////////////////////////////////////////////////////
+
+        case 'ajusteNegativo':
+            $id_repuesto = $_POST["id_repuesto"] ?? null;
+            $cantidad    = (int)($_POST["cantidad"] ?? 0);
+            $motivo      = trim($_POST["motivo"] ?? '');
+
+            if (!$id_repuesto)
+                response([], true, "Repuesto inválido");
+            if ($cantidad <= 0)
+                response([], true, "La cantidad debe ser mayor a 0");
+            if ($motivo === '')
+                response([], true, "El motivo es obligatorio");
+
+            $resp = $model->ajusteNegativo($id_repuesto, $cantidad, $motivo);
+            if (is_array($resp) && isset($resp["error"])) response([], true, $resp["mensaje"]);
+            response($resp, false, "Ajuste registrado");
             break;
 
         //////////////////////////////////////////////////////////

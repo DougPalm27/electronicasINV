@@ -49,7 +49,7 @@ class mdlSolicitudesCompra
              FROM electronicas.Repuestos r
              LEFT JOIN electronicas.Marcas  ma ON ma.id_marca  = r.id_marca
              LEFT JOIN electronicas.Modelos mo ON mo.id_modelo = r.id_modelo
-             WHERE r.id_estado = 1
+             WHERE r.id_estado != 5
              ORDER BY ma.nombre, mo.nombre, r.nombre"
         );
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -61,7 +61,8 @@ class mdlSolicitudesCompra
 
     public function listarSolicitudes(?int $id_usuario = null): array
     {
-        $where = $id_usuario ? "WHERE sc.id_usuario = $id_usuario" : '';
+        $where  = $id_usuario ? "WHERE sc.id_usuario = ?" : '';
+        $params = $id_usuario ? [$id_usuario] : [];
 
         $sql = "SELECT sc.id_solicitud_compra,
                        sc.codigo,
@@ -88,7 +89,7 @@ class mdlSolicitudesCompra
                 ORDER BY sc.codigo DESC";
 
         $stmt = $this->conn->prepare($sql);
-        $stmt->execute();
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -386,6 +387,8 @@ class mdlSolicitudesCompra
                 $stmtD = $this->conn->prepare(
                     "SELECT det.id_repuesto, det.nombre_externo,
                             det.cantidad_solicitada,
+                            det.cantidad_recibida       AS ya_recibida,
+                            det.costo_unitario          AS costo_solicitado,
                             det.id_proveedor            AS id_proveedor_item,
                             ISNULL(r.stock, 0)          AS stock,
                             ISNULL(r.costo_promedio, 0) AS costo_promedio,
@@ -400,9 +403,22 @@ class mdlSolicitudesCompra
 
                 $id_repuesto = !empty($det['id_repuesto']) ? (int)$det['id_repuesto'] : null;
 
+                // Tope de recepción: nunca aceptar más de lo pendiente
+                // (el UI ya lo limita, esto protege contra POST manipulado)
+                $pendiente = max(0, (int)$det['cantidad_solicitada'] - (int)$det['ya_recibida']);
+
+                // Proveedor: usa el del ítem si tiene, si no el de la cabecera
+                $id_prov_mov = !empty($det['id_proveedor_item'])
+                    ? (int)$det['id_proveedor_item']
+                    : $id_proveedor;
+
                 // ── Ítem externo (sin repuesto en catálogo) ──
                 if (!$id_repuesto) {
                     $cant_recibida = max(0, (int)($rec['cantidad_recibida'] ?? 0));
+                    if ($cant_recibida > $pendiente) {
+                        $warnings[]    = 'Ítem "' . ($det['nombre_externo'] ?? $id_detalle) . "\": se recibieron $cant_recibida pero solo quedaban $pendiente pendientes; se registró el pendiente.";
+                        $cant_recibida = $pendiente;
+                    }
                     if ($cant_recibida === 0) continue;
                     $this->conn->prepare(
                         "UPDATE electronicas.SolicitudesCompraDetalle
@@ -417,31 +433,40 @@ class mdlSolicitudesCompra
                 if ($maneja_serie === 0) {
                     // ── Repuesto por cantidad ──────────────────────
                     $cant_recibida = max(0, (int)$rec['cantidad_recibida']);
+                    if ($cant_recibida > $pendiente) {
+                        $warnings[]    = "Ítem #$id_detalle: se intentó recibir $cant_recibida pero solo quedaban $pendiente pendientes; se registró el pendiente.";
+                        $cant_recibida = $pendiente;
+                    }
                     if ($cant_recibida === 0) continue;
 
                     $costo_unitario = (float)$rec['costo_recibido'];
                     $costo_lps      = $costo_unitario * $tc;
 
-                    $stock_anterior  = (int)$det['stock'];
-                    $nuevo_stock     = $stock_anterior + $cant_recibida;
-
-                    // Promedio ponderado en Lempiras
-                    $cp_anterior = (float)$det['costo_promedio'];
-                    $nuevo_cp    = $stock_anterior > 0
-                        ? ($stock_anterior * $cp_anterior + $cant_recibida * $costo_lps) / $nuevo_stock
-                        : $costo_lps;
-
-                    // Actualizar Repuestos
-                    $this->conn->prepare(
+                    // Incremento atómico de stock + promedio ponderado en Lempiras,
+                    // calculado sobre los valores vigentes de la fila (en SET, las
+                    // columnas referencian el valor previo al UPDATE)
+                    $stmtUpd = $this->conn->prepare(
                         "UPDATE electronicas.Repuestos
-                         SET stock = ?, costo_promedio = ?
+                         SET costo_promedio = CASE
+                                 WHEN stock > 0 THEN ROUND(
+                                     (stock * costo_promedio + CAST(? AS INT) * CAST(? AS DECIMAL(18,6)))
+                                     / (stock + CAST(? AS INT)), 4)
+                                 ELSE CAST(? AS DECIMAL(18,6))
+                             END,
+                             stock = stock + CAST(? AS INT)
+                         OUTPUT DELETED.stock AS stock_anterior, INSERTED.stock AS stock_nuevo
                          WHERE id_repuesto = ?"
-                    )->execute([$nuevo_stock, round($nuevo_cp, 4), $id_repuesto]);
-
-                    // Proveedor: usa el del ítem si tiene, si no el de la cabecera
-                    $id_prov_mov = !empty($det['id_proveedor_item'])
-                        ? (int)$det['id_proveedor_item']
-                        : $id_proveedor;
+                    );
+                    $stmtUpd->execute([
+                        $cant_recibida, $costo_lps, $cant_recibida,
+                        $costo_lps, $cant_recibida, $id_repuesto
+                    ]);
+                    $stocks = $stmtUpd->fetch(PDO::FETCH_ASSOC);
+                    if (!$stocks) {
+                        throw new RuntimeException("Repuesto no encontrado (id: $id_repuesto).");
+                    }
+                    $stock_anterior = (int)$stocks['stock_anterior'];
+                    $nuevo_stock    = (int)$stocks['stock_nuevo'];
 
                     // Movimiento de entrada
                     $this->conn->prepare(
@@ -464,11 +489,21 @@ class mdlSolicitudesCompra
 
                 } else {
                     // ── Repuesto por serie ─────────────────────────
-                    $series    = array_filter(
+                    $series = array_values(array_filter(
                         array_map('trim', (array)($rec['series'] ?? [])),
                         fn($s) => $s !== ''
-                    );
+                    ));
                     if (empty($series)) continue;
+
+                    if (count($series) > $pendiente) {
+                        $warnings[] = "Ítem #$id_detalle: se ingresaron " . count($series)
+                            . " series pero solo quedaban $pendiente pendientes; se registraron las primeras $pendiente.";
+                        $series = array_slice($series, 0, $pendiente);
+                    }
+
+                    // Costo del movimiento: el confirmado si viene, si no el de la solicitud
+                    $costo_serie_lps = ((float)($rec['costo_recibido'] ?? 0)
+                        ?: (float)$det['costo_solicitado']) * $tc;
 
                     $insertadas  = 0;
                     $duplicadas  = [];
@@ -484,11 +519,30 @@ class mdlSolicitudesCompra
                             continue;
                         }
 
-                        $this->conn->prepare(
+                        $stmtIns = $this->conn->prepare(
                             "INSERT INTO electronicas.RepuestosDetalle
                                 (id_repuesto, serie, id_estado_repuesto)
+                             OUTPUT INSERTED.id_detalle_repuesto
                              VALUES (?, ?, 1)"
-                        )->execute([$id_repuesto, $serie]);
+                        );
+                        $stmtIns->execute([$id_repuesto, $serie]);
+                        $id_det_rep = (int)$stmtIns->fetchColumn();
+
+                        // Saldo corrido: conteo de series disponibles tras el ingreso
+                        $saldoNuevo = $this->contarSeriesDisponibles($id_repuesto);
+
+                        // Movimiento de entrada en el kardex (una fila por serie)
+                        $this->conn->prepare(
+                            "INSERT INTO electronicas.MovimientosRepuestos
+                                (id_repuesto, id_detalle_repuesto, id_tipo_movimiento, cantidad,
+                                 costo_unitario, stock_anterior, stock_nuevo, referencia,
+                                 id_proveedor, tipo_entrada)
+                             VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?, 'Orden de Compra')"
+                        )->execute([
+                            $id_repuesto, $id_det_rep, $costo_serie_lps,
+                            $saldoNuevo - 1, $saldoNuevo,
+                            $referencia, $id_prov_mov
+                        ]);
 
                         $insertadas++;
                     }
@@ -498,12 +552,17 @@ class mdlSolicitudesCompra
                     }
 
                     if ($insertadas > 0) {
-                        // Acumular series recibidas
+                        // Acumular series recibidas y guardar costo confirmado
                         $this->conn->prepare(
                             "UPDATE electronicas.SolicitudesCompraDetalle
-                             SET cantidad_recibida = cantidad_recibida + ?
+                             SET cantidad_recibida = cantidad_recibida + ?,
+                                 costo_recibido    = ?
                              WHERE id_detalle = ?"
-                        )->execute([$insertadas, $id_detalle]);
+                        )->execute([
+                            $insertadas,
+                            (float)($rec['costo_recibido'] ?? 0) ?: (float)$det['costo_solicitado'],
+                            $id_detalle
+                        ]);
                     }
                 }
             }
@@ -563,23 +622,72 @@ class mdlSolicitudesCompra
     public function cancelarSolicitud(int $id, int $id_usuario, bool $esAdmin = false): void
     {
         // Admin puede cancelar hasta Recibida parcial; técnico solo sus Borrador/Pendiente
-        $estadosPermitidos = $esAdmin
-            ? "('Borrador','Pendiente','Aprobada','Recibida parcial')"
-            : "('Borrador','Pendiente')";
+        $estados = $esAdmin
+            ? ['Borrador', 'Pendiente', 'Aprobada', 'Recibida parcial']
+            : ['Borrador', 'Pendiente'];
 
-        $condUsuario = $esAdmin ? '' : "AND id_usuario = $id_usuario";
+        $placeholders = implode(',', array_fill(0, count($estados), '?'));
+        $condUsuario  = $esAdmin ? '' : 'AND id_usuario = ?';
 
-        $stmt = $this->conn->prepare(
-            "UPDATE electronicas.SolicitudesCompra
-             SET estado = 'Cancelada'
-             WHERE id_solicitud_compra = ?
-               AND estado IN $estadosPermitidos
-               $condUsuario"
-        );
-        $stmt->execute([$id]);
-        if ($stmt->rowCount() === 0) {
-            throw new RuntimeException('No se puede cancelar esta solicitud en su estado actual.');
+        $params = array_merge([$id], $estados);
+        if (!$esAdmin) $params[] = $id_usuario;
+
+        $this->conn->beginTransaction();
+        try {
+            $stmt = $this->conn->prepare(
+                "UPDATE electronicas.SolicitudesCompra
+                 SET estado = 'Cancelada'
+                 WHERE id_solicitud_compra = ?
+                   AND estado IN ($placeholders)
+                   $condUsuario"
+            );
+            $stmt->execute($params);
+            if ($stmt->rowCount() === 0) {
+                throw new RuntimeException('No se puede cancelar esta solicitud en su estado actual.');
+            }
+
+            // Si ya había recepciones registradas, dejar rastro en las notas:
+            // el inventario ingresado NO se revierte al cancelar
+            $stmtRec = $this->conn->prepare(
+                "SELECT ISNULL(r.nombre, det.nombre_externo) AS item,
+                        det.cantidad_recibida, det.cantidad_solicitada
+                 FROM electronicas.SolicitudesCompraDetalle det
+                 LEFT JOIN electronicas.Repuestos r ON r.id_repuesto = det.id_repuesto
+                 WHERE det.id_solicitud_compra = ? AND det.cantidad_recibida > 0"
+            );
+            $stmtRec->execute([$id]);
+            $recibidos = $stmtRec->fetchAll(PDO::FETCH_ASSOC);
+
+            if ($recibidos) {
+                $lineas = array_map(
+                    fn($r) => "{$r['item']}: {$r['cantidad_recibida']}/{$r['cantidad_solicitada']}",
+                    $recibidos
+                );
+                $nota = '[' . date('d/m/Y H:i') . '] Cancelada con recepciones ya ingresadas al inventario: '
+                    . implode('; ', $lineas) . '.';
+
+                $this->conn->prepare(
+                    "UPDATE electronicas.SolicitudesCompra
+                     SET notas = LEFT(CONCAT(ISNULL(notas + CHAR(13) + CHAR(10), ''), ?), 1000)
+                     WHERE id_solicitud_compra = ?"
+                )->execute([$nota, $id]);
+            }
+
+            $this->conn->commit();
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            throw $e;
         }
+    }
+
+    private function contarSeriesDisponibles(int $id_repuesto): int
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT COUNT(*) FROM electronicas.RepuestosDetalle
+             WHERE id_repuesto = ? AND id_estado_repuesto = 1"
+        );
+        $stmt->execute([$id_repuesto]);
+        return (int)$stmt->fetchColumn();
     }
 
     public function obtenerEmailSolicitante(int $id): array

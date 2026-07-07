@@ -344,14 +344,29 @@ class mdlMantenimientos
     private function procesarSalidaCantidadDesdeMantenimiento($id_mantenimiento, $id_maquina, $r)
     {
         $cantidad = isset($r->cantidad) ? (int)$r->cantidad : 1;
-        $costo    = (float)($r->costo_unitario ?? $r->costo ?? 0);
 
         if ($cantidad <= 0) throw new Exception("Cantidad inválida para repuesto ID {$r->id_repuesto}");
 
-        $stockActual = $this->obtenerStock($r->id_repuesto);
-        if ($stockActual < $cantidad) {
-            throw new Exception("Stock insuficiente para repuesto ID {$r->id_repuesto}. Disponible: {$stockActual}");
+        // Descuento atómico: la condición stock >= cantidad evita stock negativo
+        // ante operaciones concurrentes. La salida se valora al costo promedio
+        // vigente del repuesto, no al costo que envíe el front.
+        $stmtStock = $this->conn->prepare(
+            "UPDATE electronicas.Repuestos
+             SET stock = stock - ?
+             OUTPUT DELETED.stock          AS stock_anterior,
+                    INSERTED.stock         AS stock_nuevo,
+                    DELETED.costo_promedio AS costo_promedio
+             WHERE id_repuesto = ? AND stock >= ?"
+        );
+        $stmtStock->execute([$cantidad, $r->id_repuesto, $cantidad]);
+        $stocks = $stmtStock->fetch(PDO::FETCH_ASSOC);
+
+        if (!$stocks) {
+            $disponible = $this->obtenerStock($r->id_repuesto);
+            throw new Exception("Stock insuficiente para repuesto ID {$r->id_repuesto}. Disponible: {$disponible}");
         }
+
+        $costo = (float)$stocks['costo_promedio'];
 
         $this->conn->prepare(
             "INSERT INTO electronicas.MantenimientoRepuestos
@@ -359,16 +374,12 @@ class mdlMantenimientos
              VALUES (?, ?, ?, ?)"
         )->execute([$id_mantenimiento, $r->id_repuesto, $cantidad, $costo]);
 
-        $nuevoStock = $stockActual - $cantidad;
-
         $this->conn->prepare(
             "INSERT INTO electronicas.MovimientosRepuestos
                  (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
                   stock_anterior, stock_nuevo, id_maquina, referencia)
              VALUES (?, 2, ?, ?, ?, ?, ?, 'MANTENIMIENTO')"
-        )->execute([$r->id_repuesto, $cantidad, $costo, $stockActual, $nuevoStock, $id_maquina]);
-
-        $this->actualizarStock($r->id_repuesto, $nuevoStock);
+        )->execute([$r->id_repuesto, $cantidad, $costo, $stocks['stock_anterior'], $stocks['stock_nuevo'], $id_maquina]);
 
         // Registro de pieza instalada en máquina
         $this->conn->prepare(
@@ -387,20 +398,25 @@ class mdlMantenimientos
             throw new Exception("Debes seleccionar al menos una serie para repuesto ID {$r->id_repuesto}");
         }
 
-        $costo = (float)($r->costo_unitario ?? $r->costo ?? 0);
+        // La salida se valora al costo promedio vigente del repuesto
+        $stmtCP = $this->conn->prepare(
+            "SELECT costo_promedio FROM electronicas.Repuestos WHERE id_repuesto = ?"
+        );
+        $stmtCP->execute([$r->id_repuesto]);
+        $costo = (float)$stmtCP->fetchColumn();
 
         foreach ($r->series as $id_detalle) {
-            $stmtVal = $this->conn->prepare(
-                "SELECT id_detalle_repuesto, serie, id_estado_repuesto
-                 FROM electronicas.RepuestosDetalle
-                 WHERE id_detalle_repuesto = ? AND id_repuesto = ?"
+            // Cambio de estado atómico: solo procesa si la serie sigue disponible
+            $stmtUpd = $this->conn->prepare(
+                "UPDATE electronicas.RepuestosDetalle
+                 SET id_estado_repuesto = 2, id_maquina_actual = ?
+                 OUTPUT INSERTED.serie
+                 WHERE id_detalle_repuesto = ? AND id_repuesto = ?
+                   AND id_estado_repuesto = 1"
             );
-            $stmtVal->execute([$id_detalle, $r->id_repuesto]);
-            $detalle = $stmtVal->fetch(PDO::FETCH_ASSOC);
-
-            if (!$detalle) throw new Exception("Serie no encontrada para repuesto ID {$r->id_repuesto}");
-            if ((int)$detalle["id_estado_repuesto"] !== 1) {
-                throw new Exception("La serie {$detalle['serie']} ya no está disponible");
+            $stmtUpd->execute([$id_maquina, $id_detalle, $r->id_repuesto]);
+            if (!$stmtUpd->fetch(PDO::FETCH_ASSOC)) {
+                throw new Exception("Serie no encontrada o no disponible (repuesto ID {$r->id_repuesto})");
             }
 
             $this->conn->prepare(
@@ -409,18 +425,18 @@ class mdlMantenimientos
                  VALUES (?, ?, ?, 1, ?)"
             )->execute([$id_mantenimiento, $r->id_repuesto, $id_detalle, $costo]);
 
-            $this->conn->prepare(
-                "UPDATE electronicas.RepuestosDetalle
-                 SET id_estado_repuesto = 2, id_maquina_actual = ?
-                 WHERE id_detalle_repuesto = ?"
-            )->execute([$id_maquina, $id_detalle]);
+            // Saldo corrido: conteo de series disponibles tras la salida
+            $saldoNuevo = $this->contarSeriesDisponibles($r->id_repuesto);
 
             $this->conn->prepare(
                 "INSERT INTO electronicas.MovimientosRepuestos
                      (id_repuesto, id_detalle_repuesto, id_tipo_movimiento, cantidad,
                       costo_unitario, stock_anterior, stock_nuevo, id_maquina, referencia)
-                 VALUES (?, ?, 2, 1, ?, 0, 0, ?, 'MANTENIMIENTO')"
-            )->execute([$r->id_repuesto, $id_detalle, $costo, $id_maquina]);
+                 VALUES (?, ?, 2, 1, ?, ?, ?, ?, 'MANTENIMIENTO')"
+            )->execute([
+                $r->id_repuesto, $id_detalle, $costo,
+                $saldoNuevo + 1, $saldoNuevo, $id_maquina
+            ]);
 
             // Registro de pieza instalada en máquina
             $this->conn->prepare(
@@ -484,28 +500,44 @@ class mdlMantenimientos
                  WHERE id_detalle_repuesto = ?"
             )->execute([$nuevoEstado, $instalado['id_detalle_repuesto']]);
 
+            // Saldo corrido: la devolución suma una serie disponible; la baja no
+            $saldoNuevo = $this->contarSeriesDisponibles($instalado['id_repuesto']);
+            $saldoAnt   = ($tipo === 'devolucion') ? $saldoNuevo - 1 : $saldoNuevo;
+
             $this->conn->prepare(
                 "INSERT INTO electronicas.MovimientosRepuestos
                      (id_repuesto, id_detalle_repuesto, id_tipo_movimiento, cantidad,
                       costo_unitario, stock_anterior, stock_nuevo, id_maquina, referencia, observaciones)
-                 VALUES (?, ?, ?, 1, 0, 0, 0, ?, 'RETIRO', ?)"
+                 VALUES (?, ?, ?, 1, 0, ?, ?, ?, 'RETIRO', ?)"
             )->execute([
                 $instalado['id_repuesto'],
                 $instalado['id_detalle_repuesto'],
                 $idTipoMov,
+                $saldoAnt,
+                $saldoNuevo,
                 $id_maquina,
                 $obs
             ]);
 
         } else {
             // Cantidad
-            $stockActual = $this->obtenerStock($instalado['id_repuesto']);
-
             if ($tipo === 'devolucion') {
-                $stockNuevo = $stockActual + $cantidad;
-                $this->actualizarStock($instalado['id_repuesto'], $stockNuevo);
+                // Devolución al stock: incremento atómico
+                $stmtStock = $this->conn->prepare(
+                    "UPDATE electronicas.Repuestos
+                     SET stock = stock + ?
+                     OUTPUT DELETED.stock AS stock_anterior, INSERTED.stock AS stock_nuevo
+                     WHERE id_repuesto = ?"
+                );
+                $stmtStock->execute([$cantidad, $instalado['id_repuesto']]);
+                $stocks = $stmtStock->fetch(PDO::FETCH_ASSOC);
+                if (!$stocks) throw new Exception("Repuesto ID {$instalado['id_repuesto']} no encontrado.");
+                $stockActual = (int)$stocks['stock_anterior'];
+                $stockNuevo  = (int)$stocks['stock_nuevo'];
             } else {
-                $stockNuevo = $stockActual; // baja no devuelve al stock
+                // Baja: no devuelve al stock, solo registra el movimiento
+                $stockActual = $this->obtenerStock($instalado['id_repuesto']);
+                $stockNuevo  = $stockActual;
             }
 
             $this->conn->prepare(
@@ -699,16 +731,24 @@ class mdlMantenimientos
                 $cant = (int)$ret['cantidad'];
 
                 if ($ret['tipo_retiro'] === 'devolucion') {
-                    $stock = (int)$ret['stock_actual'];
-                    if ($stock < $cant) continue; // conflicto → saltar
-                    $nuevoStock = $stock - $cant;
+                    // Descuento atómico; si el stock ya no alcanza → conflicto, saltar
+                    $stmtStock = $this->conn->prepare(
+                        "UPDATE electronicas.Repuestos
+                         SET stock = stock - ?
+                         OUTPUT DELETED.stock AS stock_anterior, INSERTED.stock AS stock_nuevo
+                         WHERE id_repuesto = ? AND stock >= ?"
+                    );
+                    $stmtStock->execute([$cant, $ret['id_repuesto'], $cant]);
+                    $stocks = $stmtStock->fetch(PDO::FETCH_ASSOC);
+                    if (!$stocks) continue; // conflicto → saltar
+
                     $this->conn->prepare(
                         "INSERT INTO electronicas.MovimientosRepuestos
                              (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
                               stock_anterior, stock_nuevo, referencia, observaciones)
                          VALUES (?, ?, ?, 0, ?, ?, 'ANULACION', ?)"
-                    )->execute([$ret['id_repuesto'], $idTipoSalida, $cant, $stock, $nuevoStock, $obsBase]);
-                    $this->actualizarStock($ret['id_repuesto'], $nuevoStock);
+                    )->execute([$ret['id_repuesto'], $idTipoSalida, $cant,
+                                $stocks['stock_anterior'], $stocks['stock_nuevo'], $obsBase]);
 
                 } else {
                     // baja: restaurar serie al estado "instalado" (2)
@@ -775,24 +815,38 @@ class mdlMantenimientos
                          SET id_estado_repuesto = 1, id_maquina_actual = NULL
                          WHERE id_detalle_repuesto = ?"
                     )->execute([$idDet]);
+
+                    // Saldo corrido: conteo de series disponibles tras la reversión
+                    $saldoNuevo = $this->contarSeriesDisponibles($inst['id_repuesto']);
+
                     $this->conn->prepare(
                         "INSERT INTO electronicas.MovimientosRepuestos
                              (id_repuesto, id_detalle_repuesto, id_tipo_movimiento, cantidad,
                               costo_unitario, stock_anterior, stock_nuevo, referencia, observaciones)
-                         VALUES (?, ?, ?, 1, 0, 0, 0, 'ANULACION', ?)"
-                    )->execute([$inst['id_repuesto'], $idDet, $idTipoEntrada, $obsBase]);
+                         VALUES (?, ?, ?, 1, 0, ?, ?, 'ANULACION', ?)"
+                    )->execute([
+                        $inst['id_repuesto'], $idDet, $idTipoEntrada,
+                        $saldoNuevo - 1, $saldoNuevo, $obsBase
+                    ]);
                 } else {
-                    // Cantidad: restaurar stock
-                    $stock      = $this->obtenerStock($inst['id_repuesto']);
-                    $nuevoStock = $stock + (int)$inst['cantidad'];
+                    // Cantidad: restaurar stock con incremento atómico
+                    $stmtStock = $this->conn->prepare(
+                        "UPDATE electronicas.Repuestos
+                         SET stock = stock + ?
+                         OUTPUT DELETED.stock AS stock_anterior, INSERTED.stock AS stock_nuevo
+                         WHERE id_repuesto = ?"
+                    );
+                    $stmtStock->execute([(int)$inst['cantidad'], $inst['id_repuesto']]);
+                    $stocks = $stmtStock->fetch(PDO::FETCH_ASSOC);
+                    if (!$stocks) continue;
+
                     $this->conn->prepare(
                         "INSERT INTO electronicas.MovimientosRepuestos
                              (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
                               stock_anterior, stock_nuevo, referencia, observaciones)
                          VALUES (?, ?, ?, 0, ?, ?, 'ANULACION', ?)"
                     )->execute([$inst['id_repuesto'], $idTipoEntrada, $inst['cantidad'],
-                                $stock, $nuevoStock, $obsBase]);
-                    $this->actualizarStock($inst['id_repuesto'], $nuevoStock);
+                                $stocks['stock_anterior'], $stocks['stock_nuevo'], $obsBase]);
                 }
 
                 $this->conn->prepare(
@@ -965,25 +1019,34 @@ class mdlMantenimientos
 
     private function revertirMovimientosRepuestos(int $id_mantenimiento, int $id_maquina): void
     {
-        // Obtener movimientos anteriores para revertir stock
+        // Obtener repuestos instalados con movimiento de salida registrado
+        // (subconsulta en vez de JOIN para no duplicar filas si hay varios movimientos)
         $stmt = $this->conn->prepare(
-            "SELECT mr.id_repuesto, mr.id_detalle_repuesto, mr.cantidad,
-                    mov.id_tipo_movimiento, mov.stock_anterior, r.maneja_serie
+            "SELECT mr.id_repuesto, mr.id_detalle_repuesto, mr.cantidad, r.maneja_serie,
+                    (SELECT COUNT(*) FROM electronicas.MovimientosRepuestos mov
+                     WHERE mov.id_repuesto = mr.id_repuesto
+                       AND mov.referencia  = 'MANTENIMIENTO'
+                       AND mov.id_maquina  = ?) AS tiene_movimiento
              FROM electronicas.MantenimientoRepuestos mr
              INNER JOIN electronicas.Repuestos r ON r.id_repuesto = mr.id_repuesto
-             LEFT JOIN electronicas.MovimientosRepuestos mov
-                    ON mov.id_repuesto = mr.id_repuesto
-                   AND mov.referencia = 'MANTENIMIENTO'
-                   AND mov.id_maquina = ?
              WHERE mr.id_mantenimiento = ?"
         );
         $stmt->execute([$id_maquina, $id_mantenimiento]);
         $repuestos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($repuestos as $rep) {
-            if ((int)$rep['maneja_serie'] === 0 && $rep['stock_anterior'] !== null) {
-                // Restaurar stock
-                $this->actualizarStock($rep['id_repuesto'], (int)$rep['stock_anterior']);
+            if ((int)$rep['maneja_serie'] === 0 && (int)$rep['tiene_movimiento'] > 0) {
+                // Devolver la cantidad al stock con incremento atómico
+                // (nunca restaurar a un valor histórico: pisaría movimientos posteriores)
+                $stmtStock = $this->conn->prepare(
+                    "UPDATE electronicas.Repuestos
+                     SET stock = stock + ?
+                     OUTPUT DELETED.stock AS stock_anterior, INSERTED.stock AS stock_nuevo
+                     WHERE id_repuesto = ?"
+                );
+                $stmtStock->execute([(int)$rep['cantidad'], $rep['id_repuesto']]);
+                $stocks = $stmtStock->fetch(PDO::FETCH_ASSOC);
+                if (!$stocks) continue;
 
                 // Crear movimiento de reversión
                 $this->conn->prepare(
@@ -994,8 +1057,8 @@ class mdlMantenimientos
                 )->execute([
                     $rep['id_repuesto'],
                     $rep['cantidad'],
-                    (int)$rep['stock_anterior'] - (int)$rep['cantidad'],
-                    (int)$rep['stock_anterior'],
+                    $stocks['stock_anterior'],
+                    $stocks['stock_nuevo'],
                     "Reversión por edición de mantenimiento #" . $id_mantenimiento
                 ]);
             }
@@ -1019,5 +1082,15 @@ class mdlMantenimientos
         $this->conn->prepare(
             "UPDATE electronicas.Repuestos SET stock = ? WHERE id_repuesto = ?"
         )->execute([$stock, $id_repuesto]);
+    }
+
+    private function contarSeriesDisponibles($id_repuesto): int
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT COUNT(*) FROM electronicas.RepuestosDetalle
+             WHERE id_repuesto = ? AND id_estado_repuesto = 1"
+        );
+        $stmt->execute([$id_repuesto]);
+        return (int)$stmt->fetchColumn();
     }
 }

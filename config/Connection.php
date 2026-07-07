@@ -13,6 +13,14 @@
                 $conn = new PDO("sqlsrv:server=$serverName; database=$database", $user, $password);
                 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+                // Publicar el usuario logueado en el contexto de la sesión SQL:
+                // la columna MovimientosRepuestos.id_usuario lo toma por DEFAULT
+                // (ver BD/migration_usuario_movimientos.sql)
+                if (!empty($_SESSION['id_usuario'])) {
+                    $stmt = $conn->prepare("EXEC sp_set_session_context @key = N'id_usuario', @value = ?");
+                    $stmt->execute([(int)$_SESSION['id_usuario']]);
+                }
+
                 // Retornar la variable de conexion
                 return $conn;
             } catch (PDOException $e) {

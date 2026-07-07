@@ -63,7 +63,15 @@ class mdlSolicitudes
                     ma.nombre  AS marca,
                     mo.nombre  AS modelo,
                     ISNULL(dv.simbolo, dpred.simbolo) AS divisa_simbolo,
-                    ISNULL(dv.tipo_cambio, dpred.tipo_cambio) AS tipo_cambio
+                    ISNULL(dv.tipo_cambio, dpred.tipo_cambio) AS tipo_cambio,
+                    (SELECT ISNULL(SUM(sd.cantidad), 0)
+                     FROM electronicas.SolicitudesDetalle sd
+                     INNER JOIN electronicas.SolicitudesMaquinas sm
+                         ON sm.id_solicitud_maquina = sd.id_solicitud_maquina
+                     INNER JOIN electronicas.SolicitudesRepuestos sr
+                         ON sr.id_solicitud = sm.id_solicitud
+                     WHERE sd.id_repuesto = r.id_repuesto
+                       AND sr.estado = 'Pendiente') AS comprometido
                 FROM electronicas.Repuestos r
                 LEFT JOIN electronicas.Marcas   ma ON ma.id_marca  = r.id_marca
                 LEFT JOIN electronicas.Modelos  mo ON mo.id_modelo = r.id_modelo
@@ -72,7 +80,8 @@ class mdlSolicitudes
                     SELECT TOP 1 simbolo, tipo_cambio FROM electronicas.Divisas
                     WHERE predeterminada = 1 AND activo = 1
                 ) dpred
-                WHERE r.stock > 0 OR r.maneja_serie = 1
+                WHERE (r.stock > 0 OR r.maneja_serie = 1)
+                  AND r.id_estado != 5
                 ORDER BY ma.nombre, mo.nombre, r.nombre";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
@@ -85,7 +94,8 @@ class mdlSolicitudes
 
     public function listarSolicitudes(?int $id_usuario = null): array
     {
-        $where = $id_usuario ? "WHERE sr.id_usuario = $id_usuario" : '';
+        $where  = $id_usuario ? "WHERE sr.id_usuario = ?" : '';
+        $params = $id_usuario ? [$id_usuario] : [];
 
         $sql = "SELECT
                     sr.id_solicitud,
@@ -111,7 +121,7 @@ class mdlSolicitudes
                 ORDER BY sr.codigo DESC";
 
         $stmt = $this->conn->prepare($sql);
-        $stmt->execute();
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -159,13 +169,22 @@ class mdlSolicitudes
                         CASE WHEN r.maneja_serie = 1
                             THEN (SELECT COUNT(*) FROM electronicas.RepuestosDetalle d
                                   WHERE d.id_repuesto = r.id_repuesto AND d.id_estado_repuesto = 1)
-                            ELSE r.stock END AS stock_actual
+                            ELSE r.stock END AS stock_actual,
+                        (SELECT ISNULL(SUM(sd2.cantidad), 0)
+                         FROM electronicas.SolicitudesDetalle sd2
+                         INNER JOIN electronicas.SolicitudesMaquinas sm2
+                             ON sm2.id_solicitud_maquina = sd2.id_solicitud_maquina
+                         INNER JOIN electronicas.SolicitudesRepuestos sr2
+                             ON sr2.id_solicitud = sm2.id_solicitud
+                         WHERE sd2.id_repuesto = sd.id_repuesto
+                           AND sr2.estado = 'Pendiente'
+                           AND sr2.id_solicitud != ?) AS comprometido_otras
                  FROM electronicas.SolicitudesDetalle sd
                  INNER JOIN electronicas.Repuestos r ON r.id_repuesto = sd.id_repuesto
                  WHERE sd.id_solicitud_maquina = ?
                  ORDER BY r.nombre"
             );
-            $stmtD->execute([$maq['id_solicitud_maquina']]);
+            $stmtD->execute([$id_solicitud, $maq['id_solicitud_maquina']]);
             $maq['repuestos'] = $stmtD->fetchAll(PDO::FETCH_ASSOC);
         }
         unset($maq);
@@ -192,7 +211,7 @@ class mdlSolicitudes
                                 ELSE stock
                             END AS stock_disponible
                      FROM electronicas.Repuestos r
-                     WHERE id_repuesto = ?"
+                     WHERE id_repuesto = ? AND id_estado != 5"
                 );
                 $stmtV->execute([$rep['id_repuesto']]);
                 $r = $stmtV->fetch(PDO::FETCH_ASSOC);
@@ -330,16 +349,28 @@ class mdlSolicitudes
                         continue; // El admin procesa la salida de serie manualmente
                     }
 
-                    // Cantidad: verificar stock
-                    $stock = (int)$rep['stock'];
-                    if ($stock < $cantidad) {
+                    // Cantidad: descuento atómico — la condición stock >= cantidad
+                    // evita stock negativo ante operaciones concurrentes.
+                    // La salida se valora al costo promedio vigente.
+                    $stmtStock = $this->conn->prepare(
+                        "UPDATE electronicas.Repuestos
+                         SET stock = stock - ?
+                         OUTPUT DELETED.stock          AS stock_anterior,
+                                INSERTED.stock         AS stock_nuevo,
+                                DELETED.costo_promedio AS costo_promedio
+                         WHERE id_repuesto = ? AND stock >= ?"
+                    );
+                    $stmtStock->execute([$cantidad, $rep['id_repuesto'], $cantidad]);
+                    $stocks = $stmtStock->fetch(PDO::FETCH_ASSOC);
+
+                    if (!$stocks) {
                         throw new RuntimeException(
                             "Stock insuficiente para \"{$rep['nombre']}\". " .
-                            "Disponible: $stock, solicitado: $cantidad."
+                            "Disponible: {$rep['stock']}, solicitado: $cantidad."
                         );
                     }
 
-                    $nuevoStock = $stock - $cantidad;
+                    $costo = (float)$stocks['costo_promedio'];
 
                     // MantenimientoRepuestos
                     $this->conn->prepare(
@@ -356,14 +387,9 @@ class mdlSolicitudes
                          VALUES (?, 2, ?, ?, ?, ?, ?, ?)"
                     )->execute([
                         $rep['id_repuesto'], $cantidad, $costo,
-                        $stock, $nuevoStock,
+                        $stocks['stock_anterior'], $stocks['stock_nuevo'],
                         $maq['id_maquina'], $referencia
                     ]);
-
-                    // Actualizar stock
-                    $this->conn->prepare(
-                        "UPDATE electronicas.Repuestos SET stock = ? WHERE id_repuesto = ?"
-                    )->execute([$nuevoStock, $rep['id_repuesto']]);
 
                     // Pieza instalada en máquina
                     $this->conn->prepare(
