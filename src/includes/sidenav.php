@@ -23,7 +23,6 @@ function navSubItem(string $modulo, string $actual): string {
 
 // El grupo "Parametrización" debe estar abierto si el módulo activo pertenece a él
 $parametrizacion = ['proveedores','marcas','modelos','tiposRepuestos','divisas'];
-$gpsModulos      = ['gpsCredenciales','gpsTransportes','gpsCuentas','gpsTiposVehiculo','gpsDestinos','gpsPlataformas'];
 $paraOpen = in_array($mod, $parametrizacion);
 
 // Verificar si hay al menos un módulo de parametrización visible
@@ -116,6 +115,38 @@ foreach ($parametrizacion as $p) {
       </li>
       <?php endif; ?>
 
+      <!-- ── Configuración ───────────────────────────────── -->
+      <?php
+      $gpsParamModulos  = ['gpsTiposVehiculo','gpsDestinos','gpsPlataformas'];
+      $gpsParamOpen     = in_array($mod, $gpsParamModulos);
+      $gpsParamVisible  = false;
+      foreach ($gpsParamModulos as $gp) { if (puedeVer($gp)) { $gpsParamVisible = true; break; } }
+
+      $configVisible = puedeVer('usuarios') || puedeVer('roles') || $paraVisible || $gpsParamVisible;
+      ?>
+      <?php if ($configVisible): ?>
+      <li class="nav-heading">Configuración</li>
+
+      <!-- Usuarios -->
+      <?php if (puedeVer('usuarios')): ?>
+      <li class="nav-item">
+        <a class="<?= navLink('usuarios', $mod) ?>" href="?module=usuarios">
+          <i class="bi bi-people"></i>
+          <span>Usuarios</span>
+        </a>
+      </li>
+      <?php endif; ?>
+
+      <!-- Roles y Permisos -->
+      <?php if (puedeVer('roles')): ?>
+      <li class="nav-item">
+        <a class="<?= navLink('roles', $mod) ?>" href="?module=roles">
+          <i class="bi bi-shield-lock"></i>
+          <span>Roles y Permisos</span>
+        </a>
+      </li>
+      <?php endif; ?>
+
       <!-- Parametrización (grupo colapsable) -->
       <?php if ($paraVisible): ?>
       <li class="nav-item">
@@ -167,69 +198,7 @@ foreach ($parametrizacion as $p) {
       </li>
       <?php endif; ?>
 
-      <!-- Usuarios -->
-      <?php if (puedeVer('usuarios')): ?>
-      <li class="nav-item">
-        <a class="<?= navLink('usuarios', $mod) ?>" href="?module=usuarios">
-          <i class="bi bi-people"></i>
-          <span>Usuarios</span>
-        </a>
-      </li>
-      <?php endif; ?>
-
-      <!-- Roles y Permisos -->
-      <?php if (puedeVer('roles')): ?>
-      <li class="nav-item">
-        <a class="<?= navLink('roles', $mod) ?>" href="?module=roles">
-          <i class="bi bi-shield-lock"></i>
-          <span>Roles y Permisos</span>
-        </a>
-      </li>
-      <?php endif; ?>
-
-      <!-- ── GPS ─────────────────────────────────────────── -->
-      <?php
-      $gpsVisible = false;
-      foreach ($gpsModulos as $g) {
-          if (puedeVer($g)) { $gpsVisible = true; break; }
-      }
-      ?>
-      <?php if ($gpsVisible): ?>
-      <li class="nav-heading">GPS</li>
-
-      <?php if (puedeVer('gpsCredenciales')): ?>
-      <li class="nav-item">
-        <a class="<?= navLink('gpsCredenciales', $mod) ?>" href="?module=gpsCredenciales">
-          <i class="bi bi-geo-alt"></i>
-          <span>Credenciales GPS</span>
-        </a>
-      </li>
-      <?php endif; ?>
-
-      <?php if (puedeVer('gpsTransportes')): ?>
-      <li class="nav-item">
-        <a class="<?= navLink('gpsTransportes', $mod) ?>" href="?module=gpsTransportes">
-          <i class="bi bi-truck"></i>
-          <span>Transportes</span>
-        </a>
-      </li>
-      <?php endif; ?>
-
-      <?php if (puedeVer('gpsCuentas')): ?>
-      <li class="nav-item">
-        <a class="<?= navLink('gpsCuentas', $mod) ?>" href="?module=gpsCuentas">
-          <i class="bi bi-key"></i>
-          <span>Cuentas GPS</span>
-        </a>
-      </li>
-      <?php endif; ?>
-
-      <?php
-      $gpsParamModulos  = ['gpsTiposVehiculo','gpsDestinos','gpsPlataformas'];
-      $gpsParamOpen     = in_array($mod, $gpsParamModulos);
-      $gpsParamVisible  = false;
-      foreach ($gpsParamModulos as $gp) { if (puedeVer($gp)) { $gpsParamVisible = true; break; } }
-      ?>
+      <!-- Parametrización GPS (grupo colapsable) -->
       <?php if ($gpsParamVisible): ?>
       <li class="nav-item">
         <a class="nav-link <?= $gpsParamOpen ? '' : 'collapsed' ?>"
@@ -265,6 +234,46 @@ foreach ($parametrizacion as $p) {
         </ul>
       </li>
       <?php endif; ?>
+      <?php endif; ?>
+
+      <!-- ── GPS ─────────────────────────────────────────── -->
+      <?php
+      // Solo los módulos operativos; la parametrización GPS vive en Configuración
+      $gpsVisible = false;
+      foreach (['gpsCredenciales','gpsTransportes','gpsCuentas'] as $g) {
+          if (puedeVer($g)) { $gpsVisible = true; break; }
+      }
+      ?>
+      <?php if ($gpsVisible): ?>
+      <li class="nav-heading">GPS</li>
+
+      <?php if (puedeVer('gpsCredenciales')): ?>
+      <li class="nav-item">
+        <a class="<?= navLink('gpsCredenciales', $mod) ?>" href="?module=gpsCredenciales">
+          <i class="bi bi-geo-alt"></i>
+          <span>Credenciales GPS</span>
+        </a>
+      </li>
+      <?php endif; ?>
+
+      <?php if (puedeVer('gpsTransportes')): ?>
+      <li class="nav-item">
+        <a class="<?= navLink('gpsTransportes', $mod) ?>" href="?module=gpsTransportes">
+          <i class="bi bi-truck"></i>
+          <span>Transportes</span>
+        </a>
+      </li>
+      <?php endif; ?>
+
+      <?php if (puedeVer('gpsCuentas')): ?>
+      <li class="nav-item">
+        <a class="<?= navLink('gpsCuentas', $mod) ?>" href="?module=gpsCuentas">
+          <i class="bi bi-key"></i>
+          <span>Cuentas GPS</span>
+        </a>
+      </li>
+      <?php endif; ?>
+
       <?php endif; ?>
 
       <!-- ── RRHH ────────────────────────────────────────── -->
