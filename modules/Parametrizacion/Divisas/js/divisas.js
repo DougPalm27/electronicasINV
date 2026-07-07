@@ -135,7 +135,7 @@ $(document).ready(function () {
 
         $.post(CTRL_DIV, datos, function (resp) {
             if (!resp.ok) {
-                Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje, confirmButtonColor: '#4154f1' });
+                Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje, confirmButtonColor: '#156b45' });
                 return;
             }
             cerrarModal('#modalDivisa');
@@ -155,7 +155,7 @@ $(document).ready(function () {
             showCancelButton: true,
             confirmButtonText: 'Sí, establecer',
             cancelButtonText: 'Cancelar',
-            confirmButtonColor: '#4154f1'
+            confirmButtonColor: '#156b45'
         }).then(res => {
             if (!res.isConfirmed) return;
             $.post(CTRL_DIV, { accion: 'setPredeterminada', id_divisa: id }, function (resp) {

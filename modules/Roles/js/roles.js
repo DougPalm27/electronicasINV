@@ -119,7 +119,7 @@ $(document).ready(function () {
 
         $.post(CTRL_ROLES, datos, function (r) {
             if (!r.ok) {
-                Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje, confirmButtonColor: '#4154f1' });
+                Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje, confirmButtonColor: '#156b45' });
                 return;
             }
             cerrarModal('#modalRol');
@@ -144,7 +144,7 @@ $(document).ready(function () {
             title: '¿Cambiar estado?',
             icon: 'question', showCancelButton: true,
             confirmButtonText: 'Sí', cancelButtonText: 'No',
-            confirmButtonColor: '#4154f1'
+            confirmButtonColor: '#156b45'
         }).then(res => {
             if (!res.isConfirmed) return;
             $.post(CTRL_ROLES, { accion: 'toggleActivo', id_rol: id }, function (r) {

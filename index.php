@@ -4,377 +4,250 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Acceso — Honducafe</title>
-  <link rel="icon" href="./assets/img/favicon.png">
+  <link rel="icon" href="./assets/img/logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="./assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link href="./assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
 
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --hc-verde:       #156b45;
+      --hc-verde-hover: #0f5434;
+      --hc-verde-tinte: #e9f3ee;
+      --hc-texto:       #1c2128;
+      --hc-texto-2:     #57606a;
+      --hc-texto-3:     #8a919c;
+      --hc-borde:       #e4e7ec;
+      --hc-fondo:       #f6f7f9;
+    }
 
     body {
-      font-family: 'Poppins', sans-serif;
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(160deg, #0b3d20 0%, #145c30 40%, #1e8449 75%, #27ae60 100%);
-      overflow: hidden;
-      position: relative;
-    }
-
-    /* ── Círculos decorativos de fondo ── */
-    .bg-circle {
-      position: fixed;
-      border-radius: 50%;
-      opacity: .07;
-      background: #fff;
-      animation: floatCircle linear infinite;
-    }
-    .bg-circle:nth-child(1) { width: 500px; height: 500px; top: -150px; left: -150px; animation-duration: 20s; }
-    .bg-circle:nth-child(2) { width: 300px; height: 300px; top: 60%; right: -80px; animation-duration: 25s; animation-delay: -8s; }
-    .bg-circle:nth-child(3) { width: 180px; height: 180px; top: 20%; right: 15%; animation-duration: 18s; animation-delay: -4s; }
-
-    @keyframes floatCircle {
-      0%   { transform: translateY(0) rotate(0deg); }
-      50%  { transform: translateY(-30px) rotate(180deg); }
-      100% { transform: translateY(0) rotate(360deg); }
-    }
-
-    /* ── Ondas SVG ── */
-    .waves-container {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      height: 220px;
-      pointer-events: none;
-      overflow: hidden;
-    }
-
-    .wave {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      width: 200%;
-      height: 100%;
-    }
-
-    .wave-1 { opacity: .15; animation: waveMove 8s linear infinite; }
-    .wave-2 { opacity: .10; animation: waveMove 12s linear infinite reverse; }
-    .wave-3 { opacity: .07; animation: waveMove 6s linear infinite; }
-
-    @keyframes waveMove {
-      0%   { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
-    }
-
-    /* ── Card de login ── */
-    .login-wrapper {
-      position: relative;
-      z-index: 10;
-      width: 100%;
-      max-width: 420px;
-      padding: 1rem;
-    }
-
-    .login-card {
-      background: rgba(255, 255, 255, 0.97);
-      border-radius: 24px;
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.25), 0 4px 16px rgba(0,0,0,.1);
-      overflow: hidden;
-      animation: slideUp .6s cubic-bezier(.16,1,.3,1) both;
-    }
-
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(32px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* ── Cabecera verde de la card ── */
-    .login-header {
-      background: linear-gradient(135deg, #145c30 0%, #1e8449 100%);
-      padding: 2rem 2rem 2.5rem;
-      text-align: center;
-      position: relative;
-    }
-
-    .login-header::after {
-      content: '';
-      position: absolute;
-      bottom: -1px;
-      left: 0;
-      right: 0;
-      height: 32px;
-      background: rgba(255,255,255,0.97);
-      border-radius: 50% 50% 0 0 / 100% 100% 0 0;
-    }
-
-    .login-logo {
-      width: 68px;
-      height: 68px;
-      background: rgba(255,255,255,.15);
-      border: 2px solid rgba(255,255,255,.3);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 1rem;
-      font-size: 2rem;
-      color: #fff;
-      backdrop-filter: blur(4px);
-    }
-
-    .login-header h1 {
-      color: #fff;
-      font-size: 1.4rem;
-      font-weight: 600;
-      letter-spacing: .5px;
+      background: var(--hc-fondo);
+      color: var(--hc-texto);
       margin: 0;
     }
 
-    .login-header p {
-      color: rgba(255,255,255,.75);
-      font-size: .82rem;
-      margin: .25rem 0 0;
+    .login-wrapper {
+      width: 100%;
+      max-width: 380px;
+      padding: 1rem;
     }
 
-    /* ── Cuerpo del formulario ── */
-    .login-body {
-      padding: 1.5rem 2rem 2rem;
+    .login-brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .6rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .login-brand .brand-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--hc-verde);
+      color: #fff;
+      font-size: 1.05rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .login-brand .brand-name {
+      font-size: 1rem;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+    .login-brand .brand-sub {
+      display: block;
+      font-size: .7rem;
+      font-weight: 400;
+      color: var(--hc-texto-3);
+      line-height: 1.2;
+    }
+
+    .login-card {
+      background: #fff;
+      border: 1px solid var(--hc-borde);
+      border-radius: 12px;
+      padding: 1.75rem 1.75rem 1.5rem;
+    }
+
+    .login-card h1 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0 0 .2rem;
+    }
+
+    .login-card .subtitulo {
+      font-size: .78rem;
+      color: var(--hc-texto-3);
+      margin: 0 0 1.4rem;
     }
 
     .form-label {
-      font-size: .82rem;
+      font-size: .75rem;
       font-weight: 600;
-      color: #374151;
-      margin-bottom: .4rem;
+      color: var(--hc-texto-2);
+      margin-bottom: .3rem;
     }
 
-    .input-icon-wrap {
-      position: relative;
-    }
+    .input-icon-wrap { position: relative; }
 
     .input-icon-wrap > .bi {
       position: absolute;
-      left: .9rem;
+      left: .8rem;
       top: 50%;
       transform: translateY(-50%);
-      color: #9ca3af;
-      font-size: 1rem;
+      color: var(--hc-texto-3);
+      font-size: .9rem;
       pointer-events: none;
-      transition: color .2s;
     }
 
     .input-icon-wrap input {
-      padding-left: 2.6rem;
-      border-radius: 10px;
-      border: 1.5px solid #e5e7eb;
-      font-size: .9rem;
-      height: 46px;
-      transition: border-color .2s, box-shadow .2s;
+      padding-left: 2.35rem;
+      font-size: .84rem;
+      height: 42px;
+      border-radius: 8px;
+      border: 1px solid #d8dce2;
+      color: var(--hc-texto);
     }
 
     .input-icon-wrap input:focus {
-      border-color: #1e8449;
-      box-shadow: 0 0 0 3px rgba(30,132,73,.12);
-      outline: none;
+      border-color: var(--hc-verde);
+      box-shadow: 0 0 0 3px rgba(21, 107, 69, .12);
     }
+    .input-icon-wrap:focus-within .bi { color: var(--hc-verde); }
 
-    .input-icon-wrap input:focus + .bi,
-    .input-icon-wrap:focus-within .bi {
-      color: #1e8449;
-    }
-
-    /* toggle contraseña */
     .btn-toggle-pwd {
       position: absolute;
-      right: .75rem;
+      right: .7rem;
       top: 50%;
       transform: translateY(-50%);
       background: none;
       border: none;
-      color: #9ca3af;
+      color: var(--hc-texto-3);
       cursor: pointer;
       padding: 0;
-      font-size: 1rem;
-      transition: color .2s;
+      font-size: .9rem;
       z-index: 2;
     }
-    .btn-toggle-pwd:hover { color: #1e8449; }
+    .btn-toggle-pwd:hover { color: var(--hc-verde); }
 
-    /* Mensajes de error */
     .alert-login {
-      border-radius: 10px;
-      font-size: .84rem;
-      padding: .65rem 1rem;
+      border-radius: 8px;
+      font-size: .78rem;
+      padding: .55rem .8rem;
       margin-bottom: 1rem;
-      border: none;
-      background: #fef2f2;
-      color: #dc2626;
+      border: 1px solid #f5c2c7;
+      background: #fdecec;
+      color: #b32d2d;
       display: flex;
       align-items: center;
       gap: .5rem;
-      animation: fadeIn .3s ease;
     }
-    @keyframes fadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
 
-    /* Botón principal */
     .btn-login {
       width: 100%;
-      height: 48px;
-      border-radius: 12px;
+      height: 42px;
+      border-radius: 8px;
       border: none;
-      background: linear-gradient(135deg, #145c30 0%, #1e8449 100%);
+      background: var(--hc-verde);
       color: #fff;
-      font-weight: 600;
-      font-size: .95rem;
-      letter-spacing: .3px;
+      font-weight: 500;
+      font-size: .85rem;
       cursor: pointer;
-      transition: transform .15s, box-shadow .15s, filter .15s;
-      box-shadow: 0 4px 16px rgba(30,132,73,.35);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .btn-login::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: rgba(255,255,255,0);
       transition: background .15s;
     }
-
-    .btn-login:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 8px 24px rgba(30,132,73,.45);
-      filter: brightness(1.05);
-    }
-
-    .btn-login:active {
-      transform: translateY(0);
-      box-shadow: 0 4px 12px rgba(30,132,73,.3);
-    }
+    .btn-login:hover { background: var(--hc-verde-hover); }
 
     .btn-login .spinner-border { display: none; }
     .btn-login.loading .spinner-border { display: inline-block; }
     .btn-login.loading .btn-text { display: none; }
 
-    /* Pie de la card */
     .login-footer {
       text-align: center;
-      font-size: .75rem;
-      color: #9ca3af;
-      padding: .5rem 2rem 1.5rem;
-    }
-
-    /* Divisor */
-    .form-divider {
-      height: 1px;
-      background: #f3f4f6;
-      margin: 1.25rem 0;
+      font-size: .7rem;
+      color: var(--hc-texto-3);
+      margin-top: 1.25rem;
     }
   </style>
 </head>
 <body>
 
-  <!-- Círculos flotantes de fondo -->
-  <div class="bg-circle"></div>
-  <div class="bg-circle"></div>
-  <div class="bg-circle"></div>
-
-  <!-- Ondas animadas -->
-  <div class="waves-container">
-    <!-- Onda 1 -->
-    <svg class="wave wave-1" viewBox="0 0 1440 220" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-      <path fill="#ffffff" d="M0,160 C180,200 360,80 540,120 C720,160 900,200 1080,160 C1260,120 1380,80 1440,100 L1440,220 L0,220 Z
-                              M1440,160 C1260,200 1080,80 900,120 C720,160 540,200 360,160 C180,120 60,80 0,100 L0,220 L1440,220 Z"/>
-    </svg>
-    <!-- Onda 2 -->
-    <svg class="wave wave-2" viewBox="0 0 1440 220" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-      <path fill="#a7f3d0" d="M0,180 C240,140 480,220 720,180 C960,140 1200,180 1440,160 L1440,220 L0,220 Z
-                              M1440,180 C1200,140 960,220 720,180 C480,140 240,180 0,160 L0,220 L1440,220 Z"/>
-    </svg>
-    <!-- Onda 3 -->
-    <svg class="wave wave-3" viewBox="0 0 1440 220" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-      <path fill="#6ee7b7" d="M0,200 C360,160 720,220 1080,190 C1260,175 1380,195 1440,200 L1440,220 L0,220 Z
-                              M1440,200 C1080,160 720,220 360,190 C180,175 60,195 0,200 L0,220 L1440,220 Z"/>
-    </svg>
-  </div>
-
-  <!-- Card de login -->
   <div class="login-wrapper">
+
+    <div class="login-brand">
+      <span class="brand-icon"><i class="bi bi-box-seam"></i></span>
+      <span>
+        <span class="brand-name">Honducafe</span>
+        <span class="brand-sub">Sistema de gestión interno</span>
+      </span>
+    </div>
+
     <div class="login-card">
 
-      <!-- Cabecera -->
-      <div class="login-header">
-        <div class="login-logo">
-          <i class="bi bi-shield-lock-fill"></i>
+      <h1>Iniciar sesión</h1>
+      <p class="subtitulo">Ingresa tus credenciales para continuar</p>
+
+      <?php if (!empty($_GET['error'])): ?>
+        <div class="alert-login">
+          <i class="bi bi-exclamation-circle"></i>
+          <?php
+            $err = $_GET['error'];
+            if ($err === 'invalid')      echo 'Usuario o contraseña incorrectos.';
+            elseif ($err === 'inactive') echo 'Tu cuenta está desactivada.';
+            else echo htmlspecialchars($err);
+          ?>
         </div>
-        <h1>Bienvenido</h1>
-        <p>Ingresa tus credenciales para continuar</p>
-      </div>
+      <?php endif; ?>
 
-      <!-- Formulario -->
-      <div class="login-body">
+      <form action="./modules/login/controller/validarUsuario.php" method="POST" id="loginForm">
 
-        <?php if (!empty($_GET['error'])): ?>
-          <div class="alert-login">
-            <i class="bi bi-exclamation-circle-fill"></i>
-            <?php
-              $err = $_GET['error'];
-              if ($err === 'invalid')    echo 'Usuario o contraseña incorrectos.';
-              elseif ($err === 'inactive') echo 'Tu cuenta está desactivada.';
-              else echo htmlspecialchars($err);
-            ?>
+        <div class="mb-3">
+          <label for="username" class="form-label">Usuario</label>
+          <div class="input-icon-wrap">
+            <input type="text" id="username" name="username"
+                   class="form-control" placeholder="Tu nombre de usuario"
+                   autocomplete="username" required autofocus>
+            <i class="bi bi-person"></i>
           </div>
-        <?php endif; ?>
+        </div>
 
-        <form action="./modules/login/controller/validarUsuario.php" method="POST" id="loginForm">
-
-          <div class="mb-3">
-            <label for="username" class="form-label">Usuario</label>
-            <div class="input-icon-wrap">
-              <input type="text" id="username" name="username"
-                     class="form-control" placeholder="Tu nombre de usuario"
-                     autocomplete="username" required autofocus>
-              <i class="bi bi-person-fill"></i>
-            </div>
+        <div class="mb-4">
+          <label for="password" class="form-label">Contraseña</label>
+          <div class="input-icon-wrap">
+            <input type="password" id="password" name="password"
+                   class="form-control" placeholder="••••••••"
+                   autocomplete="current-password" required>
+            <i class="bi bi-lock"></i>
+            <button type="button" class="btn-toggle-pwd" id="togglePwd" tabindex="-1">
+              <i class="bi bi-eye" id="togglePwdIcon"></i>
+            </button>
           </div>
+        </div>
 
-          <div class="mb-4">
-            <label for="password" class="form-label">Contraseña</label>
-            <div class="input-icon-wrap" style="position:relative;">
-              <input type="password" id="password" name="password"
-                     class="form-control" placeholder="••••••••"
-                     autocomplete="current-password" required>
-              <i class="bi bi-lock-fill"></i>
-              <button type="button" class="btn-toggle-pwd" id="togglePwd" tabindex="-1">
-                <i class="bi bi-eye" id="togglePwdIcon"></i>
-              </button>
-            </div>
-          </div>
+        <button type="submit" class="btn-login" id="btnLogin">
+          <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+          <span class="btn-text">Acceder</span>
+        </button>
 
-          <button type="submit" class="btn-login" id="btnLogin">
-            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-            <span class="btn-text">
-              <i class="bi bi-box-arrow-in-right me-1"></i> Acceder
-            </span>
-          </button>
-
-        </form>
-      </div>
-
-      <div class="login-footer">
-        &copy; <?= date('Y') ?> Honducafe &mdash; Sistema de gestión interno
-      </div>
-
+      </form>
     </div>
+
+    <div class="login-footer">
+      &copy; <?= date('Y') ?> Honducafe &mdash; Sistema de gestión interno
+    </div>
+
   </div>
 
-  <script src="./assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script>
     // Toggle contraseña
     document.getElementById('togglePwd').addEventListener('click', function () {

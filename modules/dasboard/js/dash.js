@@ -37,7 +37,7 @@ function cargarChartMantenimientos() {
             chart:  { type: 'bar', height: 280, toolbar: { show: false } },
             series: [{ name: 'Mantenimientos', data: resp.data.map(r => parseInt(r.total)) }],
             xaxis:  { categories: resp.data.map(r => r.mes_label) },
-            colors: ['#4154f1'],
+            colors: ['#156b45'],
             plotOptions: { bar: { borderRadius: 4, columnWidth: '50%' } },
             dataLabels: { enabled: false },
             grid: { borderColor: '#f1f1f1' },
@@ -58,7 +58,7 @@ function cargarChartTipos() {
             chart:  { type: 'donut', height: 280 },
             series: resp.data.map(r => parseInt(r.total)),
             labels: resp.data.map(r => r.tipo),
-            colors: ['#4154f1','#2eca6a','#ff771d','#0dcaf0','#6f42c1','#fd7e14'],
+            colors: ['#156b45','#2eca6a','#ff771d','#0dcaf0','#6f42c1','#fd7e14'],
             legend: { position: 'bottom' },
             dataLabels: { enabled: true, formatter: val => Math.round(val) + '%' },
             plotOptions: { pie: { donut: { size: '60%' } } }

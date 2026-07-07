@@ -12,7 +12,7 @@ $seccionActual = nombreSeccion($moduloActivo);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Sistema de control de trazabilidad">
+    <meta name="description" content="Sistema de inventario y mantenimiento — Honducafe">
     <title><?= htmlspecialchars($tituloPestana) ?> · <?= htmlspecialchars($seccionActual) ?></title>
 </head>
 <body>
@@ -25,12 +25,8 @@ $seccionActual = nombreSeccion($moduloActivo);
     <?php include "./content.php"; ?>
 </main>
 
-<?php include "./src/includes/scripts.php"; ?>
 <?php include "./src/includes/footer.php"; ?>
-
-<a href="#" class="back-to-top d-flex align-items-center justify-content-center">
-    <i class="bi bi-arrow-up-short"></i>
-</a>
+<?php include "./src/includes/scripts.php"; ?>
 
 </body>
 </html>

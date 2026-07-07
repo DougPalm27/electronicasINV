@@ -577,44 +577,9 @@
 </div>
 
 <style>
-    .select2-container--bootstrap-5 .select2-selection {
-        height: 38px;
-        display: flex;
-        align-items: center;
-        padding-left: 10px;
-    }
-
-    .select2-container {
-        width: 100% !important;
-    }
-
-    .border h6 {
-        font-weight: 600;
-    }
-
-    /* Validación visual — forzamos sobre los estilos de NiceAdmin */
-    .form-control.is-invalid,
-    .form-select.is-invalid {
-        border-color: #dc3545 !important;
-        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.2) !important;
-    }
-
-    .form-control.is-invalid:focus,
-    .form-select.is-invalid:focus {
-        border-color: #dc3545 !important;
-        box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.35) !important;
-    }
-
-    /* Select2 inválido */
+    /* Select2 marcado como inválido desde JS (clases border-danger) */
     .select2-container .select2-selection.border.border-danger {
         border-color: #dc3545 !important;
         box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.2) !important;
-    }
-
-    .invalid-feedback {
-        display: block !important;
-        color: #dc3545;
-        font-size: 0.8rem;
-        margin-top: 4px;
     }
 </style>

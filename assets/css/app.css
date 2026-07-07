@@ -1,0 +1,516 @@
+/* =========================================================
+   Honducafe — Sistema Electrónicas
+   Capa de diseño propia (reemplaza la plantilla NiceAdmin)
+   Estilo: compacto, minimalista, formal.
+   El verde institucional se usa solo como acento.
+   ========================================================= */
+
+:root {
+    --hc-verde:        #156b45;
+    --hc-verde-hover:  #0f5434;
+    --hc-verde-tinte:  #e9f3ee;
+    --hc-texto:        #1c2128;
+    --hc-texto-2:      #57606a;
+    --hc-texto-3:      #8a919c;
+    --hc-borde:        #e4e7ec;
+    --hc-borde-suave:  #eef0f3;
+    --hc-fondo:        #f6f7f9;
+    --hc-superficie:   #ffffff;
+    --hc-header-h:     52px;
+    --hc-sidebar-w:    236px;
+}
+
+/* ── Base ────────────────────────────────────────────────── */
+
+body {
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: .875rem;
+    background: var(--hc-fondo);
+    color: var(--hc-texto);
+}
+
+h1, h2, h3, h4, h5, h6 { font-weight: 600; color: var(--hc-texto); }
+
+a { color: var(--hc-verde); text-decoration: none; }
+a:hover { color: var(--hc-verde-hover); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d5d9df; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #bfc5cd; }
+
+/* ── Header ──────────────────────────────────────────────── */
+
+#header {
+    position: fixed;
+    top: 0;
+    left: var(--hc-sidebar-w);
+    right: 0;
+    height: var(--hc-header-h);
+    background: var(--hc-superficie);
+    border-bottom: 1px solid var(--hc-borde);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0 1.4rem;
+    z-index: 997;
+    transition: left .25s ease;
+}
+
+.toggle-sidebar-btn {
+    font-size: 1.3rem;
+    color: var(--hc-texto-2);
+    cursor: pointer;
+    line-height: 1;
+}
+.toggle-sidebar-btn:hover { color: var(--hc-texto); }
+
+.hc-breadcrumb { font-size: .78rem; color: var(--hc-texto-3); }
+.hc-breadcrumb .sep { margin: 0 .35rem; }
+.hc-breadcrumb .actual { color: var(--hc-texto); font-weight: 500; }
+
+.header-nav ul { list-style: none; margin: 0; padding: 0; }
+
+.nav-profile {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    color: var(--hc-texto-2);
+    font-size: .8125rem;
+    font-weight: 500;
+}
+.nav-profile:hover { color: var(--hc-texto); }
+
+.avatar-ini {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--hc-verde-tinte);
+    color: var(--hc-verde);
+    font-size: .7rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: .02em;
+}
+
+.dropdown-header h6 { font-size: .82rem; margin: 0; }
+.dropdown-header span { font-size: .72rem; color: var(--hc-texto-3); }
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+
+#sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--hc-sidebar-w);
+    background: var(--hc-superficie);
+    border-right: 1px solid var(--hc-borde);
+    z-index: 998;
+    overflow-y: auto;
+    transition: left .25s ease;
+}
+
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    height: var(--hc-header-h);
+    padding: 0 1.1rem;
+    border-bottom: 1px solid var(--hc-borde);
+}
+
+.sidebar-brand .brand-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: var(--hc-verde);
+    color: #fff;
+    font-size: .9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.sidebar-brand .brand-name {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--hc-texto);
+    line-height: 1.15;
+}
+.sidebar-brand .brand-sub {
+    display: block;
+    font-size: .65rem;
+    font-weight: 400;
+    color: var(--hc-texto-3);
+    line-height: 1.15;
+}
+
+.sidebar-nav {
+    list-style: none;
+    padding: .7rem .6rem 1.5rem;
+    margin: 0;
+}
+
+.sidebar-nav .nav-heading {
+    font-size: .64rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--hc-texto-3);
+    padding: 1rem .55rem .35rem;
+}
+
+.sidebar-nav .nav-link {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    font-size: .8125rem;
+    font-weight: 500;
+    color: var(--hc-texto-2);
+    padding: .45rem .55rem;
+    border-radius: 7px;
+    margin-bottom: 2px;
+    transition: background .15s, color .15s;
+}
+
+.sidebar-nav .nav-link i { font-size: 1rem; line-height: 1; }
+
+.sidebar-nav .nav-link:hover { background: var(--hc-fondo); color: var(--hc-texto); }
+
+.sidebar-nav .nav-link.active {
+    background: var(--hc-verde-tinte);
+    color: var(--hc-verde);
+}
+
+.sidebar-nav .nav-link .bi-chevron-down {
+    margin-left: auto;
+    font-size: .68rem;
+    transition: transform .2s;
+}
+.sidebar-nav .nav-link:not(.collapsed) .bi-chevron-down { transform: rotate(180deg); }
+
+.sidebar-nav .nav-content {
+    list-style: none;
+    padding: .1rem 0 .3rem 1.55rem;
+    margin: 0;
+}
+
+.sidebar-nav .nav-content a {
+    display: block;
+    font-size: .78rem;
+    color: var(--hc-texto-2);
+    padding: .35rem .55rem;
+    border-radius: 6px;
+    margin-bottom: 1px;
+}
+.sidebar-nav .nav-content a:hover { background: var(--hc-fondo); color: var(--hc-texto); }
+.sidebar-nav .nav-content a.active { color: var(--hc-verde); font-weight: 500; }
+
+/* ── Contenido principal y footer ────────────────────────── */
+
+#main {
+    margin-left: var(--hc-sidebar-w);
+    margin-top: var(--hc-header-h);
+    padding: 1.4rem 1.6rem;
+    min-height: calc(100vh - var(--hc-header-h) - 42px);
+    transition: margin-left .25s ease;
+}
+
+#footer {
+    margin-left: var(--hc-sidebar-w);
+    padding: .8rem 1.6rem;
+    font-size: .72rem;
+    color: var(--hc-texto-3);
+    background: var(--hc-superficie);
+    border-top: 1px solid var(--hc-borde);
+    display: flex;
+    justify-content: space-between;
+    transition: margin-left .25s ease;
+}
+#footer a { color: var(--hc-texto-2); }
+
+/* Colapso del sidebar (escritorio) */
+@media (min-width: 1200px) {
+    body.toggle-sidebar #sidebar { left: calc(-1 * var(--hc-sidebar-w)); }
+    body.toggle-sidebar #header { left: 0; }
+    body.toggle-sidebar #main,
+    body.toggle-sidebar #footer { margin-left: 0; }
+}
+
+/* Móvil / tablet: oculto por defecto, el toggle lo muestra */
+@media (max-width: 1199.98px) {
+    #sidebar { left: calc(-1 * var(--hc-sidebar-w)); }
+    #header { left: 0; }
+    #main, #footer { margin-left: 0; }
+    body.toggle-sidebar #sidebar {
+        left: 0;
+        box-shadow: 0 0 0 100vmax rgba(28, 33, 40, .25);
+    }
+}
+
+/* ── Tarjetas ────────────────────────────────────────────── */
+
+.card {
+    --bs-card-border-color: var(--hc-borde);
+    --bs-card-border-radius: 10px;
+    --bs-card-cap-bg: transparent;
+    box-shadow: none;
+}
+.card.shadow-sm { box-shadow: none !important; }
+.card.border-0 { border: 1px solid var(--hc-borde) !important; }
+
+.card-body { padding: 1rem 1.25rem; }
+
+/* Encabezado de módulo (tarjeta 1 del patrón de dos tarjetas) */
+.card-body h5 { font-size: .95rem; margin-bottom: .1rem; }
+.card-body small.text-muted { font-size: .75rem; }
+
+/* ── Tablas ──────────────────────────────────────────────── */
+
+.table {
+    --bs-table-hover-bg: #f7f9f8;
+    font-size: .8125rem;
+    color: var(--hc-texto);
+    vertical-align: middle;
+}
+
+.table thead th {
+    font-size: .68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--hc-texto-3);
+    border-bottom: 1px solid var(--hc-borde);
+    padding: .5rem .75rem;
+    white-space: nowrap;
+}
+
+.table tbody td {
+    padding: .55rem .75rem;
+    border-color: var(--hc-borde-suave);
+}
+
+/* ── Botones ─────────────────────────────────────────────── */
+
+.btn {
+    --bs-btn-font-size: .8125rem;
+    --bs-btn-padding-y: .4rem;
+    --bs-btn-padding-x: .85rem;
+    --bs-btn-border-radius: 8px;
+    font-weight: 500;
+}
+.btn-sm { --bs-btn-font-size: .72rem; --bs-btn-border-radius: 7px; }
+
+.btn-primary {
+    --bs-btn-bg: var(--hc-verde);
+    --bs-btn-border-color: var(--hc-verde);
+    --bs-btn-hover-bg: var(--hc-verde-hover);
+    --bs-btn-hover-border-color: var(--hc-verde-hover);
+    --bs-btn-active-bg: var(--hc-verde-hover);
+    --bs-btn-active-border-color: var(--hc-verde-hover);
+    --bs-btn-disabled-bg: var(--hc-verde);
+    --bs-btn-disabled-border-color: var(--hc-verde);
+}
+
+.btn-success {
+    --bs-btn-bg: #1d8a5b;
+    --bs-btn-border-color: #1d8a5b;
+    --bs-btn-hover-bg: #16724a;
+    --bs-btn-hover-border-color: #16724a;
+    --bs-btn-active-bg: #16724a;
+    --bs-btn-active-border-color: #16724a;
+}
+
+.btn-outline-success {
+    --bs-btn-color: var(--hc-verde);
+    --bs-btn-border-color: #c8ddd2;
+    --bs-btn-hover-bg: var(--hc-verde-tinte);
+    --bs-btn-hover-color: var(--hc-verde);
+    --bs-btn-hover-border-color: var(--hc-verde);
+    --bs-btn-active-bg: var(--hc-verde-tinte);
+    --bs-btn-active-color: var(--hc-verde);
+    --bs-btn-active-border-color: var(--hc-verde);
+}
+
+.btn-secondary {
+    --bs-btn-bg: #eef0f3;
+    --bs-btn-border-color: #eef0f3;
+    --bs-btn-color: #374151;
+    --bs-btn-hover-bg: #e2e5ea;
+    --bs-btn-hover-border-color: #e2e5ea;
+    --bs-btn-hover-color: #1c2128;
+    --bs-btn-active-bg: #d8dce2;
+    --bs-btn-active-border-color: #d8dce2;
+    --bs-btn-active-color: #1c2128;
+}
+
+.text-primary { color: var(--hc-verde) !important; }
+
+/* ── Formularios ─────────────────────────────────────────── */
+
+.form-label {
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--hc-texto-2);
+    margin-bottom: .3rem;
+}
+
+.form-control, .form-select {
+    font-size: .8125rem;
+    border-radius: 7px;
+    border-color: #d8dce2;
+    color: var(--hc-texto);
+}
+.form-control::placeholder { color: #adb3bc; }
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--hc-verde);
+    box-shadow: 0 0 0 3px rgba(21, 107, 69, .12);
+}
+
+.form-control.is-invalid, .form-select.is-invalid { border-color: #dc3545; }
+.is-invalid ~ .invalid-feedback { display: block; }
+.invalid-feedback { font-size: .72rem; }
+
+/* Select2 (tema Bootstrap 5) */
+.select2-container { width: 100% !important; }
+.select2-container--bootstrap-5 .select2-selection {
+    min-height: 33px;
+    font-size: .8125rem;
+    border-color: #d8dce2;
+    border-radius: 7px;
+}
+.select2-container--bootstrap-5.select2-container--focus .select2-selection,
+.select2-container--bootstrap-5.select2-container--open .select2-selection {
+    border-color: var(--hc-verde);
+    box-shadow: 0 0 0 3px rgba(21, 107, 69, .12);
+}
+.select2-container--bootstrap-5 .select2-dropdown { font-size: .8125rem; border-color: var(--hc-borde); }
+
+/* ── Dropdowns ───────────────────────────────────────────── */
+
+.dropdown-menu {
+    --bs-dropdown-border-color: var(--hc-borde);
+    --bs-dropdown-border-radius: 9px;
+    --bs-dropdown-font-size: .8125rem;
+    --bs-dropdown-item-padding-y: .42rem;
+    --bs-dropdown-link-active-bg: var(--hc-verde-tinte);
+    --bs-dropdown-link-active-color: var(--hc-verde);
+    box-shadow: 0 8px 24px rgba(28, 33, 40, .09);
+}
+.dropdown-menu .dropdown-item i { font-size: .9rem; }
+
+/* ── Modales ─────────────────────────────────────────────── */
+
+.modal-content {
+    border: 1px solid var(--hc-borde);
+    border-radius: 12px;
+    box-shadow: 0 16px 48px rgba(28, 33, 40, .16);
+}
+.modal-header { padding: .9rem 1.25rem; }
+.modal-title { font-size: .9rem; font-weight: 600; }
+.modal-body { padding: 1.25rem; }
+.modal-footer { padding: .7rem 1.25rem; }
+
+/* ── Badges (tintes suaves, estilo formal) ───────────────── */
+
+.badge {
+    font-weight: 500;
+    font-size: .7rem;
+    padding: .32em .7em;
+    border-radius: 999px;
+    letter-spacing: .01em;
+}
+.badge.bg-primary   { background: var(--hc-verde-tinte) !important; color: var(--hc-verde) !important; }
+.badge.bg-success   { background: #e9f3ee !important; color: #156b45 !important; }
+.badge.bg-warning   { background: #fdf3e1 !important; color: #9a6a13 !important; }
+.badge.bg-danger    { background: #fdecec !important; color: #b32d2d !important; }
+.badge.bg-info      { background: #e8f2fb !important; color: #1c6ca8 !important; }
+.badge.bg-secondary { background: #eef0f3 !important; color: #57606a !important; }
+
+/* ── DataTables (controles compactos) ────────────────────── */
+
+.dataTables_wrapper { font-size: .78rem; }
+
+.dataTables_length label,
+.dataTables_filter label,
+.dataTables_info {
+    font-size: .75rem;
+    color: var(--hc-texto-3);
+    font-weight: 400;
+}
+
+.dataTables_wrapper select {
+    display: inline-block;
+    width: auto;
+    margin: 0 .35rem;
+    padding: .25rem 1.6rem .25rem .5rem;
+    font-size: .75rem;
+    border: 1px solid #d8dce2;
+    border-radius: 6px;
+    color: var(--hc-texto);
+    background-color: var(--hc-superficie);
+}
+
+.dataTables_wrapper input[type="search"] {
+    display: inline-block;
+    width: auto;
+    margin-left: .5rem;
+    padding: .3rem .6rem;
+    font-size: .78rem;
+    border: 1px solid #d8dce2;
+    border-radius: 7px;
+    color: var(--hc-texto);
+}
+.dataTables_wrapper input[type="search"]:focus {
+    outline: none;
+    border-color: var(--hc-verde);
+    box-shadow: 0 0 0 3px rgba(21, 107, 69, .12);
+}
+
+.dataTables_wrapper .row:first-child { margin-bottom: .35rem; }
+
+.dataTables_paginate .pagination {
+    --bs-pagination-font-size: .75rem;
+    --bs-pagination-padding-y: .3rem;
+    --bs-pagination-padding-x: .62rem;
+    --bs-pagination-color: var(--hc-texto-2);
+    --bs-pagination-border-color: var(--hc-borde);
+    --bs-pagination-hover-color: var(--hc-verde);
+    --bs-pagination-hover-bg: var(--hc-fondo);
+    --bs-pagination-focus-color: var(--hc-verde);
+    --bs-pagination-focus-box-shadow: none;
+    --bs-pagination-active-bg: var(--hc-verde);
+    --bs-pagination-active-border-color: var(--hc-verde);
+    margin-bottom: 0;
+}
+
+/* ── Compatibilidad: dashboard (clases heredadas) ────────── */
+
+.dashboard .card-title {
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--hc-texto-2);
+    padding: 0 0 .8rem;
+    margin: 0;
+}
+
+.dashboard .card-body h6 { font-size: 1.3rem; font-weight: 600; margin: 0; }
+
+.dashboard .card-icon {
+    width: 42px;
+    height: 42px;
+    font-size: 1.15rem;
+    background: var(--hc-verde-tinte);
+    color: var(--hc-verde);
+    flex-shrink: 0;
+}
+
+/* ── SweetAlert2: tipografía coherente ───────────────────── */
+
+.swal2-popup { font-family: inherit; font-size: .9rem; border-radius: 12px; }
+.swal2-styled.swal2-confirm { background-color: var(--hc-verde) !important; border-radius: 8px !important; }

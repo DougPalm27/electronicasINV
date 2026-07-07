@@ -82,5 +82,22 @@ if (empty($_GET['module'])) {
         } else {
             accesoDenegado();
         }
+    } else {
+        echo '<section class="section">
+            <div class="row justify-content-center mt-5">
+                <div class="col-md-6 text-center">
+                    <div class="card">
+                        <div class="card-body py-5">
+                            <i class="bi bi-question-circle text-muted" style="font-size:3rem"></i>
+                            <h4 class="mt-3">Módulo no encontrado</h4>
+                            <p class="text-muted">La página solicitada no existe o fue movida.</p>
+                            <a href="?module=dasboard" class="btn btn-primary mt-2">
+                                <i class="bi bi-house me-1"></i> Volver al inicio
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>';
     }
 }

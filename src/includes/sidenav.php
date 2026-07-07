@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/navContext.php';
+
 $mod = $_GET['module'] ?? '';
 
 // ── Permisos de módulos ─────────────────────────────────
@@ -13,7 +15,7 @@ function puedeVer(string $clave): bool {
 
 // Helpers para clases activas
 function navLink(string $modulo, string $actual): string {
-    return $modulo === $actual ? 'nav-link' : 'nav-link collapsed';
+    return $modulo === $actual ? 'nav-link active' : 'nav-link';
 }
 function navSubItem(string $modulo, string $actual): string {
     return $modulo === $actual ? 'active' : '';
@@ -33,12 +35,20 @@ foreach ($parametrizacion as $p) {
   <!-- ======= Sidebar ======= -->
   <aside id="sidebar" class="sidebar">
 
+    <a href="inicio.php" class="sidebar-brand">
+      <span class="brand-icon"><i class="bi bi-box-seam"></i></span>
+      <span>
+        <span class="brand-name">Honducafe</span>
+        <span class="brand-sub"><?= htmlspecialchars(nombreSeccion(moduloActual())) ?></span>
+      </span>
+    </a>
+
     <ul class="sidebar-nav" id="sidebar-nav">
 
       <!-- Dashboard -->
       <?php if (puedeVer('dasboard')): ?>
       <li class="nav-item">
-        <a class="<?= ($mod === '' || $mod === 'dasboard') ? 'nav-link' : 'nav-link collapsed' ?>"
+        <a class="<?= ($mod === '' || $mod === 'dasboard') ? 'nav-link active' : 'nav-link' ?>"
            href="?module=dasboard">
           <i class="bi bi-grid"></i>
           <span>Dashboard</span>
@@ -111,9 +121,9 @@ foreach ($parametrizacion as $p) {
       <li class="nav-item">
         <a class="nav-link <?= $paraOpen ? '' : 'collapsed' ?>"
            data-bs-target="#tables-nav" data-bs-toggle="collapse" href="#">
-          <i class="bi bi-layout-text-window-reverse"></i>
+          <i class="bi bi-sliders"></i>
           <span>Parametrización</span>
-          <i class="bi bi-chevron-down ms-auto"></i>
+          <i class="bi bi-chevron-down"></i>
         </a>
         <ul id="tables-nav"
             class="nav-content collapse <?= $paraOpen ? 'show' : '' ?>"
@@ -121,35 +131,35 @@ foreach ($parametrizacion as $p) {
           <?php if (puedeVer('proveedores')): ?>
           <li>
             <a href="?module=proveedores" class="<?= navSubItem('proveedores', $mod) ?>">
-              <i class="bi bi-circle"></i><span>Proveedores</span>
+              <span>Proveedores</span>
             </a>
           </li>
           <?php endif; ?>
           <?php if (puedeVer('marcas')): ?>
           <li>
             <a href="?module=marcas" class="<?= navSubItem('marcas', $mod) ?>">
-              <i class="bi bi-circle"></i><span>Marcas</span>
+              <span>Marcas</span>
             </a>
           </li>
           <?php endif; ?>
           <?php if (puedeVer('modelos')): ?>
           <li>
             <a href="?module=modelos" class="<?= navSubItem('modelos', $mod) ?>">
-              <i class="bi bi-circle"></i><span>Modelos</span>
+              <span>Modelos</span>
             </a>
           </li>
           <?php endif; ?>
           <?php if (puedeVer('tiposRepuestos')): ?>
           <li>
             <a href="?module=tiposRepuestos" class="<?= navSubItem('tiposRepuestos', $mod) ?>">
-              <i class="bi bi-circle"></i><span>Tipos de Repuestos</span>
+              <span>Tipos de Repuestos</span>
             </a>
           </li>
           <?php endif; ?>
           <?php if (puedeVer('divisas')): ?>
           <li>
             <a href="?module=divisas" class="<?= navSubItem('divisas', $mod) ?>">
-              <i class="bi bi-circle"></i><span>Divisas</span>
+              <span>Divisas</span>
             </a>
           </li>
           <?php endif; ?>
@@ -190,7 +200,7 @@ foreach ($parametrizacion as $p) {
       <?php if (puedeVer('gpsCredenciales')): ?>
       <li class="nav-item">
         <a class="<?= navLink('gpsCredenciales', $mod) ?>" href="?module=gpsCredenciales">
-          <i class="bi bi-geo-alt-fill"></i>
+          <i class="bi bi-geo-alt"></i>
           <span>Credenciales GPS</span>
         </a>
       </li>
@@ -208,7 +218,7 @@ foreach ($parametrizacion as $p) {
       <?php if (puedeVer('gpsCuentas')): ?>
       <li class="nav-item">
         <a class="<?= navLink('gpsCuentas', $mod) ?>" href="?module=gpsCuentas">
-          <i class="bi bi-key-fill"></i>
+          <i class="bi bi-key"></i>
           <span>Cuentas GPS</span>
         </a>
       </li>
@@ -224,9 +234,9 @@ foreach ($parametrizacion as $p) {
       <li class="nav-item">
         <a class="nav-link <?= $gpsParamOpen ? '' : 'collapsed' ?>"
            data-bs-target="#gps-param-nav" data-bs-toggle="collapse" href="#">
-          <i class="bi bi-sliders"></i>
+          <i class="bi bi-gear"></i>
           <span>Parametrización GPS</span>
-          <i class="bi bi-chevron-down ms-auto"></i>
+          <i class="bi bi-chevron-down"></i>
         </a>
         <ul id="gps-param-nav"
             class="nav-content collapse <?= $gpsParamOpen ? 'show' : '' ?>"
@@ -234,21 +244,21 @@ foreach ($parametrizacion as $p) {
           <?php if (puedeVer('gpsTiposVehiculo')): ?>
           <li>
             <a href="?module=gpsTiposVehiculo" class="<?= navSubItem('gpsTiposVehiculo', $mod) ?>">
-              <i class="bi bi-circle"></i><span>Tipos de Vehículo</span>
+              <span>Tipos de Vehículo</span>
             </a>
           </li>
           <?php endif; ?>
           <?php if (puedeVer('gpsDestinos')): ?>
           <li>
             <a href="?module=gpsDestinos" class="<?= navSubItem('gpsDestinos', $mod) ?>">
-              <i class="bi bi-circle"></i><span>Destinos</span>
+              <span>Destinos</span>
             </a>
           </li>
           <?php endif; ?>
           <?php if (puedeVer('gpsPlataformas')): ?>
           <li>
             <a href="?module=gpsPlataformas" class="<?= navSubItem('gpsPlataformas', $mod) ?>">
-              <i class="bi bi-circle"></i><span>Plataformas</span>
+              <span>Plataformas</span>
             </a>
           </li>
           <?php endif; ?>

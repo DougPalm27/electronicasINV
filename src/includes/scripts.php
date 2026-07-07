@@ -1,12 +1,6 @@
 <!-- ── Librerías que NO dependen de jQuery ─────────────────── -->
 <script src="./assets/vendor/apexcharts/apexcharts.min.js"></script>
 <script src="./assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="./assets/vendor/chart.js/chart.umd.js"></script>
-<script src="./assets/vendor/echarts/echarts.min.js"></script>
-<script src="./assets/vendor/quill/quill.min.js"></script>
-<script src="./assets/vendor/simple-datatables/simple-datatables.js"></script>
-<script src="./assets/vendor/tinymce/tinymce.min.js"></script>
-<script src="./assets/vendor/php-email-form/validate.js"></script>
 
 <!-- ── jQuery primero (requerido por DataTables, Select2, etc.) ── -->
 <script src="./assets/js/jquery.js"></script>
@@ -22,8 +16,8 @@
 <script src="./assets/vendor/datatables.net-buttons-bs4/js/buttons.bootstrap4.min.js"></script>
 <script src="./assets/vendor/datatables.net-select/js/dataTables.select.min.js"></script>
 
-<!-- Template Main JS File -->
-<script src="./assets/js/main.js"></script>
+<!-- JS del sistema -->
+<script src="./assets/js/app.js"></script>
 
 <?php
 /* ── Variables globales inyectadas desde PHP ─────────────── */
@@ -77,7 +71,7 @@ try {
                     icon: 'warning', title: 'Sesión expirada',
                     text: 'Tu sesión ha terminado. Serás redirigido al login.',
                     timer: 2500, showConfirmButton: false, allowOutsideClick: false
-                }).then(function() { window.location.href = '/Electronicas/index.php'; });
+                }).then(function() { window.location.href = './index.php'; });
             }
         } catch(e) {}
     });

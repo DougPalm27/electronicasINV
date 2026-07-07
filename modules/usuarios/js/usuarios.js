@@ -165,7 +165,7 @@ $(document).ready(function () {
 
         $.post(CTRL_USR, datos, function (resp) {
             if (!resp.ok) {
-                Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje, confirmButtonColor: '#4154f1' });
+                Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje, confirmButtonColor: '#156b45' });
                 return;
             }
             cerrarModal('#modalUsuario');
@@ -190,7 +190,7 @@ $(document).ready(function () {
         const pwd = $('#reset_password').val();
 
         if (pwd.length < 6) {
-            Swal.fire({ icon: 'warning', title: 'Contraseña muy corta', text: 'Mínimo 6 caracteres.', confirmButtonColor: '#4154f1' });
+            Swal.fire({ icon: 'warning', title: 'Contraseña muy corta', text: 'Mínimo 6 caracteres.', confirmButtonColor: '#156b45' });
             return;
         }
 
@@ -225,7 +225,7 @@ $(document).ready(function () {
             showCancelButton: true,
             confirmButtonText: 'Sí',
             cancelButtonText: 'No',
-            confirmButtonColor: '#4154f1'
+            confirmButtonColor: '#156b45'
         }).then(res => {
             if (!res.isConfirmed) return;
             $.post(CTRL_USR, { accion: 'toggleActivo', id_usuario: id }, function (resp) {

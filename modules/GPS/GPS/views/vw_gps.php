@@ -1,33 +1,37 @@
-<div class="col-lg-12">
-  <div class="card">
-    <div class="card-body">
-
-      <h5 class="card-title">Credenciales GPS</h5>
-
-      <div class="d-flex justify-content-between mb-3">
-        <button class="btn btn-primary" id="btnNuevoGPS">
-          <i class="bi bi-plus-circle me-1"></i> Nuevo vehículo
-        </button>
-        <button class="btn btn-outline-secondary" id="btnAbrirCustodios">
-          <i class="bi bi-person-vcard me-1"></i> Custodios
-        </button>
+<div class="row mb-3">
+  <div class="col-12">
+    <div class="card shadow-sm border-0">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="mb-0">Credenciales GPS</h5>
+          <small class="text-muted">Vehículos y accesos a plataformas de rastreo</small>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary" id="btnAbrirCustodios">
+            <i class="bi bi-person-vcard me-1"></i> Custodios
+          </button>
+          <button class="btn btn-primary" id="btnNuevoGPS">
+            <i class="bi bi-plus-circle me-1"></i> Nuevo vehículo
+          </button>
+        </div>
       </div>
-
-      <div>
-        <table id="tblGPS" class="table table-hover w-100">
-          <thead>
-            <tr>
-              <th>Placa</th><th>Tipo</th><th>Transporte</th>
-              <th>Plataforma</th><th>Destino</th>
-              <th class="text-center">Estado</th>
-              <th class="text-center">Acciones</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
     </div>
+  </div>
+</div>
+
+<div class="card shadow-sm border-0">
+  <div class="card-body">
+    <table id="tblGPS" class="table table-hover w-100">
+      <thead>
+        <tr>
+          <th>Placa</th><th>Tipo</th><th>Transporte</th>
+          <th>Plataforma</th><th>Destino</th>
+          <th class="text-center">Estado</th>
+          <th class="text-center">Acciones</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
 </div>
 
@@ -239,9 +243,6 @@
 </div>
 
 <style>
-  .is-invalid ~ .invalid-feedback { display: block !important; }
-  .form-control.is-invalid,
-  .form-select.is-invalid { border-color: #dc3545 !important; box-shadow: 0 0 0 0.2rem rgba(220,53,69,.2) !important; }
   #gps_info_plataforma, #gps_info_usuario, #gps_info_contrasena { background: #f8f9fa; color: #495057; }
   .placa-row input { text-transform: uppercase; }
 

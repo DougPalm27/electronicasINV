@@ -2,37 +2,47 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/navContext.php';
 
-$nombreUsuario = $_SESSION['nombre']  ?? 'Usuario';
-$username      = $_SESSION['usuario'] ?? '';
+$nombreUsuario = $_SESSION['nombre']     ?? 'Usuario';
+$username      = $_SESSION['usuario']    ?? '';
+$rolUsuario    = $_SESSION['nombre_rol'] ?? '';
 $seccionHeader = nombreSeccion(moduloActual());
+$tituloModulo  = tituloModulo(moduloActual());
+
+// Iniciales para el avatar (máx. 2 letras)
+$iniciales = '';
+foreach (preg_split('/\s+/', trim($nombreUsuario)) as $palabra) {
+    if ($palabra === '') continue;
+    $iniciales .= mb_strtoupper(mb_substr($palabra, 0, 1));
+    if (mb_strlen($iniciales) >= 2) break;
+}
+if ($iniciales === '') $iniciales = 'U';
 ?>
 <!-- ======= Header ======= -->
-<header id="header" class="header fixed-top d-flex align-items-center">
+<header id="header" class="header">
 
-    <div class="d-flex align-items-center justify-content-between">
-        <a href="inicio.php" class="logo d-flex align-items-center">
-            <img src="./assets/img/trazabilidad.png" alt="">
-            <span class="d-none d-lg-block"><?= htmlspecialchars($seccionHeader) ?></span>
-        </a>
-        <i class="bi bi-list toggle-sidebar-btn"></i>
+    <i class="bi bi-list toggle-sidebar-btn" role="button" aria-label="Alternar menú"></i>
+
+    <div class="hc-breadcrumb d-none d-sm-block">
+        <?= htmlspecialchars($seccionHeader) ?>
+        <span class="sep">/</span>
+        <span class="actual"><?= htmlspecialchars($tituloModulo) ?></span>
     </div>
 
     <nav class="header-nav ms-auto">
         <ul class="d-flex align-items-center">
 
-            <li class="nav-item dropdown pe-3">
-                <a class="nav-link nav-profile d-flex align-items-center pe-0"
+            <li class="nav-item dropdown">
+                <a class="nav-link nav-profile d-flex align-items-center"
                    href="#" data-bs-toggle="dropdown">
-                    <img src="./assets/img/usuario.png" alt="Profile" class="rounded-circle">
-                    <span class="d-none d-md-block dropdown-toggle ps-2">
-                        <?= htmlspecialchars($nombreUsuario) ?>
-                    </span>
+                    <span class="avatar-ini"><?= htmlspecialchars($iniciales) ?></span>
+                    <span class="d-none d-md-block"><?= htmlspecialchars($nombreUsuario) ?></span>
+                    <i class="bi bi-chevron-down d-none d-md-block" style="font-size:.6rem"></i>
                 </a>
 
-                <ul class="dropdown-menu dropdown-menu-end dropdown-menu-arrow profile">
+                <ul class="dropdown-menu dropdown-menu-end">
                     <li class="dropdown-header">
                         <h6><?= htmlspecialchars($nombreUsuario) ?></h6>
-                        <span><?= htmlspecialchars($username) ?></span>
+                        <span><?= htmlspecialchars($username) ?><?= $rolUsuario ? ' · ' . htmlspecialchars($rolUsuario) : '' ?></span>
                     </li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
@@ -44,7 +54,7 @@ $seccionHeader = nombreSeccion(moduloActual());
                     </li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
-                        <a class="dropdown-item d-flex align-items-center"
+                        <a class="dropdown-item d-flex align-items-center text-danger"
                            href="<?= rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') ?>/logout.php">
                             <i class="bi bi-box-arrow-right me-2"></i>
                             <span>Cerrar sesión</span>
@@ -97,10 +107,5 @@ $seccionHeader = nombreSeccion(moduloActual());
         </div>
     </div>
 </div>
-
-<style>
-    #modalCambiarPassword .is-invalid ~ .invalid-feedback { display: block !important; }
-    #modalCambiarPassword .is-invalid { border-color: #dc3545 !important; }
-</style>
 
 <!-- Script de cambiar contraseña cargado desde scripts.php (después de jQuery) -->

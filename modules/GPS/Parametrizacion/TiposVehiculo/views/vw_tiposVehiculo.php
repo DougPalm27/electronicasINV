@@ -1,29 +1,31 @@
-<div class="col-lg-12">
-  <div class="card">
-    <div class="card-body">
-
-      <h5 class="card-title">Tipos de Vehículo</h5>
-
-      <div class="d-flex justify-content-between mb-3">
+<div class="row mb-3">
+  <div class="col-12">
+    <div class="card shadow-sm border-0">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="mb-0">Tipos de Vehículo</h5>
+          <small class="text-muted">Catálogo de tipos de vehículo</small>
+        </div>
         <button class="btn btn-primary" id="btnNuevoTipoV">
           <i class="bi bi-plus-circle me-1"></i> Nuevo tipo
         </button>
       </div>
-
-      <div class="table-responsive">
-        <table id="tblTiposVehiculo" class="table table-striped">
-          <thead>
-            <tr>
-              <th>Nombre</th><th>Fecha creación</th>
-              <th>Creado por</th><th class="text-center">Estado</th>
-              <th class="text-center">Acciones</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
     </div>
+  </div>
+</div>
+
+<div class="card shadow-sm border-0">
+  <div class="card-body">
+    <table id="tblTiposVehiculo" class="table table-hover w-100">
+      <thead>
+        <tr>
+          <th>Nombre</th><th>Fecha creación</th>
+          <th>Creado por</th><th class="text-center">Estado</th>
+          <th class="text-center">Acciones</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
 </div>
 
@@ -53,8 +55,3 @@
   </div>
 </div>
 
-<style>
-  .is-invalid ~ .invalid-feedback { display: block !important; }
-  .form-control.is-invalid,
-  .form-select.is-invalid { border-color: #dc3545 !important; box-shadow: 0 0 0 0.2rem rgba(220,53,69,.2) !important; }
-</style>

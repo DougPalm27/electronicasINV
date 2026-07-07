@@ -92,8 +92,3 @@
         </div>
     </div>
 </div>
-
-<style>
-    .is-invalid ~ .invalid-feedback { display: block !important; }
-    .is-invalid { border-color: #dc3545 !important; }
-</style>

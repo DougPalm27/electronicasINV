@@ -105,7 +105,7 @@
 
 <style>
     .grupo-modulos { background: #f8f9fa; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; }
-    .grupo-modulos .grupo-titulo { font-weight: 600; color: #4154f1; margin-bottom: 8px; font-size: .85rem; text-transform: uppercase; letter-spacing: .5px; }
+    .grupo-modulos .grupo-titulo { font-weight: 600; color: #156b45; margin-bottom: 8px; font-size: .85rem; text-transform: uppercase; letter-spacing: .5px; }
     .grupo-modulos .form-check { padding: 3px 0 3px 1.5rem; }
     .grupo-modulos .form-check-input { cursor: pointer; }
     .modulo-item { display: flex; align-items: center; gap: 6px; }
