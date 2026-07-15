@@ -157,9 +157,26 @@ class mdlComponentes
                     'mensaje' => 'Este componente tiene sub-componentes: eliminálos o reasignálos primero.'];
         }
 
-        $this->conn->prepare(
-            "DELETE FROM electronicas.ModeloComponentes WHERE id_modelo_componente = ?"
-        )->execute([$id]);
+        // Quitar también las instancias por máquina y su historial
+        $this->conn->beginTransaction();
+        try {
+            $this->conn->prepare(
+                "DELETE h FROM electronicas.ComponenteHistorial h
+                 INNER JOIN electronicas.MaquinaComponentes mc
+                         ON mc.id_maquina_componente = h.id_maquina_componente
+                 WHERE mc.id_modelo_componente = ?"
+            )->execute([$id]);
+            $this->conn->prepare(
+                "DELETE FROM electronicas.MaquinaComponentes WHERE id_modelo_componente = ?"
+            )->execute([$id]);
+            $this->conn->prepare(
+                "DELETE FROM electronicas.ModeloComponentes WHERE id_modelo_componente = ?"
+            )->execute([$id]);
+            $this->conn->commit();
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            throw $e;
+        }
         return ['ok' => true];
     }
 
@@ -197,5 +214,141 @@ class mdlComponentes
         $this->conn->prepare(
             "UPDATE electronicas.Modelos SET imagen_esquema = ? WHERE id_modelo = ?"
         )->execute([$ruta, $id_modelo]);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // ESTADOS POR MÁQUINA (patrón eyectores)
+    // ══════════════════════════════════════════════════════════════
+
+    /** Modelos que tienen componentes en catálogo (para el dropdown de Máquinas). */
+    public function modelosConComponentes(): array
+    {
+        return $this->conn
+            ->query("SELECT DISTINCT id_modelo FROM electronicas.ModeloComponentes")
+            ->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    /**
+     * Estado de los componentes de una máquina. Crea las instancias que
+     * falten (una por componente de primer nivel del modelo, en estado OK).
+     */
+    public function estadoMaquina(int $id_maquina): array
+    {
+        $stmtM = $this->conn->prepare(
+            "SELECT mq.id_maquina, mq.nombre AS maquina, mq.id_modelo,
+                    mo.nombre AS modelo, mo.imagen_esquema,
+                    (SELECT COUNT(*) FROM electronicas.ConfiguracionEyectores ce
+                     WHERE ce.id_modelo = mq.id_modelo AND ce.activo = 1) AS tiene_eyectores
+             FROM electronicas.Maquinas mq
+             INNER JOIN electronicas.Modelos mo ON mo.id_modelo = mq.id_modelo
+             WHERE mq.id_maquina = ?"
+        );
+        $stmtM->execute([$id_maquina]);
+        $maquina = $stmtM->fetch(PDO::FETCH_ASSOC);
+        if (!$maquina) return [];
+
+        // Crear instancias faltantes (primer nivel del catálogo del modelo)
+        $this->conn->prepare(
+            "INSERT INTO electronicas.MaquinaComponentes (id_maquina, id_modelo_componente)
+             SELECT ?, mc.id_modelo_componente
+             FROM electronicas.ModeloComponentes mc
+             WHERE mc.id_modelo = ? AND mc.id_padre IS NULL
+               AND NOT EXISTS (
+                   SELECT 1 FROM electronicas.MaquinaComponentes x
+                   WHERE x.id_maquina = ? AND x.id_modelo_componente = mc.id_modelo_componente
+               )"
+        )->execute([$id_maquina, $maquina['id_modelo'], $id_maquina]);
+
+        $stmtC = $this->conn->prepare(
+            "SELECT maq.id_maquina_componente, maq.id_estado, maq.observacion,
+                    CONVERT(varchar, maq.fecha_actualizacion, 120) AS fecha_actualizacion,
+                    mc.id_modelo_componente, mc.cantidad, mc.especificacion,
+                    mc.pos_x, mc.pos_y,
+                    c.nombre AS componente, c.categoria,
+                    es.nombre AS estado, es.clase_css,
+                    (SELECT COUNT(*) FROM electronicas.ModeloComponentes hijo
+                     WHERE hijo.id_padre = mc.id_modelo_componente) AS hijos
+             FROM electronicas.MaquinaComponentes maq
+             INNER JOIN electronicas.ModeloComponentes mc
+                     ON mc.id_modelo_componente = maq.id_modelo_componente
+             INNER JOIN electronicas.Componentes c ON c.id_componente = mc.id_componente
+             INNER JOIN electronicas.EstadoEyector es ON es.id_estado = maq.id_estado
+             WHERE maq.id_maquina = ?
+             ORDER BY mc.id_modelo_componente"
+        );
+        $stmtC->execute([$id_maquina]);
+
+        $estados = $this->conn
+            ->query("SELECT id_estado, nombre, clase_css, color
+                     FROM electronicas.EstadoEyector ORDER BY orden")
+            ->fetchAll(PDO::FETCH_ASSOC);
+
+        return [
+            'maquina'     => $maquina,
+            'estados'     => $estados,
+            'componentes' => $stmtC->fetchAll(PDO::FETCH_ASSOC),
+        ];
+    }
+
+    /** Cambia el estado de un componente de máquina y registra el historial. */
+    public function actualizarEstado(int $id, int $id_estado, ?string $observacion, int $id_usuario): array
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT id_estado FROM electronicas.MaquinaComponentes WHERE id_maquina_componente = ?"
+        );
+        $stmt->execute([$id]);
+        $anterior = $stmt->fetchColumn();
+        if ($anterior === false) {
+            return ['error' => true, 'mensaje' => 'Componente no encontrado.'];
+        }
+
+        $this->conn->beginTransaction();
+        try {
+            $this->conn->prepare(
+                "UPDATE electronicas.MaquinaComponentes
+                 SET id_estado = ?, observacion = ?,
+                     fecha_actualizacion = GETDATE(), id_usuario_actualiza = ?
+                 WHERE id_maquina_componente = ?"
+            )->execute([$id_estado, $observacion ?: null, $id_usuario, $id]);
+
+            $this->conn->prepare(
+                "INSERT INTO electronicas.ComponenteHistorial
+                     (id_maquina_componente, id_estado_anterior, id_estado_nuevo, observacion, id_usuario)
+                 VALUES (?, ?, ?, ?, ?)"
+            )->execute([$id, $anterior, $id_estado, $observacion ?: null, $id_usuario]);
+
+            $this->conn->commit();
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            throw $e;
+        }
+        return ['ok' => true];
+    }
+
+    /** Historial de cambios de componentes de una máquina (más recientes primero). */
+    public function historialMaquina(int $id_maquina): array
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT TOP 500
+                    CONVERT(varchar, h.fecha, 120) AS fecha,
+                    c.nombre AS componente,
+                    ea.nombre AS estado_anterior, ea.clase_css AS clase_anterior,
+                    en.nombre AS estado_nuevo,    en.clase_css AS clase_nuevo,
+                    h.observacion,
+                    u.nombre AS usuario
+             FROM electronicas.ComponenteHistorial h
+             INNER JOIN electronicas.MaquinaComponentes maq
+                     ON maq.id_maquina_componente = h.id_maquina_componente
+             INNER JOIN electronicas.ModeloComponentes mc
+                     ON mc.id_modelo_componente = maq.id_modelo_componente
+             INNER JOIN electronicas.Componentes c ON c.id_componente = mc.id_componente
+             INNER JOIN electronicas.EstadoEyector en ON en.id_estado = h.id_estado_nuevo
+             LEFT  JOIN electronicas.EstadoEyector ea ON ea.id_estado = h.id_estado_anterior
+             LEFT  JOIN electronicas.Usuarios u ON u.id_usuario = h.id_usuario
+             WHERE maq.id_maquina = ?
+             ORDER BY h.fecha DESC, h.id_historial DESC"
+        );
+        $stmt->execute([$id_maquina]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

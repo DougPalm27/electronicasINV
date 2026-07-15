@@ -179,9 +179,10 @@ if (!empty($_GET['module'])) {
         echo '<script src="' . $map[$mod] . '"></script>';
     }
 
-    // Módulo de eyectores: se usa dentro de la vista de Máquinas
+    // Módulos de eyectores y componentes: se usan dentro de la vista de Máquinas
     if ($mod === 'maquinas') {
         echo '<script src="./modules/Electronicas/Eyectores/js/eyectores.js"></script>';
+        echo '<script src="./modules/Electronicas/Componentes/js/componentesMaquina.js"></script>';
     }
 
     // Directorio de custodios: se usa dentro de la vista de Credenciales GPS

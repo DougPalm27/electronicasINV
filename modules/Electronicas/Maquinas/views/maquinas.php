@@ -222,6 +222,70 @@
     </div>
 </div>
 
+<!-- ── Modal: Componentes de la máquina (estados) ──────────── -->
+<div class="modal fade" id="modalComponentesMaquina" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0">
+                        <i class="bi bi-diagram-3 me-2"></i>
+                        Componentes — <span id="cmMaquinaNombre" class="fw-bold"></span>
+                    </h5>
+                    <div class="d-flex gap-3 flex-wrap mt-2 small">
+                        <span><span class="ey-legend bg-success"></span> OK</span>
+                        <span><span class="ey-legend bg-danger"></span> Falla</span>
+                        <span><span class="ey-legend bg-warning"></span> Advertencia</span>
+                        <span><span class="ey-legend bg-secondary"></span> Apagado</span>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <div id="cmContenido" style="min-height:180px">
+                    <div class="text-center py-5"><span class="spinner-border text-primary"></span></div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary d-none" id="btnHistorialComponentes">
+                    <i class="bi bi-clock-history me-1"></i>Historial
+                </button>
+                <button class="btn btn-outline-success d-none" id="btnVerBarraEyectores">
+                    <i class="bi bi-grid-3x3-gap me-1"></i>Ver barra de eyectores
+                </button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Modal: Historial de componentes de la máquina ───────── -->
+<div class="modal fade" id="modalHistorialComponentes" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title mb-0">
+                    <i class="bi bi-clock-history me-2"></i>
+                    Historial de componentes — <span id="cmHistMaquinaNombre" class="fw-bold"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="form-control form-control-sm mb-3" id="cmHistFiltro"
+                       placeholder="Filtrar por componente, estado o usuario">
+                <div id="cmHistContenido" style="min-height:150px">
+                    <div class="text-center py-5"><span class="spinner-border text-primary"></span></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ── Modal: Componentes — Barra de eyectores ─────────────── -->
 <div class="modal fade" id="modalEyectores" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -331,6 +395,52 @@
 </div>
 
 <style>
+    /* ── Componentes por máquina: radiografía y estados ── */
+    .cm-lienzo {
+        position: relative;
+        border: 1px solid var(--hc-borde-suave);
+        background: #fff;
+        max-width: 420px;
+        margin: 0 auto 1rem;
+    }
+    .cm-lienzo img { display: block; width: 100%; height: auto; }
+    .cm-pin {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 1.6px solid rgba(0, 0, 0, .35);
+        color: #fff;
+        font-family: var(--hc-mono);
+        font-size: .68rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        user-select: none;
+    }
+    .cm-pin.bg-warning { color: #1c2128; }
+    .cm-pin.activo, .cm-pin:hover { z-index: 3; box-shadow: 0 0 0 3px var(--hc-verde-tinte); }
+
+    .cm-item { cursor: pointer; }
+    .cm-item.activo, .cm-item:hover { background: #f0f3ef; }
+    .cm-item .cm-num {
+        font-family: var(--hc-mono);
+        font-size: .62rem;
+        font-weight: 700;
+        width: 18px; height: 18px;
+        border: 1.2px solid var(--hc-tinta);
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .cm-item .cm-espec { color: var(--hc-texto-2); font-size: .78rem; }
+    .cm-item .cm-obs   { color: var(--hc-texto-3); font-size: .74rem; }
+
     /* ── Tarjetas por modelo ── */
     .modelo-card {
         cursor: pointer;

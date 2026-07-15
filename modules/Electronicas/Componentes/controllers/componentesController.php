@@ -10,7 +10,8 @@ include_once "../models/mdlComponentes.php";
 $model  = new mdlComponentes();
 $accion = $_POST['accion'] ?? '';
 
-$esAdmin = ($_SESSION['nombre_rol'] ?? '') === 'Administrador';
+$esAdmin  = ($_SESSION['nombre_rol'] ?? '') === 'Administrador';
+$esEditor = in_array($_SESSION['nombre_rol'] ?? '', ['Administrador', 'Técnico'], true);
 
 function response($data = [], $error = false, $mensaje = "")
 {
@@ -167,6 +168,39 @@ try {
             $model->guardarEsquema($id, $ruta);
             borrarEsquemaAnterior($anterior);
             response(['imagen_esquema' => $ruta], false, "Esquema actualizado");
+            break;
+
+        // ── Estados por máquina ────────────────────────────
+        case 'modelosConComponentes':
+            response($model->modelosConComponentes());
+            break;
+
+        case 'estadoMaquina':
+            $id = (int)($_POST['id_maquina'] ?? 0);
+            if (!$id) response([], true, "Máquina inválida");
+            $data = $model->estadoMaquina($id);
+            if (!$data) response([], true, "Máquina no encontrada");
+            response($data);
+            break;
+
+        case 'actualizarEstado':
+            if (!$esEditor) response([], true, "No tienes permiso para modificar componentes.");
+            $id       = (int)($_POST['id_maquina_componente'] ?? 0);
+            $idEstado = (int)($_POST['id_estado'] ?? 0);
+            if (!$id || !$idEstado) response([], true, "Datos incompletos");
+            $resp = $model->actualizarEstado(
+                $id, $idEstado,
+                trim($_POST['observacion'] ?? ''),
+                (int)($_SESSION['id_usuario'] ?? 0)
+            );
+            if (isset($resp['error'])) response([], true, $resp['mensaje']);
+            response([], false, "Componente actualizado");
+            break;
+
+        case 'historialComponentes':
+            $id = (int)($_POST['id_maquina'] ?? 0);
+            if (!$id) response([], true, "Máquina inválida");
+            response($model->historialMaquina($id));
             break;
 
         default:

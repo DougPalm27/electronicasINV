@@ -1,6 +1,7 @@
 let tablaMaquinas = null;
 let estadosMaquina = [];
 let modelosConEyectores = new Set();
+let modelosConComponentes = new Set();
 let maquinasData = [];      // dataset completo (se agrupa en cards y alimenta la tabla)
 let modeloActual;           // undefined = vista cards · null = todas · id = modelo filtrado
 
@@ -11,9 +12,10 @@ $(document).ready(function () {
 function init() {
   initTabla();
 
-  // Carga los modelos que tienen barra de eyectores antes de dibujar la tabla,
-  // para que el dropdown muestre "Componentes" solo donde aplica.
-  cargarModelosConEyectores(listarMaquinas);
+  // Carga los modelos con barra de eyectores y con catálogo de componentes
+  // antes de dibujar la tabla, para que el dropdown muestre "Componentes"
+  // solo donde aplica.
+  cargarModelosConEyectores(() => cargarModelosConComponentes(listarMaquinas));
   listarMarcas();
   listarEstados();
 
@@ -46,7 +48,14 @@ function init() {
       verRepuestos($(this).data("id"));
     })
     .on("click", ".btn-componentes", function () {
-      abrirEyectores($(this).data("id"));
+      const id = $(this).data("id");
+      const idModelo = String($(this).data("modelo"));
+      // Con catálogo de componentes → visor general; si solo hay barra → eyectores
+      if (modelosConComponentes.has(idModelo)) {
+        abrirComponentesMaquina(id);
+      } else {
+        abrirEyectores(id);
+      }
     })
     .on("click", ".btn-baja", function () {
       darDeBaja($(this).data("id"));
@@ -125,9 +134,10 @@ function initTabla() {
                         <i class="bi bi-box-seam me-2 text-primary"></i>Ver repuestos
                     </button>
                 </li>
-                ${modelosConEyectores.has(String(row.id_modelo))
+                ${modelosConEyectores.has(String(row.id_modelo)) || modelosConComponentes.has(String(row.id_modelo))
                   ? `<li>
-                    <button class="dropdown-item btn-componentes" type="button" data-id="${row.id_maquina}">
+                    <button class="dropdown-item btn-componentes" type="button"
+                            data-id="${row.id_maquina}" data-modelo="${row.id_modelo}">
                         <i class="bi bi-grid-3x3-gap me-2 text-success"></i>Componentes
                     </button>
                 </li>`
@@ -285,6 +295,24 @@ function cargarModelosConEyectores(callback) {
     },
     error: function () {
       modelosConEyectores = new Set();
+    },
+    complete: function () {
+      if (callback) callback();
+    },
+  });
+}
+
+function cargarModelosConComponentes(callback) {
+  $.ajax({
+    url: "./modules/Electronicas/Componentes/controllers/componentesController.php",
+    type: "POST",
+    dataType: "json",
+    data: { accion: "modelosConComponentes" },
+    success: function (resp) {
+      modelosConComponentes = new Set(((resp && resp.data) || []).map(String));
+    },
+    error: function () {
+      modelosConComponentes = new Set();
     },
     complete: function () {
       if (callback) callback();
