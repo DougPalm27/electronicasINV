@@ -54,6 +54,7 @@ if (empty($_GET['module'])) {
         'dasboard'       => './modules/dasboard/views/dash.php',
         'repuestos'      => './modules/Electronicas/Repuestos/views/vw_repuestos.php',
         'maquinas'       => './modules/Electronicas/Maquinas/views/maquinas.php',
+        'componentes'    => './modules/Electronicas/Componentes/views/componentes.php',
         'mantenimientos' => './modules/Electronicas/Mantenimientos/views/mantenimientos.php',
         'marcas'         => './modules/Parametrizacion/Marcas/views/vw_marcas.php',
         'modelos'        => './modules/Parametrizacion/Modelos/views/vw_modelos.php',

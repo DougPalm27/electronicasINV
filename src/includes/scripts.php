@@ -153,6 +153,7 @@ if (!empty($_GET['module'])) {
     $map = [
         'repuestos'      => './modules/Electronicas/Repuestos/js/repuestos.js',
         'maquinas'       => './modules/Electronicas/Maquinas/js/maquinas.js',
+        'componentes'    => './modules/Electronicas/Componentes/js/componentes.js',
         'mantenimientos' => './modules/Electronicas/Mantenimientos/js/mantenimientos.js',
         'marcas'         => './modules/Parametrizacion/Marcas/js/marcas.js',
         'modelos'        => './modules/Parametrizacion/Modelos/js/modelos.js',

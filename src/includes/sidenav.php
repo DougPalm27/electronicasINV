@@ -85,6 +85,16 @@ foreach ($parametrizacion as $p) {
       </li>
       <?php endif; ?>
 
+      <!-- Componentes -->
+      <?php if (puedeVer('componentes')): ?>
+      <li class="nav-item">
+        <a class="<?= navLink('componentes', $mod) ?>" href="?module=componentes">
+          <i class="bi bi-diagram-3"></i>
+          <span>Componentes</span>
+        </a>
+      </li>
+      <?php endif; ?>
+
       <!-- Repuestos -->
       <?php if (puedeVer('repuestos')): ?>
       <li class="nav-item">
