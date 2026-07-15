@@ -2,16 +2,16 @@ const CTRL = "./modules/Electronicas/Mantenimientos/Controllers/mantenimientosCo
 
 let tablaMantenimientos     = null;
 let _tareas                 = [];   // tareas del formulario actual
-let _repuestosDisponibles   = [];   // catálogo cargado una vez
 let _instaladosEnMaquina    = [];   // piezas instaladas en la máquina seleccionada
-let _filasRepuestos         = [];   // [{id_repuesto, maneja_serie, cantidad, costo, series:[]}]
+let _solicitudesDisponibles = [];   // solicitudes aprobadas sin usar de la máquina seleccionada
+let _repuestosSolicitud     = [];   // repuestos de la solicitud elegida
+let _seriesSeleccionadas    = {};   // {id_repuesto: [id_detalle_repuesto, ...]}
 let _filasRetiros           = [];   // [{id_maquina_repuesto, tipo_retiro, observaciones}]
 let _tiposMap               = {};   // {id_tipo: descripcion} para mostrar al seleccionar
 
 $(document).ready(function () {
     listarMantenimientos();
     cargarSelects();
-    cargarRepuestosDisponibles();
 
     // ── Inicializar tooltips al abrir el modal ───────────────
     document.getElementById('modalMantenimiento')
@@ -40,18 +40,22 @@ $(document).ready(function () {
         abrirModal("#modalMantenimiento");
     });
 
-    // ── Máquina cambia → cargar instalados para retiros ─────
+    // ── Máquina cambia → cargar instalados y solicitudes ─────
     $("#id_maquina").on("change", function () {
         const id = $(this).val();
         _filasRetiros = [];
         renderRetiros();
+        limpiarSolicitud();
         if (!id || id === "-1") {
             _instaladosEnMaquina = [];
             $("#btnAgregarRetiro").prop("disabled", true);
             $("#emptyRetiros").text("Selecciona una máquina para habilitar esta sección.");
+            $("#sel_solicitud").prop("disabled", true)
+                .html('<option value="">— Selecciona una máquina primero —</option>');
             return;
         }
         cargarInstalados(id);
+        cargarSolicitudes(id);
     });
 
     // ── Agregar tarea del catálogo ──────────────────────────────
@@ -75,52 +79,41 @@ $(document).ready(function () {
         renderTareas();
     });
 
-    // ── Agregar repuesto ─────────────────────────────────────
-    $("#btnAgregarRepuesto").on("click", function () {
-        _filasRepuestos.push({ id_repuesto: "", maneja_serie: 0, cantidad: 1, costo: 0, series: [] });
-        renderRepuestos();
+    // ── Solicitud seleccionada → mostrar repuestos y pre-llenar ──
+    $("#sel_solicitud").on("change", function () {
+        const id = $(this).val();
+        _repuestosSolicitud  = [];
+        _seriesSeleccionadas = {};
+        if (!id) { $("#repuestosSolicitud").empty(); return; }
+        cargarRepuestosSolicitud(id);
+
+        // Pre-llenar tipo, técnico y notas desde la solicitud
+        // (valores iniciales, el usuario puede cambiarlos)
+        const sol = _solicitudesDisponibles.find(s => s.id_solicitud_maquina == id);
+        if (!sol) return;
+        if ($(`#id_tipo option[value="${sol.id_tipo}"]`).length) {
+            $("#id_tipo").val(sol.id_tipo).change();
+        }
+        if (!$("#id_tecnico").prop("disabled") && sol.id_tecnico
+            && $(`#id_tecnico option[value="${sol.id_tecnico}"]`).length) {
+            $("#id_tecnico").val(sol.id_tecnico);
+        }
+        if (!$("#descripcion").val().trim()) {
+            const desc = (sol.descripcion || "")
+                + (sol.descripcion_maquina ? "\n" + sol.descripcion_maquina : "");
+            $("#descripcion").val(desc.trim());
+        }
     });
 
-    // ── Eventos delegados — repuestos ────────────────────────
-    $("#listaRepuestos").on("change", ".sel-repuesto", function () {
-        const idx = parseInt($(this).closest(".rep-row").data("idx"));
-        const opt = $(this).find("option:selected");
-        const rep = _repuestosDisponibles.find(r => r.id_repuesto == $(this).val());
-        if (!rep) return;
-        _filasRepuestos[idx] = {
-            id_repuesto:  rep.id_repuesto,
-            maneja_serie: parseInt(rep.maneja_serie),
-            cantidad:     1,
-            costo:        parseFloat(rep.costo || 0),
-            series:       []
-        };
-        renderRepuestos();
-        // Si maneja serie, cargar series disponibles
-        if (parseInt(rep.maneja_serie) === 1) cargarSeries(idx, rep.id_repuesto);
-    });
-
-    $("#listaRepuestos").on("input", ".inp-cantidad", function () {
-        const idx = parseInt($(this).closest(".rep-row").data("idx"));
-        _filasRepuestos[idx].cantidad = parseInt($(this).val()) || 1;
-    });
-
-    $("#listaRepuestos").on("input", ".inp-costo", function () {
-        const idx = parseInt($(this).closest(".rep-row").data("idx"));
-        _filasRepuestos[idx].costo = parseFloat($(this).val()) || 0;
-    });
-
-    $("#listaRepuestos").on("change", ".chk-serie", function () {
-        const idx   = parseInt($(this).closest(".rep-row").data("idx"));
+    // ── Selección de series de la solicitud (delegado) ───────
+    $("#repuestosSolicitud").on("change", ".chk-serie", function () {
+        const idRep = parseInt($(this).data("rep"));
         const val   = parseInt($(this).val());
-        const arr   = _filasRepuestos[idx].series;
+        if (!_seriesSeleccionadas[idRep]) _seriesSeleccionadas[idRep] = [];
+        const arr = _seriesSeleccionadas[idRep];
         if ($(this).is(":checked")) { if (!arr.includes(val)) arr.push(val); }
-        else { _filasRepuestos[idx].series = arr.filter(v => v !== val); }
-    });
-
-    $("#listaRepuestos").on("click", ".btn-quitar-rep", function () {
-        const idx = parseInt($(this).closest(".rep-row").data("idx"));
-        _filasRepuestos.splice(idx, 1);
-        renderRepuestos();
+        else { _seriesSeleccionadas[idRep] = arr.filter(v => v !== val); }
+        actualizarContadorSeries(idRep);
     });
 
     // ── Agregar retiro ───────────────────────────────────────
@@ -418,22 +411,103 @@ function renderTareas() {
 }
 
 // ════════════════════════════════════════════════════════════
-// REPUESTOS
+// SOLICITUDES DE REPUESTOS (aprobadas, sin usar)
 // ════════════════════════════════════════════════════════════
 
-function cargarRepuestosDisponibles() {
-    $.post(CTRL, { accion: "repuestos" }, function (resp) {
-        if (!resp.ok) return;
-        _repuestosDisponibles = resp.data;
+function limpiarSolicitud() {
+    _solicitudesDisponibles = [];
+    _repuestosSolicitud     = [];
+    _seriesSeleccionadas    = {};
+    $("#sel_solicitud").val("");
+    $("#repuestosSolicitud").empty();
+}
+
+function cargarSolicitudes(id_maquina) {
+    $.post(CTRL, { accion: "solicitudesDisponibles", id_maquina }, function (resp) {
+        _solicitudesDisponibles = resp.ok ? resp.data : [];
+        if (!_solicitudesDisponibles.length) {
+            $("#sel_solicitud").prop("disabled", true)
+                .html('<option value="">— Sin solicitudes aprobadas para esta máquina —</option>');
+            return;
+        }
+        let html = '<option value="">— No usar solicitud —</option>';
+        _solicitudesDisponibles.forEach(s => {
+            const desc = s.descripcion.length > 60 ? s.descripcion.slice(0, 60) + '…' : s.descripcion;
+            html += `<option value="${s.id_solicitud_maquina}">
+                        ${escHtml(s.codigo)} — ${escHtml(desc)} (${escHtml(s.tipo)}, prog. ${escHtml(s.fecha_programada)})
+                     </option>`;
+        });
+        $("#sel_solicitud").prop("disabled", false).html(html);
     }, "json");
 }
 
-function cargarSeries(idx, id_repuesto) {
+function cargarRepuestosSolicitud(id_solicitud_maquina) {
+    $("#repuestosSolicitud").html(
+        '<p class="text-muted small mb-0"><span class="spinner-border spinner-border-sm me-1"></span> Cargando repuestos...</p>'
+    );
+    $.post(CTRL, { accion: "repuestosSolicitud", id_solicitud_maquina }, function (resp) {
+        if (!resp.ok) {
+            $("#repuestosSolicitud").html(`<p class="text-danger small mb-0">${escHtml(resp.mensaje)}</p>`);
+            return;
+        }
+        _repuestosSolicitud = resp.data;
+        renderRepuestosSolicitud();
+    }, "json");
+}
+
+function renderRepuestosSolicitud() {
+    if (!_repuestosSolicitud.length) {
+        $("#repuestosSolicitud").html('<p class="text-muted small fst-italic mb-0">La solicitud no tiene repuestos.</p>');
+        return;
+    }
+
+    let html = '';
+    _repuestosSolicitud.forEach(rep => {
+        const esSerie  = parseInt(rep.maneja_serie) === 1;
+        const stock    = parseInt(rep.stock_actual);
+        const cantidad = parseInt(rep.cantidad);
+        const stockBadge = stock >= cantidad
+            ? `<span class="badge bg-success">${stock} disp.</span>`
+            : `<span class="badge bg-danger">⚠ ${stock} disp.</span>`;
+
+        html += `
+        <div class="card mb-2 rep-sol-row" data-rep="${rep.id_repuesto}">
+            <div class="card-body p-2">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+                    <span>
+                        <strong>${escHtml(rep.repuesto)}</strong>
+                        <span class="badge ${esSerie ? 'bg-info text-dark' : 'bg-secondary'} ms-1" style="font-size:.7rem">
+                            ${esSerie ? 'Serie' : 'Cantidad'}
+                        </span>
+                    </span>
+                    <span>
+                        <span class="me-2 small text-muted">Cant: <strong>${cantidad}</strong></span>
+                        ${stockBadge}
+                    </span>
+                </div>
+                ${esSerie ? `
+                <div class="series-cont mt-2">
+                    <small class="text-muted">
+                        Selecciona <strong>${cantidad}</strong> serie(s):
+                        <span class="contador-series" data-rep="${rep.id_repuesto}">0/${cantidad}</span>
+                    </small>
+                    <div class="series-lista"><span class="spinner-border spinner-border-sm"></span></div>
+                </div>` : ''}
+            </div>
+        </div>`;
+    });
+    $("#repuestosSolicitud").html(html);
+
+    // Cargar series disponibles para los repuestos que las manejan
+    _repuestosSolicitud
+        .filter(r => parseInt(r.maneja_serie) === 1)
+        .forEach(r => cargarSeriesSolicitud(r.id_repuesto));
+}
+
+function cargarSeriesSolicitud(id_repuesto) {
     $.post(CTRL, { accion: "series", id_repuesto }, function (resp) {
-        if (!resp.ok) return;
-        const $row = $(`.rep-row[data-idx="${idx}"]`);
-        const $cont = $row.find(".series-cont");
-        if (!resp.data.length) {
+        const $cont = $(`.rep-sol-row[data-rep="${id_repuesto}"] .series-lista`);
+        if (!resp.ok || !resp.data.length) {
             $cont.html('<span class="text-danger small">Sin series disponibles en stock.</span>');
             return;
         }
@@ -441,8 +515,9 @@ function cargarSeries(idx, id_repuesto) {
         resp.data.forEach(s => {
             html += `<div class="form-check form-check-inline mb-0">
                 <input class="form-check-input chk-serie" type="checkbox"
-                       value="${s.id_detalle_repuesto}" id="serie_${idx}_${s.id_detalle_repuesto}">
-                <label class="form-check-label small" for="serie_${idx}_${s.id_detalle_repuesto}">
+                       data-rep="${id_repuesto}" value="${s.id_detalle_repuesto}"
+                       id="serie_${id_repuesto}_${s.id_detalle_repuesto}">
+                <label class="form-check-label small" for="serie_${id_repuesto}_${s.id_detalle_repuesto}">
                     <span class="badge bg-secondary">${escHtml(s.serie)}</span>
                 </label>
             </div>`;
@@ -452,68 +527,14 @@ function cargarSeries(idx, id_repuesto) {
     }, "json");
 }
 
-function renderRepuestos() {
-    const $lista = $("#listaRepuestos");
-    if (!_filasRepuestos.length) {
-        $lista.html('<p class="text-muted small fst-italic mb-0" id="emptyRepuestos">Sin repuestos agregados.</p>');
-        return;
-    }
-
-    let html = '';
-    _filasRepuestos.forEach((rep, idx) => {
-        const optsRep = _repuestosDisponibles.map(r => {
-            const sel = r.id_repuesto == rep.id_repuesto ? "selected" : "";
-            const stock = parseInt(r.maneja_serie) === 1
-                ? `${r.stock} series`
-                : `stock: ${r.stock}`;
-            return `<option value="${r.id_repuesto}" data-serie="${r.maneja_serie}" data-costo="${r.costo}" ${sel}>
-                        ${escHtml(r.nombre)} (${stock})
-                    </option>`;
-        }).join('');
-
-        const esSerie = rep.maneja_serie === 1;
-        const cantOSerie = esSerie
-            ? `<div class="col-12 series-cont mt-1">
-                   <small class="text-muted">Selecciona las series a instalar:</small>
-               </div>`
-            : `<div class="col-auto">
-                   <label class="form-label small mb-1">Cantidad</label>
-                   <input type="number" class="form-control form-control-sm inp-cantidad"
-                          style="width:80px" min="1" value="${rep.cantidad}">
-               </div>`;
-
-        html += `
-        <div class="card mb-2 rep-row" data-idx="${idx}">
-            <div class="card-body p-2">
-                <div class="row g-2 align-items-start">
-                    <div class="col">
-                        <label class="form-label small mb-1">Repuesto</label>
-                        <select class="form-select form-select-sm sel-repuesto">
-                            <option value="">— Selecciona —</option>
-                            ${optsRep}
-                        </select>
-                    </div>
-                    ${!esSerie ? `<div class="col-auto">
-                        <label class="form-label small mb-1">Cantidad</label>
-                        <input type="number" class="form-control form-control-sm inp-cantidad"
-                               style="width:80px" min="1" value="${rep.cantidad}">
-                    </div>` : ''}
-                    <div class="col-auto">
-                        <label class="form-label small mb-1">Costo unit.</label>
-                        <input type="number" class="form-control form-control-sm inp-costo"
-                               style="width:100px" min="0" step="0.01" value="${rep.costo}">
-                    </div>
-                    <div class="col-auto d-flex align-items-end">
-                        <button type="button" class="btn btn-sm btn-outline-danger btn-quitar-rep mb-0">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                    ${esSerie ? `<div class="col-12 series-cont"><small class="text-muted fst-italic">Selecciona el repuesto para ver series.</small></div>` : ''}
-                </div>
-            </div>
-        </div>`;
-    });
-    $lista.html(html);
+function actualizarContadorSeries(id_repuesto) {
+    const rep = _repuestosSolicitud.find(r => r.id_repuesto == id_repuesto);
+    if (!rep) return;
+    const sel   = (_seriesSeleccionadas[id_repuesto] || []).length;
+    const $cont = $(`.contador-series[data-rep="${id_repuesto}"]`);
+    $cont.text(`${sel}/${rep.cantidad}`)
+         .toggleClass("text-success fw-bold", sel == rep.cantidad)
+         .toggleClass("text-danger", sel != rep.cantidad);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -618,16 +639,19 @@ function guardar() {
         : $("#id_tecnico").val();
     const id_tecnico = (_tecRaw && _tecRaw !== "-1") ? _tecRaw : null;
 
-    // Validar repuestos: todos deben tener repuesto seleccionado
-    for (let i = 0; i < _filasRepuestos.length; i++) {
-        const r = _filasRepuestos[i];
-        if (!r.id_repuesto) {
-            Swal.fire("Atención", `La fila ${i + 1} de repuestos no tiene un repuesto seleccionado.`, "warning");
-            return;
-        }
-        if (r.maneja_serie === 1 && !r.series.length) {
-            Swal.fire("Atención", `Selecciona al menos una serie para el repuesto de la fila ${i + 1}.`, "warning");
-            return;
+    // Validar solicitud: si hay repuestos por serie, deben tener
+    // exactamente la cantidad de series seleccionadas
+    const id_solicitud_maquina = $("#sel_solicitud").val() || null;
+    if (id_solicitud_maquina) {
+        for (const rep of _repuestosSolicitud) {
+            if (parseInt(rep.maneja_serie) !== 1) continue;
+            const sel = (_seriesSeleccionadas[rep.id_repuesto] || []).length;
+            if (sel !== parseInt(rep.cantidad)) {
+                Swal.fire("Atención",
+                    `Selecciona exactamente ${rep.cantidad} serie(s) para "${rep.repuesto}" (tienes ${sel}).`,
+                    "warning");
+                return;
+            }
         }
     }
 
@@ -643,12 +667,13 @@ function guardar() {
         id_maquina,
         id_tipo,
         id_tecnico,
-        fecha_mantenimiento:   fecha,
-        proximo_mantenimiento: $("#proximo_mantenimiento").val() || null,
-        descripcion:           $("#descripcion").val().trim(),
-        tareas:                _tareas,
-        repuestos:             _filasRepuestos,
-        retiros:               _filasRetiros
+        fecha_mantenimiento:    fecha,
+        proximo_mantenimiento:  $("#proximo_mantenimiento").val() || null,
+        descripcion:            $("#descripcion").val().trim(),
+        tareas:                 _tareas,
+        id_solicitud_maquina,
+        series_solicitud:       _seriesSeleccionadas,
+        retiros:                _filasRetiros
     };
 
     const $btn = $("#btnGuardarMantenimiento")
@@ -706,10 +731,10 @@ function confirmarAnulacion(id) {
         if (d.solicitud) {
             html += `<div class="alert alert-warning py-2 mb-3 small">
                 <i class="bi bi-receipt me-1"></i>
-                Este mantenimiento fue generado desde la solicitud
+                Este mantenimiento usó la solicitud de repuestos
                 <strong>#${d.solicitud.id_solicitud}</strong>
                 &ldquo;${escHtml(d.solicitud.descripcion)}&rdquo;<br>
-                La solicitud también quedará como <strong>Anulada</strong>.
+                Al anular, la solicitud volverá a quedar <strong>disponible</strong> para otro mantenimiento.
             </div>`;
         }
 
@@ -918,9 +943,12 @@ function limpiarModal() {
     $("#sel_nueva_tarea").val("").removeClass("is-invalid");
     $("#inp_tarea_personalizada").val("").removeClass("is-invalid");
 
-    // Repuestos
-    _filasRepuestos = [];
-    renderRepuestos();
+    // Solicitud de repuestos
+    limpiarSolicitud();
+    $("#sel_solicitud").prop("disabled", true)
+        .html('<option value="">— Selecciona una máquina primero —</option>');
+    $("#seccionSolicitud").show();
+    $("#repuestosEdicion").hide().empty();
 
     // Retiros
     _filasRetiros        = [];
@@ -960,7 +988,6 @@ function cargarEdicion(id_mantenimiento) {
 
         limpiarModal();
         cargarSelects();
-        cargarRepuestosDisponibles();
 
         const m = data.mantenimiento;
 
@@ -986,15 +1013,23 @@ function cargarEdicion(id_mantenimiento) {
             });
             renderTareas();
 
-            // Cargar repuestos
-            _filasRepuestos = data.repuestos.map(r => ({
-                id_repuesto:     r.id_repuesto,
-                maneja_serie:    parseInt(r.maneja_serie),
-                cantidad:        parseInt(r.cantidad),
-                costo_unitario:  parseFloat(r.costo_unitario),
-                series:          r.id_detalle_repuesto ? [r.id_detalle_repuesto] : []
-            }));
-            renderRepuestos();
+            // Repuestos: provienen de la solicitud usada; en edición
+            // solo se muestran como referencia (no son modificables)
+            $("#seccionSolicitud").hide();
+            let repHtml;
+            if (data.repuestos.length) {
+                repHtml = '<ul class="list-group list-group-flush small">';
+                data.repuestos.forEach(r => {
+                    repHtml += `<li class="list-group-item px-0 py-1 d-flex justify-content-between">
+                        <span>${escHtml(r.nombre)}</span>
+                        <span class="text-muted">Cant: ${r.cantidad}</span>
+                    </li>`;
+                });
+                repHtml += '</ul><p class="text-muted small fst-italic mb-0">Los repuestos instalados no se pueden modificar al editar.</p>';
+            } else {
+                repHtml = '<p class="text-muted small fst-italic mb-0">Este mantenimiento no tiene repuestos instalados.</p>';
+            }
+            $("#repuestosEdicion").html(repHtml).show();
 
             // Cargar retiros
             _filasRetiros = data.retiros.map(ret => ({

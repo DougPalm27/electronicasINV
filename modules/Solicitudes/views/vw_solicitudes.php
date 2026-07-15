@@ -1,6 +1,6 @@
 <div class="row mb-3">
     <div class="col-12">
-        <div class="card shadow-sm border-0">
+        <div class="card shadow-sm border-0 ft-cabecera">
             <div class="card-body d-flex justify-content-between align-items-center">
                 <div>
                     <h5 class="mb-0">
@@ -8,9 +8,12 @@
                     </h5>
                     <small class="text-muted">Gestión y aprobación de solicitudes internas</small>
                 </div>
-                <button class="btn btn-primary" id="btnNuevaSolicitud">
-                    <i class="bi bi-plus-circle me-1"></i> Nueva solicitud
-                </button>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="ft-meta d-none d-md-block">Operaciones<br>Módulo SOL</span>
+                    <button class="btn btn-primary" id="btnNuevaSolicitud">
+                        <i class="bi bi-plus-circle me-1"></i> Nueva solicitud
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -167,8 +170,8 @@
                 </button>
                 <button class="btn btn-success d-none" id="btnAprobar">
                     <i class="bi bi-check-circle me-1"></i>
-                    <span class="d-none d-sm-inline">Aprobar y generar</span>
-                    <span class="d-sm-none">Aprobar</span> mantenimientos
+                    <span class="d-none d-sm-inline">Aprobar solicitud</span>
+                    <span class="d-sm-none">Aprobar</span>
                 </button>
             </div>
         </div>
@@ -259,9 +262,14 @@
 
 
 <style>
-/* ── Filtros de estado ────────────────────────────────── */
-.filtro-estado.active  { opacity:1; font-weight:600; }
-.filtro-estado:not(.active) { opacity:.65; }
+/* ── Filtros de estado: estilo segmentado global en app.css ── */
+
+/* Fechas de la tabla en monoespaciada (columnas 6 y 7) */
+#tblSolicitudes tbody td:nth-child(6),
+#tblSolicitudes tbody td:nth-child(7) {
+    font-family: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+    font-size: .72rem;
+}
 
 /* ── Tarjeta de máquina ───────────────────────────────── */
 .maquina-card         { border-radius:10px; overflow:hidden; }

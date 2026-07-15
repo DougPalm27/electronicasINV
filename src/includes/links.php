@@ -4,7 +4,7 @@
 
   <!-- Tipografía -->
   <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Vendor CSS -->
   <link href="./assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">

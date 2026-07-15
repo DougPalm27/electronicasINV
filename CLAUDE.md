@@ -9,21 +9,31 @@
 
 ## Diseño de vistas — regla universal
 
+**Lenguaje visual: "Ficha técnica de taller"** (definido en `assets/css/app.css`):
+esquinas rectas, IBM Plex Mono para datos/etiquetas/botones, encabezados de tabla
+con banda y regla gruesa, estados como marcas con franja lateral (los `.badge.bg-*`
+se estilizan solos desde app.css). No usar `rounded-pill` ni sombras nuevas.
+Los códigos (`SOL-00001`, etc.) usan `badge bg-light font-monospace` y se ven como
+texto mono verde.
+
 Todas las vistas de módulo siguen el patrón de **dos tarjetas**:
 
 ```html
-<!-- Tarjeta 1: encabezado con título + botón de acción -->
+<!-- Tarjeta 1: encabezado con título + meta de ficha + botón de acción -->
 <div class="row mb-3">
   <div class="col-12">
-    <div class="card shadow-sm border-0">
+    <div class="card shadow-sm border-0 ft-cabecera">
       <div class="card-body d-flex justify-content-between align-items-center">
         <div>
           <h5 class="mb-0">Título del módulo</h5>
           <small class="text-muted">Subtítulo descriptivo</small>
         </div>
-        <button class="btn btn-primary" id="btnNuevo">
-          <i class="bi bi-plus-lg me-1"></i> Nuevo
-        </button>
+        <div class="d-flex align-items-center gap-3">
+          <span class="ft-meta d-none d-md-block">Grupo<br>Módulo XXX</span>
+          <button class="btn btn-primary" id="btnNuevo">
+            <i class="bi bi-plus-lg me-1"></i> Nuevo
+          </button>
+        </div>
       </div>
     </div>
   </div>

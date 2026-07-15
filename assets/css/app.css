@@ -1,21 +1,27 @@
 /* =========================================================
    Honducafe — Sistema Electrónicas
    Capa de diseño propia (reemplaza la plantilla NiceAdmin)
-   Estilo: compacto, minimalista, formal.
-   El verde institucional se usa solo como acento.
+   Dirección: "Ficha técnica de taller" — compacto y formal,
+   con lenguaje de hoja de datos industrial: esquinas rectas,
+   monoespaciada (IBM Plex Mono) para datos y etiquetas,
+   estados con franja lateral, encabezados de tabla con banda.
+   El verde institucional se usa como acento.
    ========================================================= */
 
 :root {
     --hc-verde:        #156b45;
     --hc-verde-hover:  #0f5434;
     --hc-verde-tinte:  #e9f3ee;
+    --hc-tinta:        #1d2a24;
     --hc-texto:        #1c2128;
     --hc-texto-2:      #57606a;
     --hc-texto-3:      #8a919c;
-    --hc-borde:        #e4e7ec;
-    --hc-borde-suave:  #eef0f3;
-    --hc-fondo:        #f6f7f9;
+    --hc-borde:        #b9c2ba;
+    --hc-borde-suave:  #e3e7e1;
+    --hc-banda:        #e6eae4;
+    --hc-fondo:        #eef0ec;
     --hc-superficie:   #ffffff;
+    --hc-mono:         'IBM Plex Mono', ui-monospace, Consolas, monospace;
     --hc-header-h:     52px;
     --hc-sidebar-w:    236px;
 }
@@ -65,7 +71,13 @@ a:hover { color: var(--hc-verde-hover); }
 }
 .toggle-sidebar-btn:hover { color: var(--hc-texto); }
 
-.hc-breadcrumb { font-size: .78rem; color: var(--hc-texto-3); }
+.hc-breadcrumb {
+    font-family: var(--hc-mono);
+    font-size: .66rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--hc-texto-3);
+}
 .hc-breadcrumb .sep { margin: 0 .35rem; }
 .hc-breadcrumb .actual { color: var(--hc-texto); font-weight: 500; }
 
@@ -132,7 +144,7 @@ a:hover { color: var(--hc-verde-hover); }
 /* ── Sidebar (verde corporativo) ─────────────────────────── */
 
 :root {
-    --hc-sb-fondo:      #10382a;
+    --hc-sb-fondo:      #1d2a24;
     --hc-sb-borde:      rgba(255, 255, 255, .12);
     --hc-sb-texto:      #c3d9cd;
     --hc-sb-texto-2:    #7fb89f;
@@ -179,17 +191,23 @@ a:hover { color: var(--hc-verde-hover); }
 }
 
 .sidebar-brand .brand-name {
-    font-size: .85rem;
-    font-weight: 600;
+    font-family: var(--hc-mono);
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .09em;
     color: #fff;
-    line-height: 1.15;
+    line-height: 1.2;
 }
 .sidebar-brand .brand-sub {
     display: block;
-    font-size: .65rem;
-    font-weight: 400;
+    font-family: var(--hc-mono);
+    font-size: .56rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .08em;
     color: var(--hc-sb-acento);
-    line-height: 1.15;
+    line-height: 1.2;
 }
 
 .sidebar-nav {
@@ -199,10 +217,11 @@ a:hover { color: var(--hc-verde-hover); }
 }
 
 .sidebar-nav .nav-heading {
-    font-size: .64rem;
+    font-family: var(--hc-mono);
+    font-size: .6rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: .07em;
+    letter-spacing: .09em;
     color: var(--hc-sb-texto-2);
     padding: 1rem .55rem .35rem;
 }
@@ -300,7 +319,7 @@ a:hover { color: var(--hc-verde-hover); }
 
 .card {
     --bs-card-border-color: var(--hc-borde);
-    --bs-card-border-radius: 10px;
+    --bs-card-border-radius: 2px;
     --bs-card-cap-bg: transparent;
     box-shadow: none;
 }
@@ -309,26 +328,87 @@ a:hover { color: var(--hc-verde-hover); }
 
 .card-body { padding: 1rem 1.25rem; }
 
-/* Encabezado de módulo (tarjeta 1 del patrón de dos tarjetas) */
-.card-body h5 { font-size: .95rem; margin-bottom: .1rem; }
+/* Encabezado de módulo (tarjeta 1 del patrón de dos tarjetas):
+   franja de ficha técnica con regla inferior gruesa.
+   Aplica por clase explícita (.ft-cabecera) o por estructura. */
+.ft-cabecera,
+.card:has(> .card-body.d-flex.justify-content-between.align-items-center) {
+    border-bottom: 2px solid var(--hc-tinta) !important;
+}
+.card-body h5 {
+    font-size: .8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    margin-bottom: .1rem;
+}
 .card-body small.text-muted { font-size: .75rem; }
+
+/* Meta de ficha (código de módulo, grupo) junto al botón de acción */
+.ft-meta {
+    font-family: var(--hc-mono);
+    font-size: .6rem;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: #6b756d;
+    text-align: right;
+    line-height: 1.5;
+}
+
+/* Números sueltos en celdas (conteos) */
+.ft-num {
+    font-family: var(--hc-mono);
+    font-size: .74rem;
+    font-weight: 600;
+}
+
+/* ── Filtros de estado: botonera segmentada ──────────────── */
+
+#filtrosEstado { gap: 0 !important; }
+.filtro-estado {
+    font-family: var(--hc-mono);
+    font-size: .62rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--hc-texto-2);
+    background: var(--hc-superficie);
+    border: 1px solid var(--hc-borde);
+    border-radius: 0;
+    margin-right: -1px;
+    opacity: 1;
+}
+.filtro-estado:hover {
+    color: var(--hc-tinta);
+    background: var(--hc-banda);
+    border-color: var(--hc-borde);
+}
+.filtro-estado.active {
+    color: #fff;
+    background: var(--hc-tinta);
+    border-color: var(--hc-tinta);
+    font-weight: 700;
+}
 
 /* ── Tablas ──────────────────────────────────────────────── */
 
 .table {
-    --bs-table-hover-bg: #f7f9f8;
+    --bs-table-hover-bg: #f0f3ef;
     font-size: .8125rem;
     color: var(--hc-texto);
     vertical-align: middle;
+    font-variant-numeric: tabular-nums;
 }
 
 .table thead th {
-    font-size: .68rem;
-    font-weight: 600;
+    background: var(--hc-banda);
+    font-family: var(--hc-mono);
+    font-size: .6rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .05em;
-    color: var(--hc-texto-3);
-    border-bottom: 1px solid var(--hc-borde);
+    letter-spacing: .09em;
+    color: #40483f;
+    border-bottom: 2px solid var(--hc-tinta);
     padding: .5rem .75rem;
     white-space: nowrap;
 }
@@ -341,17 +421,20 @@ a:hover { color: var(--hc-verde-hover); }
 /* ── Botones ─────────────────────────────────────────────── */
 
 .btn {
-    --bs-btn-font-size: .8125rem;
-    --bs-btn-padding-y: .4rem;
+    --bs-btn-font-size: .7rem;
+    --bs-btn-padding-y: .45rem;
     --bs-btn-padding-x: .85rem;
-    --bs-btn-border-radius: 8px;
-    font-weight: 500;
+    --bs-btn-border-radius: 0;
+    font-family: var(--hc-mono);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .07em;
 }
-.btn-sm { --bs-btn-font-size: .72rem; --bs-btn-border-radius: 7px; }
+.btn-sm { --bs-btn-font-size: .62rem; --bs-btn-border-radius: 0; }
 
 .btn-primary {
     --bs-btn-bg: var(--hc-verde);
-    --bs-btn-border-color: var(--hc-verde);
+    --bs-btn-border-color: var(--hc-verde-hover);
     --bs-btn-hover-bg: var(--hc-verde-hover);
     --bs-btn-hover-border-color: var(--hc-verde-hover);
     --bs-btn-active-bg: var(--hc-verde-hover);
@@ -397,16 +480,19 @@ a:hover { color: var(--hc-verde-hover); }
 /* ── Formularios ─────────────────────────────────────────── */
 
 .form-label {
-    font-size: .75rem;
+    font-family: var(--hc-mono);
+    font-size: .62rem;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
     color: var(--hc-texto-2);
     margin-bottom: .3rem;
 }
 
 .form-control, .form-select {
     font-size: .8125rem;
-    border-radius: 7px;
-    border-color: #d8dce2;
+    border-radius: 2px;
+    border-color: #c3cbc3;
     color: var(--hc-texto);
 }
 .form-control::placeholder { color: #adb3bc; }
@@ -425,8 +511,8 @@ a:hover { color: var(--hc-verde-hover); }
 .select2-container--bootstrap-5 .select2-selection {
     min-height: 33px;
     font-size: .8125rem;
-    border-color: #d8dce2;
-    border-radius: 7px;
+    border-color: #c3cbc3;
+    border-radius: 2px;
 }
 .select2-container--bootstrap-5.select2-container--focus .select2-selection,
 .select2-container--bootstrap-5.select2-container--open .select2-selection {
@@ -439,7 +525,7 @@ a:hover { color: var(--hc-verde-hover); }
 
 .dropdown-menu {
     --bs-dropdown-border-color: var(--hc-borde);
-    --bs-dropdown-border-radius: 9px;
+    --bs-dropdown-border-radius: 2px;
     --bs-dropdown-font-size: .8125rem;
     --bs-dropdown-item-padding-y: .42rem;
     --bs-dropdown-link-active-bg: var(--hc-verde-tinte);
@@ -452,29 +538,76 @@ a:hover { color: var(--hc-verde-hover); }
 
 .modal-content {
     border: 1px solid var(--hc-borde);
-    border-radius: 12px;
+    border-radius: 2px;
     box-shadow: 0 16px 48px rgba(28, 33, 40, .16);
 }
-.modal-header { padding: .9rem 1.25rem; }
-.modal-title { font-size: .9rem; font-weight: 600; }
+.modal-header {
+    padding: .9rem 1.25rem;
+    border-bottom: 2px solid var(--hc-tinta);
+}
+.modal-title {
+    font-size: .78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+}
 .modal-body { padding: 1.25rem; }
 .modal-footer { padding: .7rem 1.25rem; }
 
-/* ── Badges (tintes suaves, estilo formal) ───────────────── */
+/* Modales con encabezado de color → tinta de ficha técnica */
+.modal-header.bg-primary {
+    background: var(--hc-tinta) !important;
+    border-bottom-color: var(--hc-tinta);
+}
+
+.alert { border-radius: 2px; }
+
+/* ── Badges (marcas de ficha técnica: franja lateral) ────── */
 
 .badge {
-    font-weight: 500;
-    font-size: .7rem;
-    padding: .32em .7em;
-    border-radius: 999px;
-    letter-spacing: .01em;
+    font-family: var(--hc-mono);
+    font-weight: 600;
+    font-size: .62rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    padding: .32em .55em;
+    border-radius: 0;
 }
-.badge.bg-primary   { background: var(--hc-verde-tinte) !important; color: var(--hc-verde) !important; }
-.badge.bg-success   { background: #e9f3ee !important; color: #156b45 !important; }
-.badge.bg-warning   { background: #fdf3e1 !important; color: #9a6a13 !important; }
-.badge.bg-danger    { background: #fdecec !important; color: #b32d2d !important; }
-.badge.bg-info      { background: #e8f2fb !important; color: #1c6ca8 !important; }
-.badge.bg-secondary { background: #eef0f3 !important; color: #57606a !important; }
+.badge.bg-primary,
+.badge.bg-success,
+.badge.bg-warning,
+.badge.bg-danger,
+.badge.bg-info,
+.badge.bg-secondary { border-left: 3px solid; }
+
+.badge.bg-primary   { background: var(--hc-verde-tinte) !important; color: #0e4e32 !important; border-left-color: var(--hc-verde); }
+.badge.bg-success   { background: #e9f3ee !important; color: #0e4e32 !important; border-left-color: var(--hc-verde); }
+.badge.bg-warning   { background: #faf3e3 !important; color: #7d5e10 !important; border-left-color: #b58a1e; }
+.badge.bg-danger    { background: #fbecec !important; color: #8f2222 !important; border-left-color: #b32d2d; }
+.badge.bg-info      { background: #e8f2fb !important; color: #17567f !important; border-left-color: #1c6ca8; }
+.badge.bg-secondary { background: #eef0ec !important; color: #4c554e !important; border-left-color: #6b756d; }
+
+/* Códigos (SOL-00001, MANT-00001…): mono verde sin caja */
+.badge.bg-light.font-monospace {
+    background: transparent !important;
+    border: 0 !important;
+    color: var(--hc-verde) !important;
+    font-size: .72rem;
+    font-weight: 700;
+    padding: 0;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+/* Badges de stock (definidos por vista): geometría coherente */
+.badge-stock-ok, .badge-stock-warn, .badge-stock-bad {
+    font-family: var(--hc-mono);
+    font-size: .6rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    border-radius: 0;
+}
 
 /* ── DataTables (controles compactos) ────────────────────── */
 
@@ -493,9 +626,10 @@ a:hover { color: var(--hc-verde-hover); }
     width: auto;
     margin: 0 .35rem;
     padding: .25rem 1.6rem .25rem .5rem;
-    font-size: .75rem;
-    border: 1px solid #d8dce2;
-    border-radius: 6px;
+    font-family: var(--hc-mono);
+    font-size: .72rem;
+    border: 1px solid #c3cbc3;
+    border-radius: 0;
     color: var(--hc-texto);
     background-color: var(--hc-superficie);
 }
@@ -505,9 +639,10 @@ a:hover { color: var(--hc-verde-hover); }
     width: auto;
     margin-left: .5rem;
     padding: .3rem .6rem;
-    font-size: .78rem;
-    border: 1px solid #d8dce2;
-    border-radius: 7px;
+    font-family: var(--hc-mono);
+    font-size: .74rem;
+    border: 1px solid #c3cbc3;
+    border-radius: 0;
     color: var(--hc-texto);
 }
 .dataTables_wrapper input[type="search"]:focus {
@@ -519,17 +654,19 @@ a:hover { color: var(--hc-verde-hover); }
 .dataTables_wrapper .row:first-child { margin-bottom: .35rem; }
 
 .dataTables_paginate .pagination {
-    --bs-pagination-font-size: .75rem;
+    --bs-pagination-font-size: .72rem;
     --bs-pagination-padding-y: .3rem;
     --bs-pagination-padding-x: .62rem;
+    --bs-pagination-border-radius: 0;
     --bs-pagination-color: var(--hc-texto-2);
     --bs-pagination-border-color: var(--hc-borde);
     --bs-pagination-hover-color: var(--hc-verde);
     --bs-pagination-hover-bg: var(--hc-fondo);
     --bs-pagination-focus-color: var(--hc-verde);
     --bs-pagination-focus-box-shadow: none;
-    --bs-pagination-active-bg: var(--hc-verde);
-    --bs-pagination-active-border-color: var(--hc-verde);
+    --bs-pagination-active-bg: var(--hc-tinta);
+    --bs-pagination-active-border-color: var(--hc-tinta);
+    font-family: var(--hc-mono);
     margin-bottom: 0;
 }
 
@@ -556,5 +693,6 @@ a:hover { color: var(--hc-verde-hover); }
 
 /* ── SweetAlert2: tipografía coherente ───────────────────── */
 
-.swal2-popup { font-family: inherit; font-size: .9rem; border-radius: 12px; }
-.swal2-styled.swal2-confirm { background-color: var(--hc-verde) !important; border-radius: 8px !important; }
+.swal2-popup { font-family: inherit; font-size: .9rem; border-radius: 2px; }
+.swal2-styled.swal2-confirm { background-color: var(--hc-verde) !important; border-radius: 0 !important; }
+.swal2-styled { border-radius: 0 !important; }

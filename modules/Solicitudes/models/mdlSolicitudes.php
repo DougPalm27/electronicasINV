@@ -71,7 +71,9 @@ class mdlSolicitudes
                      INNER JOIN electronicas.SolicitudesRepuestos sr
                          ON sr.id_solicitud = sm.id_solicitud
                      WHERE sd.id_repuesto = r.id_repuesto
-                       AND sr.estado = 'Pendiente') AS comprometido
+                       AND (sr.estado = 'Pendiente'
+                            OR (sr.estado = 'Aprobado'
+                                AND sm.id_mantenimiento_generado IS NULL))) AS comprometido
                 FROM electronicas.Repuestos r
                 LEFT JOIN electronicas.Marcas   ma ON ma.id_marca  = r.id_marca
                 LEFT JOIN electronicas.Modelos  mo ON mo.id_modelo = r.id_modelo
@@ -108,6 +110,8 @@ class mdlSolicitudes
                     tm.nombre                                  AS tipo,
                     ISNULL(t.nombre, '—')                      AS tecnico,
                     COUNT(sm.id_solicitud_maquina)             AS total_maquinas,
+                    SUM(CASE WHEN sm.id_mantenimiento_generado IS NOT NULL
+                             THEN 1 ELSE 0 END)                AS maquinas_usadas,
                     sr.motivo_rechazo
                 FROM electronicas.SolicitudesRepuestos sr
                 INNER JOIN electronicas.Usuarios            u  ON u.id_usuario  = sr.id_usuario
@@ -177,7 +181,9 @@ class mdlSolicitudes
                          INNER JOIN electronicas.SolicitudesRepuestos sr2
                              ON sr2.id_solicitud = sm2.id_solicitud
                          WHERE sd2.id_repuesto = sd.id_repuesto
-                           AND sr2.estado = 'Pendiente'
+                           AND (sr2.estado = 'Pendiente'
+                                OR (sr2.estado = 'Aprobado'
+                                    AND sm2.id_mantenimiento_generado IS NULL))
                            AND sr2.id_solicitud != ?) AS comprometido_otras
                  FROM electronicas.SolicitudesDetalle sd
                  INNER JOIN electronicas.Repuestos r ON r.id_repuesto = sd.id_repuesto
@@ -273,154 +279,23 @@ class mdlSolicitudes
     }
 
     // ══════════════════════════════════════════════════════
-    // APROBAR  →  genera un Mantenimiento por máquina
+    // APROBAR  →  solo cambia el estado. Los repuestos se
+    // consumen cuando la solicitud se usa en un mantenimiento.
     // ══════════════════════════════════════════════════════
 
     public function aprobarSolicitud(int $id_solicitud, int $id_revisor): array
     {
-        $this->conn->beginTransaction();
-        try {
-            // Cabecera
-            $stmtH = $this->conn->prepare(
-                "SELECT id_usuario, id_tecnico, id_tipo, descripcion, fecha_programada, estado
-                 FROM electronicas.SolicitudesRepuestos WHERE id_solicitud = ?"
-            );
-            $stmtH->execute([$id_solicitud]);
-            $sol = $stmtH->fetch(PDO::FETCH_ASSOC);
+        $stmt = $this->conn->prepare(
+            "UPDATE electronicas.SolicitudesRepuestos
+             SET estado = 'Aprobado', id_revisor = ?, fecha_revision = GETDATE()
+             WHERE id_solicitud = ? AND estado = 'Pendiente'"
+        );
+        $stmt->execute([$id_revisor, $id_solicitud]);
 
-            if (!$sol)                      throw new RuntimeException('Solicitud no encontrada.');
-            if ($sol['estado'] !== 'Pendiente')
-                throw new RuntimeException('La solicitud ya fue procesada.');
-
-            // Máquinas
-            $stmtM = $this->conn->prepare(
-                "SELECT id_solicitud_maquina, id_maquina, descripcion
-                 FROM electronicas.SolicitudesMaquinas WHERE id_solicitud = ?"
-            );
-            $stmtM->execute([$id_solicitud]);
-            $maquinas = $stmtM->fetchAll(PDO::FETCH_ASSOC);
-
-            $referencia = 'SOL-' . str_pad($id_solicitud, 5, '0', STR_PAD_LEFT);
-            $mants_generados = [];
-
-            foreach ($maquinas as $maq) {
-                // ── 1. Crear Mantenimiento ─────────────────────────
-                $descMant = trim($sol['descripcion']
-                    . ($maq['descripcion'] ? "\n" . $maq['descripcion'] : ''));
-
-                $stmtI = $this->conn->prepare(
-                    "INSERT INTO electronicas.Mantenimientos
-                        (id_maquina, id_tipo, id_tecnico, fecha_mantenimiento, descripcion)
-                     OUTPUT INSERTED.id_mantenimiento
-                     VALUES (?, ?, ?, ?, ?)"
-                );
-                $stmtI->execute([
-                    $maq['id_maquina'],
-                    $sol['id_tipo'],
-                    null,   // id_tecnico en Mantenimientos apunta a Tecnicos (catálogo diferente)
-                    $sol['fecha_programada'],
-                    $descMant
-                ]);
-                $id_mant = (int)$stmtI->fetchColumn();
-                $mants_generados[] = $id_mant;
-
-                // ── 2. Repuestos de esta máquina ───────────────────
-                $stmtD = $this->conn->prepare(
-                    "SELECT sd.id_repuesto, sd.cantidad,
-                            r.nombre, r.costo_promedio, r.stock, r.maneja_serie
-                     FROM electronicas.SolicitudesDetalle sd
-                     INNER JOIN electronicas.Repuestos r ON r.id_repuesto = sd.id_repuesto
-                     WHERE sd.id_solicitud_maquina = ?"
-                );
-                $stmtD->execute([$maq['id_solicitud_maquina']]);
-                $detalle = $stmtD->fetchAll(PDO::FETCH_ASSOC);
-
-                foreach ($detalle as $rep) {
-                    $cantidad = (int)$rep['cantidad'];
-                    $costo    = (float)$rep['costo_promedio'];
-
-                    if ((int)$rep['maneja_serie'] === 1) {
-                        // Serie: solo registrar uso, sin mover stock automáticamente
-                        $this->conn->prepare(
-                            "INSERT INTO electronicas.MantenimientoRepuestos
-                                (id_mantenimiento, id_repuesto, cantidad, costo_unitario)
-                             VALUES (?, ?, ?, ?)"
-                        )->execute([$id_mant, $rep['id_repuesto'], $cantidad, $costo]);
-                        continue; // El admin procesa la salida de serie manualmente
-                    }
-
-                    // Cantidad: descuento atómico — la condición stock >= cantidad
-                    // evita stock negativo ante operaciones concurrentes.
-                    // La salida se valora al costo promedio vigente.
-                    $stmtStock = $this->conn->prepare(
-                        "UPDATE electronicas.Repuestos
-                         SET stock = stock - ?
-                         OUTPUT DELETED.stock          AS stock_anterior,
-                                INSERTED.stock         AS stock_nuevo,
-                                DELETED.costo_promedio AS costo_promedio
-                         WHERE id_repuesto = ? AND stock >= ?"
-                    );
-                    $stmtStock->execute([$cantidad, $rep['id_repuesto'], $cantidad]);
-                    $stocks = $stmtStock->fetch(PDO::FETCH_ASSOC);
-
-                    if (!$stocks) {
-                        throw new RuntimeException(
-                            "Stock insuficiente para \"{$rep['nombre']}\". " .
-                            "Disponible: {$rep['stock']}, solicitado: $cantidad."
-                        );
-                    }
-
-                    $costo = (float)$stocks['costo_promedio'];
-
-                    // MantenimientoRepuestos
-                    $this->conn->prepare(
-                        "INSERT INTO electronicas.MantenimientoRepuestos
-                            (id_mantenimiento, id_repuesto, cantidad, costo_unitario)
-                         VALUES (?, ?, ?, ?)"
-                    )->execute([$id_mant, $rep['id_repuesto'], $cantidad, $costo]);
-
-                    // MovimientosRepuestos
-                    $this->conn->prepare(
-                        "INSERT INTO electronicas.MovimientosRepuestos
-                            (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
-                             stock_anterior, stock_nuevo, id_maquina, referencia)
-                         VALUES (?, 2, ?, ?, ?, ?, ?, ?)"
-                    )->execute([
-                        $rep['id_repuesto'], $cantidad, $costo,
-                        $stocks['stock_anterior'], $stocks['stock_nuevo'],
-                        $maq['id_maquina'], $referencia
-                    ]);
-
-                    // Pieza instalada en máquina
-                    $this->conn->prepare(
-                        "INSERT INTO electronicas.MaquinaRepuestos
-                            (id_maquina, id_repuesto, cantidad, id_mantenimiento_instalacion)
-                         VALUES (?, ?, ?, ?)"
-                    )->execute([$maq['id_maquina'], $rep['id_repuesto'], $cantidad, $id_mant]);
-                }
-
-                // Enlazar SolicitudesMaquinas → Mantenimiento generado
-                $this->conn->prepare(
-                    "UPDATE electronicas.SolicitudesMaquinas
-                     SET id_mantenimiento_generado = ?
-                     WHERE id_solicitud_maquina = ?"
-                )->execute([$id_mant, $maq['id_solicitud_maquina']]);
-            }
-
-            // Actualizar estado de la solicitud
-            $this->conn->prepare(
-                "UPDATE electronicas.SolicitudesRepuestos
-                 SET estado = 'Aprobado', id_revisor = ?, fecha_revision = GETDATE()
-                 WHERE id_solicitud = ?"
-            )->execute([$id_revisor, $id_solicitud]);
-
-            $this->conn->commit();
-            return ['ok' => true, 'mantenimientos' => $mants_generados];
-
-        } catch (Throwable $e) {
-            $this->conn->rollBack();
-            return ['error' => true, 'mensaje' => $e->getMessage()];
+        if ($stmt->rowCount() === 0) {
+            return ['error' => true, 'mensaje' => 'La solicitud no existe o ya fue procesada.'];
         }
+        return ['ok' => true];
     }
 
     // ══════════════════════════════════════════════════════
@@ -441,11 +316,35 @@ class mdlSolicitudes
     }
 
     // ══════════════════════════════════════════════════════
-    // CANCELAR (el propio técnico, solo si Pendiente)
+    // CANCELAR
+    // - Técnico: solo sus propias solicitudes en Pendiente
+    // - Admin: Pendiente o Aprobado sin máquinas usadas en
+    //   mantenimiento (libera el stock comprometido)
     // ══════════════════════════════════════════════════════
 
-    public function cancelarSolicitud(int $id_solicitud, int $id_usuario): void
+    public function cancelarSolicitud(int $id_solicitud, int $id_usuario, bool $esAdmin = false): void
     {
+        if ($esAdmin) {
+            $stmt = $this->conn->prepare(
+                "UPDATE sr
+                 SET sr.estado = 'Cancelado'
+                 FROM electronicas.SolicitudesRepuestos sr
+                 WHERE sr.id_solicitud = ?
+                   AND sr.estado IN ('Pendiente', 'Aprobado')
+                   AND NOT EXISTS (
+                       SELECT 1 FROM electronicas.SolicitudesMaquinas sm
+                       WHERE sm.id_solicitud = sr.id_solicitud
+                         AND sm.id_mantenimiento_generado IS NOT NULL
+                   )"
+            );
+            $stmt->execute([$id_solicitud]);
+            if ($stmt->rowCount() === 0)
+                throw new RuntimeException(
+                    'No se puede cancelar: la solicitud ya fue usada en un mantenimiento o su estado no lo permite.'
+                );
+            return;
+        }
+
         $stmt = $this->conn->prepare(
             "UPDATE electronicas.SolicitudesRepuestos
              SET estado = 'Cancelado'

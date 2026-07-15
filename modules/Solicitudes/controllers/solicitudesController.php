@@ -119,7 +119,6 @@ try {
             if (!$id) respS([], true, 'ID inválido.');
             $resp = $model->aprobarSolicitud($id, (int)$_SESSION['id_usuario']);
             if (!empty($resp['error'])) respS([], true, $resp['mensaje']);
-            $n = count($resp['mantenimientos']);
 
             // Notificar al solicitante
             $mailErr = null;
@@ -140,7 +139,7 @@ try {
             } catch (Throwable $me) { $mailErr = $me->getMessage(); }
 
             $resp['mail_error'] = $mailErr;
-            respS($resp, false, "Solicitud aprobada. Se generaron $n mantenimiento(s).");
+            respS($resp, false, "Solicitud aprobada. Los repuestos se descontarán al usarla en un mantenimiento.");
             break;
 
         // ── Rechazar ─────────────────────────────────────────
@@ -173,11 +172,12 @@ try {
             respS(['mail_error' => $mailErr], false, 'Solicitud rechazada.');
             break;
 
-        // ── Cancelar (propio técnico) ─────────────────────────
+        // ── Cancelar (técnico: propias Pendientes; admin: también Aprobadas sin usar) ──
         case 'cancelar':
             $id = (int)($_POST['id_solicitud'] ?? 0);
             if (!$id) respS([], true, 'ID inválido.');
-            $model->cancelarSolicitud($id, (int)$_SESSION['id_usuario']);
+            $esAdmin = ($_SESSION['nombre_rol'] ?? '') === 'Administrador';
+            $model->cancelarSolicitud($id, (int)$_SESSION['id_usuario'], $esAdmin);
             respS([], false, 'Solicitud cancelada.');
             break;
 

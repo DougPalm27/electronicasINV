@@ -76,6 +76,18 @@ try {
             response($model->obtenerInstalados($id_maq));
             break;
 
+        case 'solicitudesDisponibles':
+            $id_maq = (int)($_POST['id_maquina'] ?? 0);
+            if (!$id_maq) response([], true, 'ID de máquina inválido.');
+            response($model->listarSolicitudesDisponibles($id_maq));
+            break;
+
+        case 'repuestosSolicitud':
+            $id_sm = (int)($_POST['id_solicitud_maquina'] ?? 0);
+            if (!$id_sm) response([], true, 'ID de solicitud inválido.');
+            response($model->obtenerRepuestosSolicitudMaquina($id_sm));
+            break;
+
         case 'guardar':
             if (!$puedeMantenimiento) response([], true, 'Sin permisos para registrar mantenimientos.');
             $payload = $_POST["losDatos"] ?? null;
@@ -88,9 +100,8 @@ try {
             $tareas = isset($obj->tareas) ? (array)$obj->tareas : [];
             unset($obj->tareas);
 
-            // Asegurar que repuestos/retiros sean arrays (pueden venir del payload o vacíos)
-            if (!isset($obj->repuestos) || !is_array($obj->repuestos)) $obj->repuestos = [];
-            if (!isset($obj->retiros)   || !is_array($obj->retiros))   $obj->retiros   = [];
+            // Asegurar que retiros sea array (puede venir del payload o vacío)
+            if (!isset($obj->retiros) || !is_array($obj->retiros)) $obj->retiros = [];
 
             $resp = $model->guardarMantenimiento($obj);
 
@@ -120,9 +131,8 @@ try {
             $tareas = isset($obj->tareas) ? (array)$obj->tareas : [];
             unset($obj->tareas);
 
-            // Asegurar que repuestos/retiros sean arrays
-            if (!isset($obj->repuestos) || !is_array($obj->repuestos)) $obj->repuestos = [];
-            if (!isset($obj->retiros)   || !is_array($obj->retiros))   $obj->retiros   = [];
+            // Asegurar que retiros sea array
+            if (!isset($obj->retiros) || !is_array($obj->retiros)) $obj->retiros = [];
 
             $resp = $model->actualizarMantenimiento($id_mant, $obj);
 

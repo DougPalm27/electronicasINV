@@ -45,10 +45,10 @@ $(document).ready(function () {
             { data: 'tipo',           className: 'col-hide-sm' },
             { data: 'solicitante',    className: 'col-hide-xs' },
             { data: 'total_maquinas', className: 'text-center col-hide-sm',
-              render: v => `<span class="badge bg-secondary">${v}</span>` },
+              render: v => `<span class="ft-num">${v}</span>` },
             { data: 'fecha_programada', className: 'col-hide-md' },
             { data: 'fecha_solicitud',  className: 'col-hide-md' },
-            { data: 'estado', className: 'text-center', render: badgeEstado },
+            { data: 'estado', className: 'text-center', render: (v, t, r) => badgeEstado(v, r) },
             { data: null, className: 'text-center', orderable: false,
               render: (d, t, r) => botonesAccion(r, esAdmin) }
         ],
@@ -363,7 +363,8 @@ $(document).ready(function () {
     /* ═══════════════════════════════════════════════════════
        MODAL DETALLE / APROBAR / RECHAZAR
     ═══════════════════════════════════════════════════════ */
-    let _idDetalle = 0;
+    let _idDetalle     = 0;
+    let _ultimoDetalle = null;   // datos del detalle abierto (para validar stock al aprobar)
 
     $('#tblSolicitudes').on('click', '.btn-ver', function () {
         _idDetalle = $(this).data('id');
@@ -379,6 +380,7 @@ $(document).ready(function () {
                 $('#detalleBody').html(`<div class="alert alert-danger">${r.mensaje}</div>`);
                 return;
             }
+            _ultimoDetalle = r.data;
             renderDetalle(r.data);
             if (esAdmin && r.data.estado === 'Pendiente') {
                 $('#btnAprobar').removeClass('d-none');
@@ -430,11 +432,21 @@ $(document).ready(function () {
             </div>`;
         }
         if (d.estado === 'Aprobado') {
+            const usadas = d.maquinas.filter(m => m.id_mantenimiento_generado).length;
+            const total  = d.maquinas.length;
+            const uso = usadas === 0
+                ? 'Disponible para usarse al registrar un mantenimiento.'
+                : (usadas < total
+                    ? `Usada en ${usadas} de ${total} máquina(s); el resto sigue disponible.`
+                    : 'Ya fue usada en mantenimiento(s).');
             html += `
             <div class="col-12">
                 <div class="alert alert-success py-2 mb-0">
                     <i class="bi bi-check-circle me-1"></i>
                     Aprobado por <strong>${d.revisor_nombre}</strong> el ${d.fecha_rev_fmt}
+                    <span class="d-block small text-muted mt-1">
+                        <i class="bi bi-tools me-1"></i>${uso}
+                    </span>
                 </div>
             </div>`;
         }
@@ -451,8 +463,9 @@ $(document).ready(function () {
                         <strong><i class="bi bi-cpu me-1 text-primary"></i>${maq.maquina}</strong>
                         ${maq.descripcion ? `<span class="text-muted ms-2 small d-block d-sm-inline">— ${maq.descripcion}</span>` : ''}
                     </span>
-                    ${hasMant ? `<a href="?module=mantenimientos" class="badge bg-success text-decoration-none">
-                        <i class="bi bi-tools me-1"></i>Mant. #${hasMant}</a>` : ''}
+                    ${hasMant ? `<a href="?module=mantenimientos" class="badge bg-success text-decoration-none"
+                        title="Esta máquina ya fue atendida usando esta solicitud">
+                        <i class="bi bi-tools me-1"></i>Usada en Mant. #${hasMant}</a>` : ''}
                 </div>
                 <div class="card-body p-0">`;
 
@@ -506,8 +519,8 @@ $(document).ready(function () {
             html += `<div class="alert alert-info py-2 mt-2">
                 <i class="bi bi-info-circle me-1"></i>
                 <strong>Repuestos con control de serie:</strong>
-                Al aprobar, se registrarán en el mantenimiento pero la salida de inventario
-                deberá procesarse manualmente desde el módulo de Repuestos.
+                Las series específicas se eligen al usar esta solicitud
+                en el registro del mantenimiento.
             </div>`;
         }
 
@@ -516,9 +529,28 @@ $(document).ready(function () {
 
     /* ── Aprobar ────────────────────────────────────────────── */
     $('#btnAprobar').on('click', function () {
+        // Aviso si hoy no alcanza el stock para algún repuesto
+        // (no bloquea: el descuento real ocurre al usar la solicitud)
+        const faltantes = [];
+        ((_ultimoDetalle && _ultimoDetalle.maquinas) || []).forEach(m => {
+            (m.repuestos || []).forEach(rep => {
+                if (parseInt(rep.stock_actual) < parseInt(rep.cantidad)) {
+                    faltantes.push(`${rep.repuesto}: pedido ${rep.cantidad}, disponible ${rep.stock_actual}`);
+                }
+            });
+        });
+        const avisoStock = faltantes.length
+            ? `<div class="alert alert-warning text-start small py-2 mt-3 mb-0">
+                   <i class="bi bi-exclamation-triangle me-1"></i>
+                   <strong>Stock insuficiente hoy para:</strong><br>
+                   ${faltantes.map(f => `• ${f}`).join('<br>')}<br>
+                   Puedes aprobar, pero no podrá usarse en un mantenimiento hasta reponer el inventario.
+               </div>`
+            : '';
+
         Swal.fire({
             title: '¿Aprobar solicitud?',
-            html: 'Se generará un mantenimiento por cada máquina y se descontarán los repuestos del inventario.',
+            html: 'La solicitud quedará aprobada y disponible para usarse al registrar un mantenimiento.<br>El inventario se descontará en ese momento.' + avisoStock,
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: '<i class="bi bi-check-circle me-1"></i> Sí, aprobar',
@@ -570,12 +602,16 @@ $(document).ready(function () {
         }, 'json');
     });
 
-    /* ── Cancelar (técnico) ─────────────────────────────────── */
+    /* ── Cancelar ───────────────────────────────────────────── */
     $('#tblSolicitudes').on('click', '.btn-cancelar', function () {
-        const id = $(this).data('id');
+        const id     = $(this).data('id');
+        const estado = $(this).data('estado');
+        const texto  = estado === 'Aprobado'
+            ? 'La solicitud está aprobada pero aún no se ha usado. Al cancelarla se libera el stock comprometido. Esta acción no se puede deshacer.'
+            : 'Esta acción no se puede deshacer.';
         Swal.fire({
             title: '¿Cancelar solicitud?',
-            text: 'Esta acción no se puede deshacer.',
+            text: texto,
             icon: 'warning', showCancelButton: true,
             confirmButtonText: 'Sí, cancelar', cancelButtonText: 'No',
             confirmButtonColor: '#dc3545'
@@ -591,14 +627,28 @@ $(document).ready(function () {
     /* ═══════════════════════════════════════════════════════
        HELPERS
     ═══════════════════════════════════════════════════════ */
-    function badgeEstado(estado) {
+    function badgeEstado(estado, row) {
         const map = {
             'Pendiente': 'bg-warning text-dark',
             'Aprobado':  'bg-success',
             'Rechazado': 'bg-danger',
             'Cancelado': 'bg-secondary'
         };
-        return `<span class="badge ${map[estado] || 'bg-secondary'}">${estado}</span>`;
+        let html = `<span class="badge ${map[estado] || 'bg-secondary'}">${estado}</span>`;
+
+        // Para aprobadas: indicar si ya se usó en mantenimiento(s)
+        if (estado === 'Aprobado' && row) {
+            const total  = parseInt(row.total_maquinas  || 0);
+            const usadas = parseInt(row.maquinas_usadas || 0);
+            if (usadas === 0) {
+                html += '<span class="badge badge-stock-ok d-block mt-1">Disponible</span>';
+            } else if (usadas < total) {
+                html += `<span class="badge badge-stock-warn d-block mt-1">${usadas}/${total} usadas</span>`;
+            } else {
+                html += '<span class="badge bg-secondary d-block mt-1">Usada</span>';
+            }
+        }
+        return html;
     }
 
     function botonesAccion(r, esAdmin) {
@@ -610,10 +660,18 @@ $(document).ready(function () {
                </li>`
             : '';
 
-        const btnCancelar = (!esAdmin && r.estado === 'Pendiente')
+        // Técnico: cancela sus Pendientes. Admin: también Aprobadas
+        // sin usar (libera el stock comprometido).
+        const puedeCancelar = esAdmin
+            ? (r.estado === 'Pendiente'
+               || (r.estado === 'Aprobado' && parseInt(r.maquinas_usadas || 0) === 0))
+            : r.estado === 'Pendiente';
+
+        const btnCancelar = puedeCancelar
             ? `<li><hr class="dropdown-divider"></li>
                <li>
-                   <button class="dropdown-item text-danger btn-cancelar" type="button" data-id="${r.id_solicitud}">
+                   <button class="dropdown-item text-danger btn-cancelar" type="button"
+                           data-id="${r.id_solicitud}" data-estado="${r.estado}">
                        <i class="bi bi-x-circle me-2"></i>Cancelar
                    </button>
                </li>`

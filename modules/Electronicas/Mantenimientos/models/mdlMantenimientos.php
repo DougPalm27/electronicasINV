@@ -307,18 +307,17 @@ class mdlMantenimientos
 
             $id_mantenimiento = $this->conn->lastInsertId();
 
-            // ── Instalaciones ──────────────────────────────────────
-            if (!empty($d->repuestos)) {
-                foreach ($d->repuestos as $r) {
-                    $r = (object)$r;
-                    if (!isset($r->id_repuesto)) continue;
-
-                    if ((int)$r->maneja_serie === 1) {
-                        $this->procesarSalidaSerieDesdeMantenimiento($id_mantenimiento, $d->id_maquina, $r);
-                    } else {
-                        $this->procesarSalidaCantidadDesdeMantenimiento($id_mantenimiento, $d->id_maquina, $r);
-                    }
-                }
+            // ── Repuestos desde solicitud aprobada ─────────────────
+            if (!empty($d->id_solicitud_maquina)) {
+                $seriesPorRepuesto = isset($d->series_solicitud)
+                    ? (array)$d->series_solicitud
+                    : [];
+                $this->consumirSolicitud(
+                    $id_mantenimiento,
+                    (int)$d->id_maquina,
+                    (int)$d->id_solicitud_maquina,
+                    $seriesPorRepuesto
+                );
             }
 
             // ── Retiros ────────────────────────────────────────────
@@ -341,7 +340,7 @@ class mdlMantenimientos
     // ══════════════════════════════════════════════════════════════
     // INSTALACIÓN — cantidad
     // ══════════════════════════════════════════════════════════════
-    private function procesarSalidaCantidadDesdeMantenimiento($id_mantenimiento, $id_maquina, $r)
+    private function procesarSalidaCantidadDesdeMantenimiento($id_mantenimiento, $id_maquina, $r, $referencia = 'MANTENIMIENTO')
     {
         $cantidad = isset($r->cantidad) ? (int)$r->cantidad : 1;
 
@@ -378,8 +377,8 @@ class mdlMantenimientos
             "INSERT INTO electronicas.MovimientosRepuestos
                  (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
                   stock_anterior, stock_nuevo, id_maquina, referencia)
-             VALUES (?, 2, ?, ?, ?, ?, ?, 'MANTENIMIENTO')"
-        )->execute([$r->id_repuesto, $cantidad, $costo, $stocks['stock_anterior'], $stocks['stock_nuevo'], $id_maquina]);
+             VALUES (?, 2, ?, ?, ?, ?, ?, ?)"
+        )->execute([$r->id_repuesto, $cantidad, $costo, $stocks['stock_anterior'], $stocks['stock_nuevo'], $id_maquina, $referencia]);
 
         // Registro de pieza instalada en máquina
         $this->conn->prepare(
@@ -392,7 +391,7 @@ class mdlMantenimientos
     // ══════════════════════════════════════════════════════════════
     // INSTALACIÓN — serie
     // ══════════════════════════════════════════════════════════════
-    private function procesarSalidaSerieDesdeMantenimiento($id_mantenimiento, $id_maquina, $r)
+    private function procesarSalidaSerieDesdeMantenimiento($id_mantenimiento, $id_maquina, $r, $referencia = 'MANTENIMIENTO')
     {
         if (empty($r->series) || !is_array($r->series)) {
             throw new Exception("Debes seleccionar al menos una serie para repuesto ID {$r->id_repuesto}");
@@ -432,10 +431,10 @@ class mdlMantenimientos
                 "INSERT INTO electronicas.MovimientosRepuestos
                      (id_repuesto, id_detalle_repuesto, id_tipo_movimiento, cantidad,
                       costo_unitario, stock_anterior, stock_nuevo, id_maquina, referencia)
-                 VALUES (?, ?, 2, 1, ?, ?, ?, ?, 'MANTENIMIENTO')"
+                 VALUES (?, ?, 2, 1, ?, ?, ?, ?, ?)"
             )->execute([
                 $r->id_repuesto, $id_detalle, $costo,
-                $saldoNuevo + 1, $saldoNuevo, $id_maquina
+                $saldoNuevo + 1, $saldoNuevo, $id_maquina, $referencia
             ]);
 
             // Registro de pieza instalada en máquina
@@ -444,6 +443,135 @@ class mdlMantenimientos
                      (id_maquina, id_repuesto, id_detalle_repuesto, cantidad, id_mantenimiento_instalacion)
                  VALUES (?, ?, ?, 1, ?)"
             )->execute([$id_maquina, $r->id_repuesto, $id_detalle, $id_mantenimiento]);
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // SOLICITUDES DE REPUESTOS APROBADAS (disponibles para usar)
+    // ══════════════════════════════════════════════════════════════
+    public function listarSolicitudesDisponibles(int $id_maquina): array
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT sm.id_solicitud_maquina,
+                    sr.id_solicitud,
+                    sr.codigo,
+                    sr.descripcion,
+                    sm.descripcion                              AS descripcion_maquina,
+                    FORMAT(sr.fecha_programada, 'dd/MM/yyyy')   AS fecha_programada,
+                    sr.id_tipo,
+                    sr.id_tecnico,
+                    tm.nombre                                   AS tipo,
+                    u.nombre                                    AS solicitante
+             FROM electronicas.SolicitudesMaquinas sm
+             INNER JOIN electronicas.SolicitudesRepuestos sr ON sr.id_solicitud = sm.id_solicitud
+             INNER JOIN electronicas.TipoMantenimiento    tm ON tm.id_tipo      = sr.id_tipo
+             INNER JOIN electronicas.Usuarios             u  ON u.id_usuario    = sr.id_usuario
+             WHERE sm.id_maquina = ?
+               AND sr.estado = 'Aprobado'
+               AND sm.id_mantenimiento_generado IS NULL
+             ORDER BY sr.id_solicitud DESC"
+        );
+        $stmt->execute([$id_maquina]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function obtenerRepuestosSolicitudMaquina(int $id_solicitud_maquina): array
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT sd.id_repuesto,
+                    r.nombre AS repuesto,
+                    sd.cantidad,
+                    r.maneja_serie,
+                    CASE WHEN r.maneja_serie = 1
+                        THEN (SELECT COUNT(*) FROM electronicas.RepuestosDetalle rd
+                              WHERE rd.id_repuesto = r.id_repuesto AND rd.id_estado_repuesto = 1)
+                        ELSE r.stock END AS stock_actual
+             FROM electronicas.SolicitudesDetalle sd
+             INNER JOIN electronicas.Repuestos r ON r.id_repuesto = sd.id_repuesto
+             WHERE sd.id_solicitud_maquina = ?
+             ORDER BY r.nombre"
+        );
+        $stmt->execute([$id_solicitud_maquina]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // CONSUMIR SOLICITUD — descuenta los repuestos de la solicitud
+    // aprobada y la enlaza al mantenimiento. Se ejecuta dentro de la
+    // transacción de guardarMantenimiento.
+    // ══════════════════════════════════════════════════════════════
+    private function consumirSolicitud(int $id_mantenimiento, int $id_maquina, int $id_solicitud_maquina, array $seriesPorRepuesto): void
+    {
+        // Normalizar claves a entero (el JSON llega con claves string)
+        $seriesNorm = [];
+        foreach ($seriesPorRepuesto as $k => $v) {
+            $seriesNorm[(int)$k] = (array)$v;
+        }
+        $seriesPorRepuesto = $seriesNorm;
+
+        // Validar que la línea pertenezca a una solicitud aprobada
+        // para esta máquina y siga sin usarse
+        $stmtV = $this->conn->prepare(
+            "SELECT sm.id_solicitud, sm.id_maquina, sm.id_mantenimiento_generado, sr.estado
+             FROM electronicas.SolicitudesMaquinas sm
+             INNER JOIN electronicas.SolicitudesRepuestos sr ON sr.id_solicitud = sm.id_solicitud
+             WHERE sm.id_solicitud_maquina = ?"
+        );
+        $stmtV->execute([$id_solicitud_maquina]);
+        $sol = $stmtV->fetch(PDO::FETCH_ASSOC);
+
+        if (!$sol)                                   throw new Exception('Solicitud no encontrada.');
+        if ($sol['estado'] !== 'Aprobado')           throw new Exception('La solicitud no está en estado Aprobado.');
+        if ((int)$sol['id_maquina'] !== $id_maquina) throw new Exception('La solicitud no corresponde a la máquina seleccionada.');
+
+        // Reclamo atómico: evita que dos mantenimientos usen la misma línea
+        $stmtC = $this->conn->prepare(
+            "UPDATE electronicas.SolicitudesMaquinas
+             SET id_mantenimiento_generado = ?
+             WHERE id_solicitud_maquina = ? AND id_mantenimiento_generado IS NULL"
+        );
+        $stmtC->execute([$id_mantenimiento, $id_solicitud_maquina]);
+        if ($stmtC->rowCount() === 0) {
+            throw new Exception('Esta solicitud ya fue usada en otro mantenimiento.');
+        }
+
+        $referencia = 'SOL-' . str_pad((int)$sol['id_solicitud'], 5, '0', STR_PAD_LEFT);
+
+        // Consumir cada repuesto de la solicitud
+        $stmtD = $this->conn->prepare(
+            "SELECT sd.id_repuesto, sd.cantidad, r.nombre, r.maneja_serie
+             FROM electronicas.SolicitudesDetalle sd
+             INNER JOIN electronicas.Repuestos r ON r.id_repuesto = sd.id_repuesto
+             WHERE sd.id_solicitud_maquina = ?"
+        );
+        $stmtD->execute([$id_solicitud_maquina]);
+
+        foreach ($stmtD->fetchAll(PDO::FETCH_ASSOC) as $rep) {
+            $cantidad = (int)$rep['cantidad'];
+
+            if ((int)$rep['maneja_serie'] === 1) {
+                // Series elegidas por el usuario para este repuesto
+                $series = array_values(array_filter(array_map(
+                    'intval',
+                    $seriesPorRepuesto[(int)$rep['id_repuesto']] ?? []
+                )));
+                if (count($series) !== $cantidad) {
+                    throw new Exception(
+                        "Debes seleccionar exactamente {$cantidad} serie(s) para \"{$rep['nombre']}\"."
+                    );
+                }
+                $r = (object)[
+                    'id_repuesto' => $rep['id_repuesto'],
+                    'series'      => $series
+                ];
+                $this->procesarSalidaSerieDesdeMantenimiento($id_mantenimiento, $id_maquina, $r, $referencia);
+            } else {
+                $r = (object)[
+                    'id_repuesto' => $rep['id_repuesto'],
+                    'cantidad'    => $cantidad
+                ];
+                $this->procesarSalidaCantidadDesdeMantenimiento($id_mantenimiento, $id_maquina, $r, $referencia);
+            }
         }
     }
 
@@ -861,21 +989,15 @@ class mdlMantenimientos
                  WHERE id_mantenimiento = ?"
             )->execute([$motivo, $id]);
 
-            // ── D. Anular la solicitud vinculada (si existe) ───
-            $stmtSol = $this->conn->prepare(
-                "SELECT TOP 1 sm.id_solicitud
-                 FROM electronicas.SolicitudesMaquinas sm
-                 WHERE sm.id_mantenimiento_generado = ?"
-            );
-            $stmtSol->execute([$id]);
-            $idSol = $stmtSol->fetchColumn();
-            if ($idSol) {
-                $this->conn->prepare(
-                    "UPDATE electronicas.SolicitudesRepuestos
-                     SET estado = 'Anulado'
-                     WHERE id_solicitud = ? AND estado = 'Aprobado'"
-                )->execute([$idSol]);
-            }
+            // ── D. Liberar la solicitud vinculada (si existe) ──
+            // El stock ya se revirtió con los contra-movimientos, así
+            // que la línea de solicitud vuelve a quedar disponible
+            // para usarse en otro mantenimiento.
+            $this->conn->prepare(
+                "UPDATE electronicas.SolicitudesMaquinas
+                 SET id_mantenimiento_generado = NULL
+                 WHERE id_mantenimiento_generado = ?"
+            )->execute([$id]);
 
             $this->conn->commit();
 
@@ -958,13 +1080,8 @@ class mdlMantenimientos
             $mant = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$mant) throw new Exception("Mantenimiento no encontrado o anulado.");
 
-            // Revertir movimientos ANTES de eliminar los repuestos
-            $this->revertirMovimientosRepuestos($id_mantenimiento, $mant['id_maquina']);
-
-            // Limpiar y regenerar repuestos
-            $this->conn->prepare(
-                "DELETE FROM electronicas.MantenimientoRepuestos WHERE id_mantenimiento = ?"
-            )->execute([$id_mantenimiento]);
+            // Los repuestos instalados provienen de la solicitud usada:
+            // no se modifican en la edición. Solo cabecera, tareas y retiros.
 
             // Actualizar cabecera
             $sqlU = "UPDATE electronicas.Mantenimientos
@@ -981,20 +1098,6 @@ class mdlMantenimientos
                 $d->descripcion,
                 $id_mantenimiento
             ]);
-
-            // Agregar nuevos repuestos
-            if (!empty($d->repuestos)) {
-                foreach ($d->repuestos as $r) {
-                    $r = (object)$r;
-                    if (!isset($r->id_repuesto)) continue;
-
-                    if ((int)$r->maneja_serie === 1) {
-                        $this->procesarSalidaSerieDesdeMantenimiento($id_mantenimiento, $mant['id_maquina'], $r);
-                    } else {
-                        $this->procesarSalidaCantidadDesdeMantenimiento($id_mantenimiento, $mant['id_maquina'], $r);
-                    }
-                }
-            }
 
             // Limpiar y regenerar retiros
             $this->conn->prepare(
@@ -1014,54 +1117,6 @@ class mdlMantenimientos
         } catch (Throwable $e) {
             $this->conn->rollBack();
             return ["error" => true, "mensaje" => $e->getMessage()];
-        }
-    }
-
-    private function revertirMovimientosRepuestos(int $id_mantenimiento, int $id_maquina): void
-    {
-        // Obtener repuestos instalados con movimiento de salida registrado
-        // (subconsulta en vez de JOIN para no duplicar filas si hay varios movimientos)
-        $stmt = $this->conn->prepare(
-            "SELECT mr.id_repuesto, mr.id_detalle_repuesto, mr.cantidad, r.maneja_serie,
-                    (SELECT COUNT(*) FROM electronicas.MovimientosRepuestos mov
-                     WHERE mov.id_repuesto = mr.id_repuesto
-                       AND mov.referencia  = 'MANTENIMIENTO'
-                       AND mov.id_maquina  = ?) AS tiene_movimiento
-             FROM electronicas.MantenimientoRepuestos mr
-             INNER JOIN electronicas.Repuestos r ON r.id_repuesto = mr.id_repuesto
-             WHERE mr.id_mantenimiento = ?"
-        );
-        $stmt->execute([$id_maquina, $id_mantenimiento]);
-        $repuestos = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        foreach ($repuestos as $rep) {
-            if ((int)$rep['maneja_serie'] === 0 && (int)$rep['tiene_movimiento'] > 0) {
-                // Devolver la cantidad al stock con incremento atómico
-                // (nunca restaurar a un valor histórico: pisaría movimientos posteriores)
-                $stmtStock = $this->conn->prepare(
-                    "UPDATE electronicas.Repuestos
-                     SET stock = stock + ?
-                     OUTPUT DELETED.stock AS stock_anterior, INSERTED.stock AS stock_nuevo
-                     WHERE id_repuesto = ?"
-                );
-                $stmtStock->execute([(int)$rep['cantidad'], $rep['id_repuesto']]);
-                $stocks = $stmtStock->fetch(PDO::FETCH_ASSOC);
-                if (!$stocks) continue;
-
-                // Crear movimiento de reversión
-                $this->conn->prepare(
-                    "INSERT INTO electronicas.MovimientosRepuestos
-                         (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
-                          stock_anterior, stock_nuevo, referencia, observaciones)
-                     VALUES (?, 1, ?, 0, ?, ?, 'EDICION', ?)"
-                )->execute([
-                    $rep['id_repuesto'],
-                    $rep['cantidad'],
-                    $stocks['stock_anterior'],
-                    $stocks['stock_nuevo'],
-                    "Reversión por edición de mantenimiento #" . $id_mantenimiento
-                ]);
-            }
         }
     }
 

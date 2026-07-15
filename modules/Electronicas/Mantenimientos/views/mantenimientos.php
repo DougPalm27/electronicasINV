@@ -159,27 +159,26 @@
                         <p class="small mt-1 mb-0">Sin tareas agregadas</p>
                     </div>
 
-                    <!-- ── Repuestos instalados ───────────────────────── -->
+                    <!-- ── Repuestos desde solicitud ──────────────────── -->
                     <hr class="my-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h6 class="mb-0">
                             <i class="bi bi-box-seam me-1 text-success"></i>
-                            Repuestos instalados
+                            Usar solicitud de repuestos
                             <span class="text-muted fw-normal" style="font-size:.8rem">(opcional)</span>
                             <i class="bi bi-info-circle text-muted ms-1 info-tip"
                                data-bs-toggle="tooltip"
                                data-bs-html="true"
-                               title="Piezas nuevas que se colocaron en la máquina durante este mantenimiento.<br>Al guardar, <strong>se descuentan automáticamente del inventario</strong>."></i>
+                               title="Elige una solicitud de repuestos <strong>aprobada</strong> para esta máquina.<br>Al guardar, sus repuestos <strong>se descuentan del inventario</strong> y quedan instalados en la máquina."></i>
                         </h6>
-                        <button type="button" class="btn btn-sm btn-outline-success" id="btnAgregarRepuesto">
-                            <i class="bi bi-plus-lg"></i> Agregar
-                        </button>
                     </div>
-                    <div id="listaRepuestos">
-                        <p class="text-muted small fst-italic mb-0" id="emptyRepuestos">
-                            Sin repuestos agregados.
-                        </p>
+                    <div id="seccionSolicitud">
+                        <select id="sel_solicitud" class="form-select form-select-sm mb-2" disabled>
+                            <option value="">— Selecciona una máquina primero —</option>
+                        </select>
+                        <div id="repuestosSolicitud"></div>
                     </div>
+                    <div id="repuestosEdicion" style="display:none"></div>
 
                     <!-- ── Piezas retiradas ───────────────────────────── -->
                     <hr class="my-3">
