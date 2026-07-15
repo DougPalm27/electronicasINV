@@ -958,8 +958,9 @@ class mdlMantenimientos
             $mant = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$mant) throw new Exception("Mantenimiento no encontrado o anulado.");
 
-            // Revertir movimientos ANTES de eliminar los repuestos
-            $this->revertirMovimientosRepuestos($id_mantenimiento, $mant['id_maquina']);
+            // Revertir retiros primero, luego instalaciones (evita stock negativo)
+            $this->revertirRetirosPrevios($id_mantenimiento);
+            $this->revertirInstalacionesPrevias($id_mantenimiento, $mant['id_maquina']);
 
             // Limpiar y regenerar repuestos
             $this->conn->prepare(
@@ -996,11 +997,7 @@ class mdlMantenimientos
                 }
             }
 
-            // Limpiar y regenerar retiros
-            $this->conn->prepare(
-                "DELETE FROM electronicas.MaquinaRepuestos WHERE id_mantenimiento_retiro = ?"
-            )->execute([$id_mantenimiento]);
-
+            // Reprocesar retiros (los previos ya fueron revertidos al inicio)
             if (!empty($d->retiros)) {
                 foreach ($d->retiros as $ret) {
                     $ret = (object)$ret;
@@ -1017,26 +1014,197 @@ class mdlMantenimientos
         }
     }
 
-    private function revertirMovimientosRepuestos(int $id_mantenimiento, int $id_maquina): void
+    /**
+     * Revierte los retiros registrados por este mantenimiento sin borrar el
+     * historial: deshace el efecto de stock/serie de cada retiro (misma lógica
+     * que ejecutarAnulacion paso A) y reabre la fila de MaquinaRepuestos para
+     * que el retiro pueda reprocesarse. La fila pertenece a la instalación
+     * original (otro mantenimiento), por eso nunca debe eliminarse.
+     */
+    private function revertirRetirosPrevios(int $id_mantenimiento): void
     {
-        // Obtener repuestos instalados con movimiento de salida registrado
-        // (subconsulta en vez de JOIN para no duplicar filas si hay varios movimientos)
-        $stmt = $this->conn->prepare(
-            "SELECT mr.id_repuesto, mr.id_detalle_repuesto, mr.cantidad, r.maneja_serie,
-                    (SELECT COUNT(*) FROM electronicas.MovimientosRepuestos mov
-                     WHERE mov.id_repuesto = mr.id_repuesto
-                       AND mov.referencia  = 'MANTENIMIENTO'
-                       AND mov.id_maquina  = ?) AS tiene_movimiento
+        $stmtR = $this->conn->prepare(
+            "SELECT maq.id_maquina_repuesto, maq.id_maquina, maq.id_repuesto,
+                    maq.id_detalle_repuesto, maq.cantidad, maq.tipo_retiro,
+                    r.maneja_serie, r.nombre AS repuesto
+             FROM electronicas.MaquinaRepuestos maq
+             INNER JOIN electronicas.Repuestos r ON r.id_repuesto = maq.id_repuesto
+             WHERE maq.id_mantenimiento_retiro = ?"
+        );
+        $stmtR->execute([$id_mantenimiento]);
+        $retiros = $stmtR->fetchAll(PDO::FETCH_ASSOC);
+        if (!$retiros) return;
+
+        $idTipoSalida = (int)($this->conn->query(
+            "SELECT TOP 1 id_tipo_movimiento FROM electronicas.TiposMovimientoRepuesto
+             WHERE nombre = 'Salida'"
+        )->fetchColumn() ?: 2);
+
+        $obsBase = 'Reversión de retiro por edición de mantenimiento #' . $id_mantenimiento;
+
+        foreach ($retiros as $ret) {
+            $cant    = (int)$ret['cantidad'];
+            $esSerie = (int)$ret['maneja_serie'] === 1 && $ret['id_detalle_repuesto'];
+
+            if ($ret['tipo_retiro'] === 'devolucion') {
+                if ($esSerie) {
+                    // La devolución dejó la serie "disponible"; volverla a "instalada"
+                    // solo si nadie la tomó después (guarda atómica)
+                    $stmtSerie = $this->conn->prepare(
+                        "UPDATE electronicas.RepuestosDetalle
+                         SET id_estado_repuesto = 2, id_maquina_actual = ?
+                         WHERE id_detalle_repuesto = ? AND id_estado_repuesto = 1"
+                    );
+                    $stmtSerie->execute([$ret['id_maquina'], $ret['id_detalle_repuesto']]);
+                    if ($stmtSerie->rowCount() === 0) {
+                        throw new Exception(
+                            "No se puede editar: la serie devuelta de '{$ret['repuesto']}' ya no está disponible en inventario."
+                        );
+                    }
+
+                    $saldoNuevo = $this->contarSeriesDisponibles($ret['id_repuesto']);
+
+                    $this->conn->prepare(
+                        "INSERT INTO electronicas.MovimientosRepuestos
+                             (id_repuesto, id_detalle_repuesto, id_tipo_movimiento, cantidad,
+                              costo_unitario, stock_anterior, stock_nuevo, id_maquina, referencia, observaciones)
+                         VALUES (?, ?, ?, 1, 0, ?, ?, ?, 'EDICION', ?)"
+                    )->execute([
+                        $ret['id_repuesto'], $ret['id_detalle_repuesto'], $idTipoSalida,
+                        $saldoNuevo + 1, $saldoNuevo, $ret['id_maquina'], $obsBase
+                    ]);
+                } else {
+                    // Descontar el stock que la devolución había sumado (atómico)
+                    $stmtStock = $this->conn->prepare(
+                        "UPDATE electronicas.Repuestos
+                         SET stock = stock - ?
+                         OUTPUT DELETED.stock AS stock_anterior, INSERTED.stock AS stock_nuevo
+                         WHERE id_repuesto = ? AND stock >= ?"
+                    );
+                    $stmtStock->execute([$cant, $ret['id_repuesto'], $cant]);
+                    $stocks = $stmtStock->fetch(PDO::FETCH_ASSOC);
+                    if (!$stocks) {
+                        throw new Exception(
+                            "No se puede editar: el stock actual de '{$ret['repuesto']}' no alcanza para revertir la devolución de {$cant} unidad(es)."
+                        );
+                    }
+
+                    $this->conn->prepare(
+                        "INSERT INTO electronicas.MovimientosRepuestos
+                             (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
+                              stock_anterior, stock_nuevo, id_maquina, referencia, observaciones)
+                         VALUES (?, ?, ?, 0, ?, ?, ?, 'EDICION', ?)"
+                    )->execute([
+                        $ret['id_repuesto'], $idTipoSalida, $cant,
+                        $stocks['stock_anterior'], $stocks['stock_nuevo'],
+                        $ret['id_maquina'], $obsBase
+                    ]);
+                }
+            } elseif ($esSerie) {
+                // Baja de serie: restaurarla como instalada (sin mover stock)
+                $this->conn->prepare(
+                    "UPDATE electronicas.RepuestosDetalle
+                     SET id_estado_repuesto = 2, id_maquina_actual = ?
+                     WHERE id_detalle_repuesto = ?"
+                )->execute([$ret['id_maquina'], $ret['id_detalle_repuesto']]);
+            }
+            // Baja por cantidad: no movió stock, nada que revertir
+
+            // Reabrir el registro: la pieza vuelve a estar instalada
+            $this->conn->prepare(
+                "UPDATE electronicas.MaquinaRepuestos
+                 SET fecha_retiro = NULL, tipo_retiro = NULL,
+                     id_mantenimiento_retiro = NULL, observaciones_retiro = NULL
+                 WHERE id_maquina_repuesto = ?"
+            )->execute([$ret['id_maquina_repuesto']]);
+        }
+    }
+
+    /**
+     * Revierte las instalaciones registradas por este mantenimiento para que
+     * puedan regenerarse desde los datos editados: devuelve stock/series al
+     * inventario (misma lógica que ejecutarAnulacion paso B) y elimina la fila
+     * de MaquinaRepuestos para no duplicar piezas instaladas. Si una pieza ya
+     * fue retirada por otro mantenimiento, la edición se bloquea.
+     */
+    private function revertirInstalacionesPrevias(int $id_mantenimiento, int $id_maquina): void
+    {
+        $stmtI = $this->conn->prepare(
+            "SELECT mr.id_repuesto, mr.id_detalle_repuesto, mr.cantidad,
+                    r.maneja_serie, r.nombre AS repuesto
              FROM electronicas.MantenimientoRepuestos mr
              INNER JOIN electronicas.Repuestos r ON r.id_repuesto = mr.id_repuesto
              WHERE mr.id_mantenimiento = ?"
         );
-        $stmt->execute([$id_maquina, $id_mantenimiento]);
-        $repuestos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmtI->execute([$id_mantenimiento]);
+        $instalaciones = $stmtI->fetchAll(PDO::FETCH_ASSOC);
+        if (!$instalaciones) return;
 
-        foreach ($repuestos as $rep) {
-            if ((int)$rep['maneja_serie'] === 0 && (int)$rep['tiene_movimiento'] > 0) {
-                // Devolver la cantidad al stock con incremento atómico
+        $idTipoEntrada = (int)($this->conn->query(
+            "SELECT TOP 1 id_tipo_movimiento FROM electronicas.TiposMovimientoRepuesto
+             WHERE nombre = 'Entrada'"
+        )->fetchColumn() ?: 1);
+
+        $obsBase = 'Reversión de instalación por edición de mantenimiento #' . $id_mantenimiento;
+
+        foreach ($instalaciones as $inst) {
+            $idDet = $inst['id_detalle_repuesto'];
+
+            // Localizar la fila instalada. Los retiros de este mantenimiento ya
+            // fueron revertidos, así que una fila con fecha_retiro pertenece a
+            // un retiro hecho por OTRO mantenimiento.
+            if ($idDet) {
+                $stmtMR = $this->conn->prepare(
+                    "SELECT TOP 1 id_maquina_repuesto, fecha_retiro, id_mantenimiento_retiro
+                     FROM electronicas.MaquinaRepuestos
+                     WHERE id_mantenimiento_instalacion = ? AND id_detalle_repuesto = ?
+                     ORDER BY CASE WHEN fecha_retiro IS NULL THEN 0 ELSE 1 END"
+                );
+                $stmtMR->execute([$id_mantenimiento, $idDet]);
+            } else {
+                $stmtMR = $this->conn->prepare(
+                    "SELECT TOP 1 id_maquina_repuesto, fecha_retiro, id_mantenimiento_retiro
+                     FROM electronicas.MaquinaRepuestos
+                     WHERE id_mantenimiento_instalacion = ? AND id_repuesto = ?
+                       AND id_detalle_repuesto IS NULL
+                     ORDER BY CASE WHEN fecha_retiro IS NULL THEN 0 ELSE 1 END"
+                );
+                $stmtMR->execute([$id_mantenimiento, $inst['id_repuesto']]);
+            }
+            $fila = $stmtMR->fetch(PDO::FETCH_ASSOC);
+            if (!$fila) continue; // dato anterior a la migración: nada que revertir
+
+            if ($fila['fecha_retiro'] !== null) {
+                $otro = $fila['id_mantenimiento_retiro'];
+                throw new Exception(
+                    "No se puede editar: '{$inst['repuesto']}' instalado por este mantenimiento fue retirado"
+                    . ($otro ? " en el mantenimiento #{$otro}" : " posteriormente")
+                    . ". Anula o ajusta ese registro primero."
+                );
+            }
+
+            if ((int)$inst['maneja_serie'] === 1 && $idDet) {
+                // Serie: volver a disponible
+                $this->conn->prepare(
+                    "UPDATE electronicas.RepuestosDetalle
+                     SET id_estado_repuesto = 1, id_maquina_actual = NULL
+                     WHERE id_detalle_repuesto = ?"
+                )->execute([$idDet]);
+
+                // Saldo corrido: conteo de series disponibles tras la reversión
+                $saldoNuevo = $this->contarSeriesDisponibles($inst['id_repuesto']);
+
+                $this->conn->prepare(
+                    "INSERT INTO electronicas.MovimientosRepuestos
+                         (id_repuesto, id_detalle_repuesto, id_tipo_movimiento, cantidad,
+                          costo_unitario, stock_anterior, stock_nuevo, id_maquina, referencia, observaciones)
+                     VALUES (?, ?, ?, 1, 0, ?, ?, ?, 'EDICION', ?)"
+                )->execute([
+                    $inst['id_repuesto'], $idDet, $idTipoEntrada,
+                    $saldoNuevo - 1, $saldoNuevo, $id_maquina, $obsBase
+                ]);
+            } else {
+                // Cantidad: devolver al stock con incremento atómico
                 // (nunca restaurar a un valor histórico: pisaría movimientos posteriores)
                 $stmtStock = $this->conn->prepare(
                     "UPDATE electronicas.Repuestos
@@ -1044,24 +1212,25 @@ class mdlMantenimientos
                      OUTPUT DELETED.stock AS stock_anterior, INSERTED.stock AS stock_nuevo
                      WHERE id_repuesto = ?"
                 );
-                $stmtStock->execute([(int)$rep['cantidad'], $rep['id_repuesto']]);
+                $stmtStock->execute([(int)$inst['cantidad'], $inst['id_repuesto']]);
                 $stocks = $stmtStock->fetch(PDO::FETCH_ASSOC);
                 if (!$stocks) continue;
 
-                // Crear movimiento de reversión
                 $this->conn->prepare(
                     "INSERT INTO electronicas.MovimientosRepuestos
                          (id_repuesto, id_tipo_movimiento, cantidad, costo_unitario,
-                          stock_anterior, stock_nuevo, referencia, observaciones)
-                     VALUES (?, 1, ?, 0, ?, ?, 'EDICION', ?)"
+                          stock_anterior, stock_nuevo, id_maquina, referencia, observaciones)
+                     VALUES (?, ?, ?, 0, ?, ?, ?, 'EDICION', ?)"
                 )->execute([
-                    $rep['id_repuesto'],
-                    $rep['cantidad'],
-                    $stocks['stock_anterior'],
-                    $stocks['stock_nuevo'],
-                    "Reversión por edición de mantenimiento #" . $id_mantenimiento
+                    $inst['id_repuesto'], $idTipoEntrada, $inst['cantidad'],
+                    $stocks['stock_anterior'], $stocks['stock_nuevo'], $id_maquina, $obsBase
                 ]);
             }
+
+            // Eliminar la fila de instalación: se regenera al reprocesar
+            $this->conn->prepare(
+                "DELETE FROM electronicas.MaquinaRepuestos WHERE id_maquina_repuesto = ?"
+            )->execute([$fila['id_maquina_repuesto']]);
         }
     }
 
