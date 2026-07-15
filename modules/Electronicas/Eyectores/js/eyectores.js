@@ -31,7 +31,11 @@ function abrirEyectores(id_maquina) {
   eyResetBotonModo();
 
   if (!eyModal) {
-    eyModal = new bootstrap.Modal(document.getElementById("modalEyectores"));
+    // focus:false — sin esto el modal recaptura el foco y no se puede
+    // escribir en los campos de los diálogos SweetAlert (observaciones)
+    eyModal = new bootstrap.Modal(document.getElementById("modalEyectores"), {
+      focus: false,
+    });
   }
   eyModal.show();
 
