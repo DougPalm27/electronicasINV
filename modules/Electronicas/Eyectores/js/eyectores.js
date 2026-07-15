@@ -19,7 +19,7 @@ function abrirEyectores(id_maquina) {
 
   $("#eyMaquinaNombre").text("");
   $("#eyStats").addClass("d-none");
-  $("#btnInicializarBarra").addClass("d-none");
+  $("#btnInicializarBarra, #btnHistorialEyectores").addClass("d-none");
   $("#eyContenido").html(
     '<div class="text-center py-5"><span class="spinner-border text-primary"></span></div>',
   );
@@ -162,6 +162,7 @@ function renderBarra(eyectores) {
 
   actualizarEyStats();
   $("#eyStats").removeClass("d-none");
+  $("#btnHistorialEyectores").removeClass("d-none");
 
   if (eyPuedeEditar()) $("#btnModoSeleccion").removeClass("d-none");
 }
@@ -444,3 +445,111 @@ function aplicarLote(id_estado, observacion) {
     },
   });
 }
+
+//////////////////////////////////////////////////////////
+// 📋 Historial de cambios de la barra
+//////////////////////////////////////////////////////////
+
+let eyHistModal = null;
+
+function eyEscape(texto) {
+  return $("<span>").text(texto ?? "").html();
+}
+
+$(document).on("click", "#btnHistorialEyectores", function () {
+  if (!eyHistModal) {
+    eyHistModal = new bootstrap.Modal(document.getElementById("modalHistorialEyectores"));
+    // Al cerrar el historial se vuelve al modal de la barra
+    document
+      .getElementById("modalHistorialEyectores")
+      .addEventListener("hidden.bs.modal", () => {
+        if (eyModal) eyModal.show();
+      });
+  }
+
+  $("#eyHistMaquinaNombre").text($("#eyMaquinaNombre").text());
+  $("#eyHistFiltro").val("");
+  $("#eyHistContenido").html(
+    '<div class="text-center py-5"><span class="spinner-border text-primary"></span></div>',
+  );
+
+  eyModal.hide();
+  eyHistModal.show();
+
+  $.ajax({
+    url: "./modules/Electronicas/Eyectores/Controllers/historialEyectores.php",
+    type: "POST",
+    dataType: "json",
+    data: { id_maquina: eyMaquinaActual },
+    success: function (resp) {
+      if (!resp.ok) {
+        $("#eyHistContenido").html(
+          `<p class="text-center text-danger py-4"><i class="bi bi-exclamation-circle me-1"></i>${eyEscape(resp.mensaje || "Error")}</p>`,
+        );
+        return;
+      }
+      renderHistorialEyectores(resp.data || []);
+    },
+    error: function () {
+      $("#eyHistContenido").html(
+        '<p class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle me-1"></i>Error al cargar el historial.</p>',
+      );
+    },
+  });
+});
+
+function renderHistorialEyectores(data) {
+  if (data.length === 0) {
+    $("#eyHistContenido").html(
+      '<p class="text-center text-muted py-5"><i class="bi bi-info-circle me-1"></i>Esta barra no tiene cambios de estado registrados.</p>',
+    );
+    return;
+  }
+
+  const filas = data
+    .map((h) => {
+      const etiqueta = `${eyLadoLabel(h.lado)} #${h.numero}`;
+      const ant = h.estado_anterior
+        ? `<span class="badge ${h.clase_anterior}">${eyEscape(h.estado_anterior)}</span>`
+        : '<span class="text-muted small">—</span>';
+      const texto = [etiqueta, h.estado_anterior, h.estado_nuevo, h.usuario, h.observacion]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return `
+      <tr data-texto="${eyEscape(texto)}">
+        <td class="text-nowrap small">${eyEscape(h.fecha)}</td>
+        <td class="text-nowrap fw-semibold">${etiqueta}</td>
+        <td class="text-nowrap">${ant} <i class="bi bi-arrow-right small text-muted"></i> <span class="badge ${h.clase_nuevo}">${eyEscape(h.estado_nuevo)}</span></td>
+        <td class="small">${h.observacion ? eyEscape(h.observacion) : '<span class="text-muted">—</span>'}</td>
+        <td class="small">${h.usuario ? eyEscape(h.usuario) : '<span class="text-muted">—</span>'}</td>
+      </tr>`;
+    })
+    .join("");
+
+  $("#eyHistContenido").html(`
+    <p class="text-muted small mb-2">
+      <i class="bi bi-list-check me-1"></i>
+      ${data.length} cambio(s) registrado(s)${data.length >= 500 ? " — mostrando los 500 más recientes" : ""}
+    </p>
+    <table class="table table-hover w-100 mb-0">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Eyector</th>
+          <th>Cambio</th>
+          <th>Observación</th>
+          <th>Usuario</th>
+        </tr>
+      </thead>
+      <tbody id="eyHistBody">${filas}</tbody>
+    </table>`);
+}
+
+$(document).on("input", "#eyHistFiltro", function () {
+  const q = $(this).val().trim().toLowerCase();
+  $("#eyHistBody tr").each(function () {
+    $(this).toggle(String($(this).data("texto")).includes(q));
+  });
+});

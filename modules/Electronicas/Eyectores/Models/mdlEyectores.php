@@ -284,4 +284,48 @@ class mdlEyectores extends Connection
             exit;
         }
     }
+
+    // Historial de cambios de estado de la barra (más recientes primero)
+    public function historial($id_maquina)
+    {
+        header('Content-Type: application/json');
+
+        try {
+            $stmtNom = $this->conn->prepare(
+                "SELECT nombre FROM electronicas.Maquinas WHERE id_maquina = :id"
+            );
+            $stmtNom->bindParam(":id", $id_maquina);
+            $stmtNom->execute();
+            $maquina = $stmtNom->fetchColumn() ?: 'Máquina';
+
+            $sql = "SELECT TOP 500
+                           CONVERT(varchar, h.fecha, 120) AS fecha,
+                           e.lado, e.numero,
+                           ea.nombre AS estado_anterior, ea.clase_css AS clase_anterior,
+                           en.nombre AS estado_nuevo,    en.clase_css AS clase_nuevo,
+                           h.observacion,
+                           u.nombre AS usuario
+                    FROM electronicas.EyectorHistorial h
+                    INNER JOIN electronicas.Eyectores e      ON e.id_eyector = h.id_eyector
+                    INNER JOIN electronicas.EstadoEyector en ON en.id_estado = h.id_estado_nuevo
+                    LEFT  JOIN electronicas.EstadoEyector ea ON ea.id_estado = h.id_estado_anterior
+                    LEFT  JOIN electronicas.Usuarios u       ON u.id_usuario = h.id_usuario
+                    WHERE e.id_maquina = :id_maquina
+                    ORDER BY h.fecha DESC, h.id_historial DESC";
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindParam(":id_maquina", $id_maquina);
+            $stmt->execute();
+
+            echo json_encode([
+                'ok'      => true,
+                'maquina' => $maquina,
+                'data'    => $stmt->fetchAll(PDO::FETCH_ASSOC)
+            ]);
+            exit;
+        } catch (PDOException $e) {
+            echo json_encode(['ok' => false, 'mensaje' => $e->getMessage()]);
+            exit;
+        }
+    }
 }

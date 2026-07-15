@@ -284,6 +284,9 @@
             </div>
 
             <div class="modal-footer">
+                <button class="btn btn-outline-secondary d-none" id="btnHistorialEyectores">
+                    <i class="bi bi-clock-history me-1"></i>Historial
+                </button>
                 <button class="btn btn-success d-none" id="btnInicializarBarra">
                     <i class="bi bi-magic me-1"></i>Inicializar barra
                 </button>
@@ -296,6 +299,31 @@
                 <button class="btn btn-primary d-none" id="btnAplicarSeleccion" disabled>
                     <i class="bi bi-pencil-square me-1"></i>Cambiar estado (<span id="eySelCount">0</span>)
                 </button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Modal: Historial de la barra de eyectores ────────────── -->
+<div class="modal fade" id="modalHistorialEyectores" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title mb-0">
+                    <i class="bi bi-clock-history me-2"></i>
+                    Historial de eyectores — <span id="eyHistMaquinaNombre" class="fw-bold"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="form-control form-control-sm mb-3" id="eyHistFiltro"
+                       placeholder="Filtrar por eyector, estado o usuario (ej. Izq #12)">
+                <div id="eyHistContenido" style="min-height:150px">
+                    <div class="text-center py-5"><span class="spinner-border text-primary"></span></div>
+                </div>
+            </div>
+            <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
