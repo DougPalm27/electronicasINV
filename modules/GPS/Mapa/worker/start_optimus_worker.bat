@@ -20,5 +20,6 @@ cd /d "%~dp0"
 echo [%date% %time%] Iniciando worker de Optimus...
 "%PHP%" optimus_worker.php
 echo [%date% %time%] El worker se detuvo. Reintentando en 10s...
-timeout /t 10 /nobreak >nul
+REM ping como pausa (funciona en tareas sin consola, a diferencia de timeout)
+ping -n 11 127.0.0.1 >nul
 goto loop
