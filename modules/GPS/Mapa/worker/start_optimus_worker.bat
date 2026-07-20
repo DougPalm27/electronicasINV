@@ -9,8 +9,9 @@ REM
 REM  Para que arranque solo: Programador de tareas -> ver DESPLIEGUE.md
 REM ============================================================
 
-REM --- Ruta de php.exe (ajusta si es distinta en el servidor) ---
+REM --- Ruta de php.exe (se detecta sola; ajusta si es otra) ---
 set "PHP=C:\xampp\php\php.exe"
+if not exist "%PHP%" set "PHP=C:\Program Files\PHP\current\php.exe"
 if not exist "%PHP%" set "PHP=php"
 
 REM --- Ubicarse en la carpeta de este .bat (donde esta optimus_worker.php) ---
