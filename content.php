@@ -67,6 +67,7 @@ if (empty($_GET['module'])) {
         'compras'          => './modules/SolicitudesCompra/views/vw_solicitudesCompra.php',
         'satake'           => './modules/Mantenimiento/Satake/views/vw_satake.php',
         // ── GPS ──────────────────────────────────────────────
+        'gpsMapa'          => './modules/GPS/Mapa/views/vw_mapa.php',
         'gpsCredenciales'  => './modules/GPS/GPS/views/vw_gps.php',
         'gpsTransportes'   => './modules/GPS/Transportes/views/vw_transportes.php',
         'gpsCuentas'       => './modules/GPS/CuentasGPS/views/vw_cuentasGPS.php',

@@ -250,12 +250,21 @@ foreach ($parametrizacion as $p) {
       <?php
       // Solo los módulos operativos; la parametrización GPS vive en Configuración
       $gpsVisible = false;
-      foreach (['gpsCredenciales','gpsTransportes','gpsCuentas'] as $g) {
+      foreach (['gpsMapa','gpsCredenciales','gpsTransportes','gpsCuentas'] as $g) {
           if (puedeVer($g)) { $gpsVisible = true; break; }
       }
       ?>
       <?php if ($gpsVisible): ?>
       <li class="nav-heading">GPS</li>
+
+      <?php if (puedeVer('gpsMapa')): ?>
+      <li class="nav-item">
+        <a class="<?= navLink('gpsMapa', $mod) ?>" href="?module=gpsMapa">
+          <i class="bi bi-map"></i>
+          <span>Mapa GPS</span>
+        </a>
+      </li>
+      <?php endif; ?>
 
       <?php if (puedeVer('gpsCredenciales')): ?>
       <li class="nav-item">

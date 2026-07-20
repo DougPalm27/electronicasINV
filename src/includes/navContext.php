@@ -22,6 +22,7 @@ $MODULOS_TITULOS = [
     'solicitudes'       => 'Solicitudes',
     'compras'           => 'Solicitudes de Compra',
     'satake'            => 'Satake',
+    'gpsMapa'           => 'Mapa GPS',
     'gpsCredenciales'   => 'Credenciales',
     'gpsTransportes'    => 'Transportes',
     'gpsCuentas'        => 'Cuentas',
