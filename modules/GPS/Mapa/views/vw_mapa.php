@@ -150,9 +150,13 @@
   .mapa-item .mi-quitar:hover { color:#dc3545; }
 
   .mk { background:none; border:none; }
-  .mk-arrow { width:0; height:0; }
-  .mk-arrow svg { display:block; }
-  .mk-dot { width:14px; height:14px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.35); }
+  .mk-veh { position:relative; width:34px; height:40px; color:var(--mk-color); filter:drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
+  .mk-body { position:absolute; left:4px; top:7px; width:26px; height:26px; display:flex; align-items:center; justify-content:center; background:#fff; border:2px solid var(--mk-color); color:var(--mk-color); font-size:15px; line-height:1; }
+  .mk-pin { position:absolute; left:12px; bottom:2px; width:10px; height:10px; background:#fff; border-right:2px solid var(--mk-color); border-bottom:2px solid var(--mk-color); transform:rotate(45deg); }
+  .mk-heading { position:absolute; left:14px; top:0; width:0; height:0; border-left:3px solid transparent; border-right:3px solid transparent; border-bottom:8px solid var(--mk-color); transform-origin:3px 18px; }
+  .mk-veh.mov .mk-body { background:#f4fbf7; }
+  .mk-veh.idle .mk-body { background:#fff9df; }
+  .mk-veh.stop .mk-body { background:#f4f5f6; }
   .mapa-pop .mp-placa { font-family:'IBM Plex Mono', ui-monospace, monospace; font-weight:700; font-size:.95rem; }
   .mapa-pop .mp-row { font-size:.78rem; margin-top:2px; }
   .mapa-pop .mp-lbl { color:#8a919c; display:inline-block; min-width:74px; }

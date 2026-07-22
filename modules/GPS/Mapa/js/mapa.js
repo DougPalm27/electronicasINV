@@ -61,15 +61,13 @@ $(document).ready(function () {
 
     function icono(v) {
         const est = movimiento(v), col = MOV[est];
-        if (est === 'mov') {
-            return L.divIcon({ className: 'mk', iconSize: [22, 22], iconAnchor: [11, 11],
-                html: `<div class="mk-arrow" style="transform:rotate(${v.rumbo || 0}deg)">
-                         <svg width="22" height="22" viewBox="0 0 22 22">
-                           <path d="M11 2 L18 19 L11 15 L4 19 Z" fill="${col}" stroke="#fff" stroke-width="1.3"/>
-                         </svg></div>` });
-        }
-        return L.divIcon({ className: 'mk', iconSize: [14, 14], iconAnchor: [7, 7],
-            html: `<div class="mk-dot" style="background:${col}"></div>` });
+        const rumbo = Number(v.rumbo || 0);
+        return L.divIcon({ className: 'mk', iconSize: [34, 40], iconAnchor: [17, 36],
+            html: `<div class="mk-veh ${est}" style="--mk-color:${col}">
+                     ${est === 'mov' ? `<span class="mk-heading" style="transform:rotate(${rumbo}deg)"></span>` : ''}
+                     <span class="mk-body"><i class="bi bi-truck-front-fill"></i></span>
+                     <span class="mk-pin"></span>
+                   </div>` });
     }
     function popup(v) {
         const est = movimiento(v);
