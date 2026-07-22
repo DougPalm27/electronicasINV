@@ -152,7 +152,11 @@
   .mapa-item .mi-body { flex:1 1 auto; cursor:pointer; min-width:0; }
   .mapa-item .mi-placa { font-family:'IBM Plex Mono', ui-monospace, monospace; font-weight:600; font-size:.82rem; line-height:1.1; }
   .mapa-item .mi-sub { font-size:.68rem; color:#8a919c; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mapa-item .mi-tramo { font-size:.66rem; color:#156b45; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .mapa-item .mi-vel { font-size:.72rem; color:#6c757d; white-space:nowrap; }
+  .mapa-item .mi-ruta { border:1px solid #d7ddd9; background:#fff; color:#156b45; font-size:.85rem; line-height:1; padding:3px 5px; cursor:pointer; }
+  .mapa-item .mi-ruta:hover { background:#eaf3ee; border-color:#156b45; }
+  .mapa-item .mi-ruta.btn-outline-success { color:#0f7a3a; border-color:#b9d8c5; }
   .mapa-item .mi-quitar { border:none; background:none; color:#c0c4c9; font-size:.95rem; line-height:1; padding:2px 4px; cursor:pointer; }
   .mapa-item .mi-quitar:hover { color:#dc3545; }
 

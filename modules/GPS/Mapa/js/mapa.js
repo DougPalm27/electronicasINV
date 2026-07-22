@@ -59,6 +59,29 @@ $(document).ready(function () {
     const ETI = { mov: 'En movimiento', idle: 'Ralentí', stop: 'Detenido' };
     function movimiento(v) { if ((v.velocidad || 0) > 0) return 'mov'; if (Number(v.encendido) === 1) return 'idle'; return 'stop'; }
     function tienePos(v) { return v.lat != null && v.lng != null; }
+    function formatoDuracion(min) {
+        if (min == null || isNaN(Number(min))) return '';
+        const n = Math.max(0, Number(min));
+        const h = Math.floor(n / 60), m = n % 60;
+        return h ? `${h}h ${m}m` : `${m}m`;
+    }
+    function textoTramo(v) {
+        if (v.estado_tramo === 'en_ruta') return `En ruta desde ${v.fecha_inicio_tramo || '—'}`;
+        if (v.estado_tramo === 'finalizado') return `Finalizado ${formatoDuracion(v.duracion_minutos) || ''}`.trim();
+        return 'Ruta sin iniciar';
+    }
+    function botonesTramo(v, enPopup = false) {
+        if (estadoDespachos === 'cerrado') return '';
+        const cls = enPopup ? 'btn btn-sm' : 'mi-ruta';
+        if (v.estado_tramo === 'en_ruta') {
+            return `<button class="${cls} btn-outline-success btn-finalizar-tramo" type="button" title="Finalizar ruta" data-id="${v.id_dv}">
+                      <i class="bi bi-flag"></i>${enPopup ? ' Finalizar ruta' : ''}
+                    </button>`;
+        }
+        return `<button class="${cls} btn-outline-primary btn-iniciar-tramo" type="button" title="Iniciar ruta" data-id="${v.id_dv}">
+                  <i class="bi bi-play-fill"></i>${enPopup ? ' Iniciar ruta' : ''}
+                </button>`;
+    }
 
     function icono(v, activo = false) {
         const est = movimiento(v), col = MOV[est];
@@ -89,8 +112,10 @@ $(document).ready(function () {
             <div class="mp-row"><span class="mp-lbl">Transporte</span>${esc(v.transporte || '—')}</div>
             <div class="mp-row"><span class="mp-lbl">Ubicación</span><span class="mp-ubic">${v.direccion ? esc(v.direccion) : 'Buscando dirección…'}</span></div>
             <div class="mp-row"><span class="mp-lbl">Reporte</span>${esc(v.fecha || '—')}</div>
+            <div class="mp-row"><span class="mp-lbl">Ruta</span>${esc(textoTramo(v))}</div>
             <div class="mp-actions">
-              <button class="btn btn-sm btn-outline-primary btn-recorrido" type="button" data-id="${v.id_dv}">
+              ${botonesTramo(v, true)}
+              <button class="btn btn-sm btn-outline-primary btn-recorrido" type="button" data-id="${v.id_dv}" data-tramo="${v.id_tramo || ''}">
                 <i class="bi bi-signpost-split me-1"></i> Ver recorrido
               </button>
             </div>
@@ -137,6 +162,7 @@ $(document).ready(function () {
                 let der = seg === 'live' ? ((v.velocidad || 0) > 0 ? v.velocidad + ' km/h' : 'Detenido')
                         : seg === 'pendiente' ? 'Pendiente' : seg === 'historial' ? 'Historial' : 'Sin señal';
                 const sub = [v.transporte, v.plataforma, estadoDespachos === 'cerrado' && v.fecha_cierre ? 'Cerrado ' + v.fecha_cierre : ''].filter(Boolean).join(' · ');
+                const ruta = textoTramo(v);
                 const btnQuitar = estadoDespachos === 'cerrado' ? '' :
                     `<button class="mi-quitar" title="Quitar del despacho" data-id="${v.id_dv}">
                          <i class="bi bi-x-lg"></i></button>`;
@@ -145,9 +171,11 @@ $(document).ready(function () {
                        <span class="mi-dot" style="background:${SEG[seg] || SEG.sin_senal}"></span>
                        <span class="mi-body" data-id="${v.id_dv}">
                          <span class="mi-placa">${esc(v.placa)}</span><br>
-                         <span class="mi-sub">${esc(sub)}</span>
+                         <span class="mi-sub">${esc(sub)}</span><br>
+                         <span class="mi-tramo">${esc(ruta)}</span>
                        </span>
                        <span class="mi-vel">${esc(der)}</span>
+                       ${botonesTramo(v)}
                        ${btnQuitar}
                      </div>`);
             });
@@ -203,10 +231,10 @@ $(document).ready(function () {
         </div>`;
     }
 
-    function mostrarRecorrido(id) {
+    function mostrarRecorrido(id, idTramo) {
         const v = datos.find(x => String(x.id_dv) === String(id));
         $('#mapaStatus').text(`Cargando recorrido de ${v ? v.placa : 'vehículo'}…`);
-        $.post(CTRL_MAPA, { accion: 'recorrido', id_dv: id }, function (r) {
+        $.post(CTRL_MAPA, { accion: 'recorrido', id_dv: id, id_tramo: idTramo || '' }, function (r) {
             if (!r.ok) {
                 Swal.fire({ icon: 'error', title: 'No se pudo cargar', text: r.mensaje || 'Error desconocido.' });
                 return;
@@ -257,7 +285,24 @@ $(document).ready(function () {
         seleccionarVehiculo($(this).data('id'));
     });
     $(document).on('click', '.btn-recorrido', function () {
-        mostrarRecorrido($(this).data('id'));
+        mostrarRecorrido($(this).data('id'), $(this).data('tramo'));
+    });
+    $(document).on('click', '.btn-iniciar-tramo', function (e) {
+        e.stopPropagation();
+        cambiarTramo('iniciarTramo', $(this).data('id'));
+    });
+    $(document).on('click', '.btn-finalizar-tramo', function (e) {
+        e.stopPropagation();
+        const id = $(this).data('id');
+        const v = datos.find(x => String(x.id_dv) === String(id));
+        Swal.fire({
+            icon: 'question',
+            title: '¿Finalizar ruta?',
+            text: v ? `${v.placa} quedará medido hasta su última posición registrada.` : '',
+            showCancelButton: true,
+            confirmButtonText: 'Finalizar',
+            cancelButtonText: 'Cancelar'
+        }).then(r => { if (r.isConfirmed) cambiarTramo('finalizarTramo', id); });
     });
     $(document).on('click', '#btnLimpiarRecorrido', function () {
         limpiarRecorrido();
@@ -289,6 +334,17 @@ $(document).ready(function () {
             }, 'json');
         });
     });
+
+    function cambiarTramo(accion, id) {
+        $.post(CTRL_MAPA, { accion, id_dv: id }, function (r) {
+            if (!r.ok) {
+                Swal.fire({ icon: 'error', title: 'No se pudo guardar', text: r.mensaje || 'Error desconocido.' });
+                return;
+            }
+            Swal.fire({ icon: 'success', title: r.mensaje || 'Listo', timer: 1100, showConfirmButton: false });
+            cargar(false).always(() => cargar(true));
+        }, 'json');
+    }
 
     // ── Carga de posiciones ────────────────────────────────────
     function pintar(vehiculos) { datos = vehiculos || []; poblarFiltros(); render(); }
@@ -400,13 +456,35 @@ $(document).ready(function () {
             showCancelButton: true, confirmButtonText: 'Sí, cerrar', cancelButtonText: 'Cancelar', confirmButtonColor: '#dc3545'
         }).then(r => {
             if (!r.isConfirmed) return;
-            $.post(CTRL_MAPA, { accion: 'cerrarDespacho', id_despacho: despachoActual }, function (resp) {
-                if (!resp.ok) { Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje }); return; }
-                Swal.fire({ icon: 'success', title: 'Despacho cerrado', timer: 1400, showConfirmButton: false });
-                cargarDespachos('').then(() => { ajustado = false; cargar(false).always(() => cargar(true)); });
-            }, 'json');
+            cerrarDespacho(false);
         });
     });
+
+    function cerrarDespacho(cerrarAbiertos) {
+        $.post(CTRL_MAPA, {
+            accion: 'cerrarDespacho',
+            id_despacho: despachoActual,
+            cerrar_abiertos: cerrarAbiertos ? 1 : 0
+        }, function (resp) {
+            if (!resp.ok && resp.data && resp.data.requiere_confirmacion) {
+                const abiertos = resp.data.abiertos || [];
+                const lista = abiertos.map(t => `<li><b>${esc(t.placa)}</b> desde ${esc(t.fecha_inicio || '—')}</li>`).join('');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Hay rutas abiertas',
+                    html: `<div class="text-start small">Antes de cerrar, estas rutas deben finalizarse:<ul class="mb-0 mt-2">${lista}</ul></div>`,
+                    showCancelButton: true,
+                    confirmButtonText: 'Finalizar y cerrar',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#dc3545'
+                }).then(r => { if (r.isConfirmed) cerrarDespacho(true); });
+                return;
+            }
+            if (!resp.ok) { Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje }); return; }
+            Swal.fire({ icon: 'success', title: 'Despacho cerrado', text: resp.mensaje || '', timer: 1600, showConfirmButton: false });
+            cargarDespachos('').then(() => { ajustado = false; cargar(false).always(() => cargar(true)); });
+        }, 'json');
+    }
 
     // ══════════════════════════════════════════════════════════
     //  SELECTOR — Agregar vehículos al despacho

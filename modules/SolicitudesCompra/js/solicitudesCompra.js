@@ -170,6 +170,13 @@ function botonesTabla(r, esAdmin) {
                </button>
            </li>`
         : '';
+    const btnCorreoPrueba = esAdmin
+        ? `<li>
+               <button class="dropdown-item btn-correo-prueba" type="button" data-id="${r.id_solicitud_compra}">
+                   <i class="bi bi-envelope-paper me-2 text-primary"></i>Enviar correo prueba
+               </button>
+           </li>`
+        : '';
 
     return `
         <div class="dropdown">
@@ -184,6 +191,7 @@ function botonesTabla(r, esAdmin) {
                     </button>
                 </li>
                 ${btnEditar}
+                ${btnCorreoPrueba}
             </ul>
         </div>`;
 }
@@ -247,12 +255,12 @@ function agregarItem(datos = {}) {
     const idx = ++_itemIdx;
 
     // Determinar tipo inicial basado en los datos
-    const esCatalogo = !datos.nombre_externo;
+    const esCatalogo = !!datos.id_repuesto;
     const tipoCatalogo = esCatalogo ? 'selected' : '';
     const tipoExterno  = esCatalogo ? '' : 'selected';
 
     const $item = $(`
-        <div class="compra-item" data-idx="${idx}">
+        <div class="compra-item compra-item-redisenado" data-idx="${idx}">
 
             <!-- Selector de tipo -->
             <select class="form-select form-select-sm ci-tipo" style="width:105px;flex-shrink:0" title="Tipo de ítem">
@@ -286,6 +294,10 @@ function agregarItem(datos = {}) {
             <input type="number" class="form-control form-control-sm ci-costo"
                    style="width:120px;flex-shrink:0" min="0" step="0.0001"
                    placeholder="Costo unit." value="${datos.costo_unitario || ''}" title="Costo unitario">
+            <input type="text" class="form-control form-control-sm ci-observacion"
+                   style="flex:1 1 220px;min-width:180px" maxlength="600"
+                   placeholder="Observacion del repuesto"
+                   value="${escHtml(datos.observacion || '')}" title="Observacion">
             <div class="ci-subtotal">—</div>
 
             <div class="ci-actions">
@@ -421,6 +433,7 @@ function recolectarPayload() {
         const tipo = $(this).find('.ci-tipo').val();
         const cant = parseInt($(this).find('.ci-cantidad').val() || 0);
         const cost = parseFloat($(this).find('.ci-costo').val() || 0);
+        const obs  = $(this).find('.ci-observacion').val().trim();
 
         if (cant < 1) { valido = false; return; }
 
@@ -434,6 +447,7 @@ function recolectarPayload() {
                 nombre_externo: null,
                 enlace_externo: null,
                 id_proveedor:   idProv,
+                observacion:    obs || null,
                 cantidad:       cant,
                 costo_unitario: cost
             });
@@ -450,6 +464,7 @@ function recolectarPayload() {
                 nombre_externo: nombre,
                 enlace_externo: enlace || null,
                 id_proveedor:   idProv,
+                observacion:    obs || null,
                 cantidad:       cant,
                 costo_unitario: cost
             });
@@ -603,12 +618,17 @@ function renderDetalle(d) {
     html += '</div><hr class="my-3">';
 
     // Tabla de ítems
-    html += `<h6 class="text-primary fw-bold mb-2">
-        <i class="bi bi-box-seam me-1"></i> Ítems solicitados
-    </h6>
-    <div class="table-responsive">
-    <table class="table table-sm table-bordered align-middle mb-0">
-        <thead class="table-light">
+    html += `<div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+        <h6 class="text-primary fw-bold mb-0">
+            <i class="bi bi-box-seam me-1"></i> Ítems solicitados
+        </h6>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="btnCopiarTablaCompra">
+            <i class="bi bi-clipboard me-1"></i> Copiar tabla
+        </button>
+    </div>
+    <div class="compra-detalle-wrap">
+    <table class="table table-hover w-100 compra-detalle-table mb-0">
+        <thead>
             <tr>
                 <th>Repuesto</th>
                 <th class="col-hide-sm">Proveedor</th>
@@ -656,8 +676,12 @@ function renderDetalle(d) {
             ? escHtml(it.proveedor_item)
             : '<span class="text-muted small">—</span>';
 
+        const obsHtml = it.observacion
+            ? `<div class="small text-secondary mt-1"><span class="fw-semibold">Obs.:</span> ${escHtml(it.observacion)}</div>`
+            : '';
+
         html += `<tr>
-            <td>${label}</td>
+            <td>${label}${obsHtml}</td>
             <td class="col-hide-sm small">${provItem}</td>
             <td class="text-center">${it.cantidad_solicitada}</td>
             <td class="text-center ${recCls}">${it.cantidad_recibida}</td>
@@ -668,13 +692,57 @@ function renderDetalle(d) {
     });
 
     html += `</tbody>
-        <tfoot><tr class="table-light">
+        <tfoot><tr>
             <td colspan="6" class="text-end fw-bold">Total estimado:</td>
             <td class="text-end fw-bold">${total > 0 ? `${simbolo} ${fmtNum(total)}` : '—'}</td>
         </tr></tfoot>
     </table></div>`;
 
     $('#detalleCompraBody').html(html);
+}
+
+function textoTablaCompra(d) {
+    const simbolo = d.divisa_simbolo || '';
+    const filas = [
+        ['Solicitud', d.codigo || `#${d.id_solicitud_compra}`],
+        ['Descripcion', d.descripcion || ''],
+        ['Solicitante', d.solicitante || ''],
+        ['Fecha', d.fecha_sol_fmt || ''],
+        [],
+        ['Repuesto', 'Cantidad', 'Proveedor', 'Costo unitario', 'Subtotal', 'Observacion', 'Enlace']
+    ];
+
+    (d.items || []).forEach(it => {
+        const cant = parseFloat(it.cantidad_solicitada || 0);
+        const costo = parseFloat(it.costo_unitario || 0);
+        filas.push([
+            it.repuesto || '',
+            String(it.cantidad_solicitada || ''),
+            it.proveedor_item || '',
+            costo > 0 ? `${simbolo} ${fmtNum(costo)}` : '',
+            cant > 0 && costo > 0 ? `${simbolo} ${fmtNum(cant * costo)}` : '',
+            it.observacion || '',
+            it.enlace_externo || ''
+        ]);
+    });
+
+    return filas.map(f => f.join('\t')).join('\n');
+}
+
+function copiarTexto(texto) {
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(texto);
+    }
+    const ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok ? Promise.resolve() : Promise.reject(new Error('No se pudo copiar.'));
 }
 
 function mostrarBotonesDetalle(d, esAdmin) {
@@ -723,6 +791,9 @@ function abrirModalRecepcion(items) {
         const progreso = parseInt(it.cantidad_recibida) > 0
             ? `<span class="badge bg-secondary ms-1 small">${it.cantidad_recibida}/${it.cantidad_solicitada} recibidos</span>`
             : '';
+        const obsRec = it.observacion
+            ? `<div class="rec-observacion small text-secondary"><span class="fw-semibold">Observacion:</span> ${escHtml(it.observacion)}</div>`
+            : '';
 
         if (esExterno) {
             const enlaceBtn = it.enlace_externo
@@ -743,6 +814,7 @@ function abrirModalRecepcion(items) {
                     <i class="bi bi-info-circle me-1"></i>
                     Este repuesto no está en el catálogo. Al recibirlo no se actualizará el inventario.
                 </div>
+                ${obsRec}
                 <div class="row g-2 align-items-end">
                     <div class="col-6 col-md-4">
                         <label class="form-label small mb-1">
@@ -768,6 +840,7 @@ function abrirModalRecepcion(items) {
                     <div>${labelNom}${progreso}</div>
                     <span class="badge bg-secondary small">Por cantidad</span>
                 </div>
+                ${obsRec}
                 <div class="row g-2 align-items-end">
                     <div class="col-6 col-md-4">
                         <label class="form-label small mb-1">
@@ -801,6 +874,7 @@ function abrirModalRecepcion(items) {
                     <span class="badge bg-warning text-dark small">Serie · ${pendiente} pendientes</span>
                 </div>
                 <label class="form-label small mb-1">Números de serie a recibir:</label>
+                ${obsRec}
                 <div class="rec-seriales">${seriesHtml}</div>
                 <button type="button" class="btn btn-sm btn-outline-secondary mt-2 btn-add-serie">
                     <i class="bi bi-plus-circle me-1"></i> Agregar serie extra
@@ -887,6 +961,69 @@ function bindEventos(esAdmin) {
     });
     $('#tblCompras').on('click', '.btn-editar-compra', function () {
         cargarBorradorEnModal(Number($(this).data('id')));
+    });
+    $('#tblCompras').on('click', '.btn-correo-prueba', function () {
+        const id = Number($(this).data('id'));
+        Swal.fire({
+            icon: 'question',
+            title: 'Enviar correo de prueba',
+            html: '<p class="mb-2">Escribe el correo donde quieres recibir la prueba.</p>' +
+                  '<input type="email" id="correoPruebaCompra" class="swal2-input" placeholder="correo@empresa.com">',
+            showCancelButton: true,
+            confirmButtonText: 'Enviar prueba',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#0d6efd',
+            preConfirm: () => {
+                const correo = $('#correoPruebaCompra').val().trim();
+                if (!correo) {
+                    Swal.showValidationMessage('Ingresa un correo destino.');
+                    return false;
+                }
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) {
+                    Swal.showValidationMessage('Ingresa un correo valido.');
+                    return false;
+                }
+                return correo;
+            }
+        }).then(res => {
+            if (!res.isConfirmed) return;
+            $.post(CTRL_COMPRAS, {
+                accion: 'enviarCorreoPrueba',
+                id,
+                correo: res.value
+            }, function (r) {
+                if (!r.ok) {
+                    Swal.fire({ icon: 'error', title: 'Error al enviar', text: r.mensaje });
+                    return;
+                }
+                const dest = (r.data?.destinatarios || []).join(', ');
+                Swal.fire({
+                    icon: 'success',
+                    title: 'SMTP acepto el correo',
+                    html: `<p class="mb-1">${escHtml(r.mensaje)}</p><p class="small text-muted mb-0">Destino: ${escHtml(dest)}</p>`,
+                    confirmButtonText: 'Aceptar'
+                });
+            }, 'json').fail(() => {
+                Swal.fire({ icon: 'error', title: 'Error de red', text: 'No se pudo conectar al servidor.' });
+            });
+        });
+    });
+
+    $('#detalleCompraBody').on('click', '#btnCopiarTablaCompra', function () {
+        if (!_detalleDatos) return;
+        copiarTexto(textoTablaCompra(_detalleDatos))
+            .then(() => Swal.fire({
+                icon: 'success',
+                title: 'Tabla copiada',
+                text: 'Ya puedes pegarla en un correo, chat o Excel.',
+                timer: 1800,
+                showConfirmButton: false
+            }))
+            .catch(() => Swal.fire({
+                icon: 'error',
+                title: 'No se pudo copiar',
+                text: 'Selecciona la tabla manualmente e intenta copiarla de nuevo.'
+            }));
     });
 
     // ── Detalle: editar borrador ─────────────────────────────

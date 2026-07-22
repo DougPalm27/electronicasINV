@@ -133,6 +133,7 @@ class mdlSolicitudesCompra
                     mo.nombre  AS modelo,
                     det.nombre_externo,
                     det.enlace_externo,
+                    det.observacion,
                     det.id_proveedor,
                     pv.nombre  AS proveedor_item,
                     det.cantidad_solicitada,
@@ -223,13 +224,14 @@ class mdlSolicitudesCompra
             $ins = $this->conn->prepare(
                 "INSERT INTO electronicas.SolicitudesCompraDetalle
                     (id_solicitud_compra, id_repuesto, nombre_externo, enlace_externo,
-                     id_proveedor, cantidad_solicitada, costo_unitario)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)"
+                     observacion, id_proveedor, cantidad_solicitada, costo_unitario)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             );
             foreach ($d['items'] as $it) {
                 $idRep   = !empty($it['id_repuesto'])    ? (int)$it['id_repuesto']    : null;
                 $nomExt  = !empty($it['nombre_externo']) ? trim($it['nombre_externo']) : null;
                 $enlace  = !empty($it['enlace_externo']) ? trim($it['enlace_externo']) : null;
+                $obs     = !empty($it['observacion'])     ? trim($it['observacion'])   : null;
                 $idProv  = !empty($it['id_proveedor'])   ? (int)$it['id_proveedor']   : null;
 
                 // Debe tener al menos uno de los dos
@@ -240,6 +242,7 @@ class mdlSolicitudesCompra
                     $idRep,
                     $nomExt,
                     $enlace,
+                    $obs,
                     $idProv,
                     max(1, (int)$it['cantidad']),
                     max(0, (float)$it['costo_unitario'])

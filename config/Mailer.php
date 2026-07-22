@@ -153,19 +153,57 @@ class Mailer
         $descripcion = htmlspecialchars($d['descripcion'] ?? '—');
         $proveedor   = htmlspecialchars($d['proveedor'] ?? 'Sin especificar');
         $fecha       = htmlspecialchars($d['fecha'] ?? date('d/m/Y'));
+        $items       = is_array($d['items'] ?? null) ? $d['items'] : [];
+
+        $itemsRows = '';
+        foreach ($items as $it) {
+            $repuesto = htmlspecialchars($it['repuesto'] ?? '---');
+            $cantidad = htmlspecialchars((string)($it['cantidad_solicitada'] ?? '---'));
+            $provItem = htmlspecialchars($it['proveedor_item'] ?? '---');
+            $enlace   = trim((string)($it['enlace_externo'] ?? ''));
+            $enlaceHtml = $enlace !== ''
+                ? '<a href="' . htmlspecialchars($enlace) . '" style="color:#0f766e;text-decoration:underline">Abrir enlace</a>'
+                : '<span style="color:#64748b">No aplica</span>';
+            $obs      = trim((string)($it['observacion'] ?? ''));
+            $obsHtml  = $obs !== '' ? htmlspecialchars($obs) : '<span style="color:#64748b">Sin observacion</span>';
+            $itemsRows .= "<tr>
+                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0'>$repuesto</td>
+                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center'>$cantidad</td>
+                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0'>$provItem</td>
+                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0'>$enlaceHtml</td>
+                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0'>$obsHtml</td>
+              </tr>";
+        }
+        $itemsTable = $itemsRows !== ''
+            ? "<p style='margin-top:18px;margin-bottom:8px'><strong>Detalle de repuestos solicitados</strong></p>
+               <table style='width:100%;border-collapse:collapse;margin:0 0 16px 0;font-size:13px'>
+                 <thead>
+                   <tr>
+                     <th style='padding:8px 10px;background:#f1f5f9;text-align:left'>Repuesto</th>
+                     <th style='padding:8px 10px;background:#f1f5f9;text-align:center;width:70px'>Cant.</th>
+                     <th style='padding:8px 10px;background:#f1f5f9;text-align:left'>Proveedor</th>
+                     <th style='padding:8px 10px;background:#f1f5f9;text-align:left'>Enlace</th>
+                     <th style='padding:8px 10px;background:#f1f5f9;text-align:left'>Observacion</th>
+                   </tr>
+                 </thead>
+                 <tbody>$itemsRows</tbody>
+               </table>"
+            : '';
 
         return self::wrap(
-            '🛒 Nueva solicitud de compra',
-            "#7c3aed",
-            "Nueva solicitud de compra <strong>#$id</strong>",
-            "<p>Se ha enviado una solicitud de compra pendiente de aprobación.</p>
+            'Solicitud de compra para revision',
+            "#0f766e",
+            "Solicitud de compra <strong>#$id</strong>",
+            "<p>Estimados,</p>
+             <p>Se solicita la revision de la siguiente compra de repuestos para su aprobacion y gestion de pago.</p>
              <table style='width:100%;border-collapse:collapse;margin:16px 0'>
                <tr><td style='padding:6px 12px;background:#f1f5f9;font-weight:600;width:40%'>Solicitante</td><td style='padding:6px 12px;border-bottom:1px solid #e2e8f0'>$solicitante</td></tr>
                <tr><td style='padding:6px 12px;background:#f1f5f9;font-weight:600'>Proveedor</td><td style='padding:6px 12px;border-bottom:1px solid #e2e8f0'>$proveedor</td></tr>
                <tr><td style='padding:6px 12px;background:#f1f5f9;font-weight:600'>Descripción</td><td style='padding:6px 12px;border-bottom:1px solid #e2e8f0'>$descripcion</td></tr>
                <tr><td style='padding:6px 12px;background:#f1f5f9;font-weight:600'>Fecha</td><td style='padding:6px 12px'>$fecha</td></tr>
              </table>
-             <p>Ingresa al sistema para aprobar o rechazar la solicitud.</p>"
+              $itemsTable
+              <p style='color:#475569'>Favor revisar cantidades, proveedor, enlaces y observaciones antes de proceder.</p>"
         );
     }
 

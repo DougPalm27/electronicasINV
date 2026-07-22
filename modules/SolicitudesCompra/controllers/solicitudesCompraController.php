@@ -41,6 +41,39 @@ try {
             resp($model->listarSolicitudes($filtroUsuario));
             break;
 
+        case 'enviarCorreoPrueba':
+            if (!$esAdmin) resp([], true, 'Sin permisos.');
+            $id = (int)($_POST['id'] ?? 0);
+            if (!$id) resp([], true, 'ID invalido.');
+            $correoPrueba = trim($_POST['correo'] ?? '');
+            if ($correoPrueba !== '' && !filter_var($correoPrueba, FILTER_VALIDATE_EMAIL)) {
+                resp([], true, 'El correo de prueba no tiene un formato valido.');
+            }
+
+            $det = $model->obtenerDetalle($id);
+            if (empty($det)) resp([], true, 'Solicitud no encontrada.');
+
+            $destinatarios = $correoPrueba !== ''
+                ? [['email' => $correoPrueba, 'name' => 'Prueba correo']]
+                : Mailer::getAdmins($model->getConn());
+            if (empty($destinatarios)) resp([], true, 'No hay admins con correo registrado.');
+
+            $mailer->send($destinatarios,
+                "[PRUEBA] Solicitud de compra para revision #$id",
+                Mailer::tplNuevaSolicitudCompra([
+                    'id'          => $id,
+                    'solicitante' => $det['solicitante'] ?? '---',
+                    'descripcion' => $det['descripcion'] ?? '---',
+                    'proveedor'   => $det['proveedor_nombre'] ?? 'Sin especificar',
+                    'fecha'       => date('d/m/Y'),
+                    'items'       => $det['items'] ?? [],
+                ])
+            );
+            resp([
+                'destinatarios' => array_map(fn($d) => $d['email'] ?? '', $destinatarios)
+            ], false, 'El servidor SMTP acepto el correo de prueba.');
+            break;
+
         // ── Detalle ────────────────────────────────────────
         case 'detalle':
             $id  = (int)($_POST['id'] ?? 0);
@@ -87,13 +120,14 @@ try {
                 if (!empty($admins)) {
                     $det = $model->obtenerDetalle($id);
                     $mailer->send($admins,
-                        "Nueva solicitud de compra #$id",
+                        "Solicitud de compra para revision #$id",
                         Mailer::tplNuevaSolicitudCompra([
                             'id'          => $id,
                             'solicitante' => $_SESSION['nombre'] ?? '—',
                             'descripcion' => $det['descripcion'] ?? '—',
-                            'proveedor'   => $det['proveedor']   ?? 'Sin especificar',
+                            'proveedor'   => $det['proveedor_nombre'] ?? 'Sin especificar',
                             'fecha'       => date('d/m/Y'),
+                            'items'       => $det['items'] ?? [],
                         ])
                     );
                 } else {
@@ -117,13 +151,14 @@ try {
                 if (!empty($admins)) {
                     $det = $model->obtenerDetalle($id);
                     $mailer->send($admins,
-                        "Nueva solicitud de compra #$id",
+                        "Solicitud de compra para revision #$id",
                         Mailer::tplNuevaSolicitudCompra([
                             'id'          => $id,
                             'solicitante' => $_SESSION['nombre'] ?? '—',
                             'descripcion' => $det['descripcion'] ?? '—',
-                            'proveedor'   => $det['proveedor']   ?? 'Sin especificar',
+                            'proveedor'   => $det['proveedor_nombre'] ?? 'Sin especificar',
                             'fecha'       => date('d/m/Y'),
+                            'items'       => $det['items'] ?? [],
                         ])
                     );
                 } else {

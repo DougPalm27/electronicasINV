@@ -44,6 +44,11 @@ function armarRegistro(array $v, ?array $pos, bool $historico = false): array {
         'estado_despacho' => $v['estado_despacho'] ?? null,
         'fecha_apertura'=> $v['fecha_apertura'] ?? null,
         'fecha_cierre'  => $v['fecha_cierre'] ?? null,
+        'id_tramo'      => isset($v['id_tramo']) ? (int)$v['id_tramo'] : null,
+        'estado_tramo'  => $v['estado_tramo'] ?? null,
+        'fecha_inicio_tramo' => $v['fecha_inicio_tramo'] ?? null,
+        'fecha_fin_tramo' => $v['fecha_fin_tramo'] ?? null,
+        'duracion_minutos' => isset($v['duracion_minutos']) ? (int)$v['duracion_minutos'] : null,
         'placa'         => $v['placa'],
         'imei'          => $v['imei'] ?? null,
         'transporte'    => $v['transporte'],
@@ -85,8 +90,17 @@ try {
         case 'cerrarDespacho':
             $id = (int)($_POST['id_despacho'] ?? 0);
             if (!$id) respM([], true, 'Despacho no especificado.');
+            $cerrarAbiertos = ($_POST['cerrar_abiertos'] ?? '0') === '1';
+            $abiertos = $desp->tramosAbiertosDespacho($id);
+            if ($abiertos && !$cerrarAbiertos) {
+                respM(['requiere_confirmacion' => true, 'abiertos' => $abiertos], true, 'Hay rutas abiertas en este despacho.');
+            }
+            $cerradosAuto = $cerrarAbiertos ? $desp->finalizarTramosAbiertosDespacho($id, $uid) : 0;
             $desp->cerrar($id);
-            respM([], false, 'Despacho cerrado. Se detuvo el seguimiento.');
+            $msg = $cerradosAuto
+                ? "Despacho cerrado. Se finalizaron $cerradosAuto rutas abiertas con su ultima posicion."
+                : 'Despacho cerrado. Se detuvo el seguimiento.';
+            respM(['tramos_finalizados' => $cerradosAuto], false, $msg);
             break;
 
         case 'quitarVehiculo':
@@ -98,8 +112,21 @@ try {
 
         case 'recorrido':
             $id_dv = (int)($_POST['id_dv'] ?? 0);
+            $id_tramo = ($_POST['id_tramo'] ?? '') === '' ? null : (int)$_POST['id_tramo'];
             if (!$id_dv) respM([], true, 'Vehículo no especificado.');
-            respM(['puntos' => $desp->recorridoVehiculo($id_dv)]);
+            respM(['puntos' => $desp->recorridoVehiculo($id_dv, $id_tramo)]);
+            break;
+
+        case 'iniciarTramo':
+            $id_dv = (int)($_POST['id_dv'] ?? 0);
+            if (!$id_dv) respM([], true, 'Vehículo no especificado.');
+            respM(['tramo' => $desp->iniciarTramo($id_dv, $uid)], false, 'Ruta iniciada.');
+            break;
+
+        case 'finalizarTramo':
+            $id_dv = (int)($_POST['id_dv'] ?? 0);
+            if (!$id_dv) respM([], true, 'Vehículo no especificado.');
+            respM(['tramo' => $desp->finalizarTramo($id_dv, $uid)], false, 'Ruta finalizada.');
             break;
 
         case 'agregarADespacho':

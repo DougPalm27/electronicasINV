@@ -321,31 +321,75 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: .5rem;
-    padding: .5rem .6rem;
-    border-radius: 8px;
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    margin-bottom: .45rem;
+    gap: .45rem .5rem;
+    padding: .7rem .75rem;
+    border-left: 4px solid #198754;
+    background: #fff;
+    border-top: 1px solid #dee2e6;
+    border-right: 1px solid #dee2e6;
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: .55rem;
 }
 .compra-item .ci-select { flex: 1 1 200px; min-width: 0; }
 .compra-item .ci-actions { display:flex; align-items:center; gap:.4rem; flex-shrink:0; }
 .compra-item .ci-subtotal {
     width:100px; text-align:right; font-size:.82rem;
     color:#495057; font-weight:600;
+    order:8;
+}
+.compra-item .ci-tipo { width:105px; flex-shrink:0; }
+.compra-item .ci-campo-catalogo { flex:2 1 260px !important; min-width:220px !important; }
+.compra-item .ci-campo-externo {
+    display:none;
+    flex:2 1 260px !important;
+    min-width:220px !important;
+    flex-direction:column;
+    gap:.25rem;
+}
+.compra-item .ci-proveedor { width:150px; flex-shrink:0; }
+.compra-item .ci-cantidad { width:85px; flex-shrink:0; }
+.compra-item .ci-costo { width:120px; flex-shrink:0; }
+.compra-item .ci-observacion {
+    flex:1 1 100% !important;
+    min-width:220px !important;
+    margin-left:105px;
+    order:10;
+}
+.compra-item .ci-quitar {
+    width:34px;
+    height:31px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+}
+.compra-item .ci-actions { order:9; }
+.compra-detalle-wrap {
+    overflow-x:auto;
+}
+.compra-detalle-table td,
+.compra-detalle-table th {
+    vertical-align:top;
+}
+.compra-detalle-table tfoot td {
+    border-top:2px solid #212529;
 }
 
 /* ── Ítem de recepción ────────────────────────────────── */
 .rec-item {
     border: 1px solid #dee2e6;
-    border-radius: 8px;
+    border-left: 4px solid #0d6efd;
     padding: .75rem;
     margin-bottom: .75rem;
     background: #fff;
 }
-.rec-item.rec-serie { background: #fffbea; border-color: #fcd34d; }
+.rec-item.rec-serie { background: #fffbea; border-color: #fcd34d; border-left-color:#f59f00; }
 .rec-seriales { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.5rem; }
 .rec-seriales input { width:150px; font-size:.82rem; }
+.rec-observacion {
+    border-top: 1px dashed #dee2e6;
+    margin-top: .55rem;
+    padding-top: .45rem;
+}
 
 /* ── Columnas ocultas responsive ─────────────────────── */
 /* Col idx: 1=#  2=Descripción  3=Solicitante  4=Ítems  5=Total  6=Creada  7=Estado  8=Acciones */
@@ -364,6 +408,31 @@
     #tblCompras td:nth-child(3) { display:none; }
     .modal-footer { flex-direction:column-reverse; }
     .modal-footer .btn { width:100%; }
+    .compra-item {
+        display:grid;
+        grid-template-columns: 1fr 1fr;
+        align-items:start;
+    }
+    .compra-item .ci-campo-catalogo,
+    .compra-item .ci-campo-externo,
+    .compra-item .ci-observacion {
+        grid-column:1 / -1;
+        width:100%;
+        min-width:0;
+        margin-left:0;
+    }
+    .compra-item .ci-proveedor,
+    .compra-item .ci-costo {
+        width:100%;
+    }
+    .compra-item .ci-subtotal {
+        width:auto;
+        text-align:left;
+        padding-top:.35rem;
+    }
+    .compra-item .ci-actions {
+        justify-content:flex-end;
+    }
 }
 
 /* ── Select2 sm en ítems de compra ───────────────────── */
