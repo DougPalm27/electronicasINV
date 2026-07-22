@@ -35,19 +35,23 @@ function posDeFila(array $r): ?array {
     return ['lat'=>(float)$r['lat'],'lng'=>(float)$r['lng'],'velocidad'=>$r['velocidad'],
             'rumbo'=>$r['rumbo'],'encendido'=>$r['encendido'],'direccion'=>$r['direccion'],'fecha'=>$r['fecha']];
 }
-function armarRegistro(array $v, ?array $pos): array {
+function armarRegistro(array $v, ?array $pos, bool $historico = false): array {
     $motor = (string)($v['tipo_integracion'] ?? '');
     return [
         'id_dv'         => (int)$v['id_dv'],
         'id_despacho'   => (int)$v['id_despacho'],
         'despacho'      => $v['despacho'] ?? null,
+        'estado_despacho' => $v['estado_despacho'] ?? null,
+        'fecha_apertura'=> $v['fecha_apertura'] ?? null,
+        'fecha_cierre'  => $v['fecha_cierre'] ?? null,
         'placa'         => $v['placa'],
         'imei'          => $v['imei'] ?? null,
         'transporte'    => $v['transporte'],
         'plataforma'    => $v['plataforma'],
         'motor'         => $motor,
-        'soporta_vivo'  => AdapterFactory::tieneVivo($motor),
-        'estado_seg'    => estadoSeg($motor, $pos),
+        'soporta_vivo'  => !$historico && AdapterFactory::tieneVivo($motor),
+        'historico'     => $historico,
+        'estado_seg'    => $historico ? 'historial' : estadoSeg($motor, $pos),
         'lat'           => $pos['lat']       ?? null,
         'lng'           => $pos['lng']       ?? null,
         'velocidad'     => $pos['velocidad'] ?? null,
@@ -113,14 +117,21 @@ try {
         // ── Posiciones del despacho (o de todos los activos) ────
         case 'cache':
             $id_despacho = ($_POST['id_despacho'] ?? '') === '' ? null : (int)$_POST['id_despacho'];
+            $historico = ($_POST['historico'] ?? '0') === '1';
             $out = [];
-            foreach ($desp->vehiculos($id_despacho) as $r) $out[] = armarRegistro($r, posDeFila($r));
+            foreach ($desp->vehiculos($id_despacho, $historico) as $r) $out[] = armarRegistro($r, posDeFila($r), $historico);
             respM(['vehiculos' => $out]);
             break;
 
         case 'posiciones':
             @set_time_limit(120);
             $id_despacho = ($_POST['id_despacho'] ?? '') === '' ? null : (int)$_POST['id_despacho'];
+            $historico = ($_POST['historico'] ?? '0') === '1';
+            if ($historico) {
+                $out = [];
+                foreach ($desp->vehiculos($id_despacho, true) as $r) $out[] = armarRegistro($r, posDeFila($r), true);
+                respM(['vehiculos' => $out]);
+            }
             $vehiculos = $desp->vehiculos($id_despacho);
 
             // Agrupar por cuenta

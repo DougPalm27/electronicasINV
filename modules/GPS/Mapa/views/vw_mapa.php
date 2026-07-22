@@ -30,6 +30,12 @@
 <div class="card shadow-sm border-0 mb-3">
   <div class="card-body py-2 d-flex flex-wrap align-items-center gap-2">
     <span class="small fw-semibold me-1"><i class="bi bi-clipboard-check me-1"></i>Despacho:</span>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Modo de despacho">
+      <input type="radio" class="btn-check" name="modoDespacho" id="modoDespachoActivo" value="activo" checked>
+      <label class="btn btn-outline-primary" for="modoDespachoActivo">Activos</label>
+      <input type="radio" class="btn-check" name="modoDespacho" id="modoDespachoHistorial" value="cerrado">
+      <label class="btn btn-outline-primary" for="modoDespachoHistorial">Historial</label>
+    </div>
     <select class="form-select form-select-sm" id="selDespacho" style="max-width:280px">
       <option value="">Todos los activos</option>
     </select>
@@ -61,6 +67,7 @@
           <option value="live">En vivo</option>
           <option value="sin_senal">Sin señal</option>
           <option value="pendiente">Pendiente</option>
+          <option value="historial">Historial</option>
         </select>
       </div>
       <div class="col-6 col-md-3">

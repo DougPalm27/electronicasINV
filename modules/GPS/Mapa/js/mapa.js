@@ -10,6 +10,7 @@ $(document).ready(function () {
 
     let mapa, capa, recorridoLayer = null, datos = [], markers = {}, timer = null, cargando = false, ajustado = false, seleccionado = null, recorridoId = null;
     let despachoActual = '';   // '' = todos los activos ; o el id de un despacho
+    let estadoDespachos = 'activo';
 
     // ── Mapa base + selector de capas (calles / satélite) ──────
     mapa = L.map('mapaGPS', { zoomControl: true }).setView([15.5, -87.9], 8);
@@ -53,7 +54,7 @@ $(document).ready(function () {
     });
 
     // ── Colores y estado ───────────────────────────────────────
-    const SEG = { live: '#156b45', sin_senal: '#6c757d', pendiente: '#d9a300' };
+    const SEG = { live: '#156b45', sin_senal: '#6c757d', pendiente: '#d9a300', historial: '#0d6efd' };
     const MOV = { mov: '#156b45', idle: '#d9a300', stop: '#6c757d' };
     const ETI = { mov: 'En movimiento', idle: 'Ralentí', stop: 'Detenido' };
     function movimiento(v) { if ((v.velocidad || 0) > 0) return 'mov'; if (Number(v.encendido) === 1) return 'idle'; return 'stop'; }
@@ -125,25 +126,29 @@ $(document).ready(function () {
 
         const $l = $('#mapaLista').empty();
         if (!lista.length) {
-            const msg = despachoActual ? 'Este despacho no tiene carros. Usa “Agregar vehículos”.'
-                : 'No hay despachos activos. Usa “Preparar despacho”.';
+            const msg = estadoDespachos === 'cerrado'
+                ? (despachoActual ? 'Este despacho cerrado no tiene recorrido guardado.' : 'Selecciona un despacho cerrado para revisar su historial.')
+                : (despachoActual ? 'Este despacho no tiene carros. Usa “Agregar vehículos”.'
+                    : 'No hay despachos activos. Usa “Preparar despacho”.');
             $l.html(`<div class="text-muted small p-3">${msg}</div>`);
         } else {
             lista.forEach(v => {
                 const seg = v.estado_seg;
                 let der = seg === 'live' ? ((v.velocidad || 0) > 0 ? v.velocidad + ' km/h' : 'Detenido')
-                        : seg === 'pendiente' ? 'Pendiente' : 'Sin señal';
-                const sub = [v.transporte, v.plataforma].filter(Boolean).join(' · ');
+                        : seg === 'pendiente' ? 'Pendiente' : seg === 'historial' ? 'Historial' : 'Sin señal';
+                const sub = [v.transporte, v.plataforma, estadoDespachos === 'cerrado' && v.fecha_cierre ? 'Cerrado ' + v.fecha_cierre : ''].filter(Boolean).join(' · ');
+                const btnQuitar = estadoDespachos === 'cerrado' ? '' :
+                    `<button class="mi-quitar" title="Quitar del despacho" data-id="${v.id_dv}">
+                         <i class="bi bi-x-lg"></i></button>`;
                 $l.append(
                     `<div class="mapa-item ${String(v.id_dv) === String(seleccionado) ? 'activo' : ''}" data-id="${v.id_dv}">
-                       <span class="mi-dot" style="background:${SEG[seg]}"></span>
+                       <span class="mi-dot" style="background:${SEG[seg] || SEG.sin_senal}"></span>
                        <span class="mi-body" data-id="${v.id_dv}">
                          <span class="mi-placa">${esc(v.placa)}</span><br>
                          <span class="mi-sub">${esc(sub)}</span>
                        </span>
                        <span class="mi-vel">${esc(der)}</span>
-                       <button class="mi-quitar" title="Quitar del despacho" data-id="${v.id_dv}">
-                         <i class="bi bi-x-lg"></i></button>
+                       ${btnQuitar}
                      </div>`);
             });
         }
@@ -152,6 +157,10 @@ $(document).ready(function () {
     }
     function estadoTexto(lista) {
         const vivo = lista.filter(v => v.estado_seg === 'live').length;
+        if (estadoDespachos === 'cerrado') {
+            $('#mapaStatus').text(`${lista.length} carros · historial · ${new Date().toLocaleTimeString('es-HN')}`);
+            return;
+        }
         $('#mapaStatus').text(`${lista.length} carros · ${vivo} en vivo · ${new Date().toLocaleTimeString('es-HN')}`);
     }
 
@@ -285,15 +294,27 @@ $(document).ready(function () {
     function pintar(vehiculos) { datos = vehiculos || []; poblarFiltros(); render(); }
     function cargar(live) {
         if (cargando) return $.Deferred().resolve().promise();
+        const historico = estadoDespachos === 'cerrado';
+        live = live && !historico;
+        if (historico && !despachoActual) {
+            pintar([]);
+            aplicarModoDespacho();
+            return $.Deferred().resolve().promise();
+        }
         cargando = true;
         if (live) $('#btnMapaRefrescar').prop('disabled', true)
             .html('<span class="spinner-border spinner-border-sm me-1"></span> Actualizando…');
-        return $.post(CTRL_MAPA, { accion: live ? 'posiciones' : 'cache', id_despacho: despachoActual }, function (r) {
+        return $.post(CTRL_MAPA, {
+            accion: live ? 'posiciones' : 'cache',
+            id_despacho: despachoActual,
+            historico: historico ? 1 : 0
+        }, function (r) {
             if (r && r.ok) { pintar(r.data.vehiculos); if (live && r.data.resumen) avisarErrores(r.data.resumen); }
             else if (r && !r.ok) $('#mapaStatus').text('Error: ' + (r.mensaje || 'desconocido'));
         }, 'json').always(function () {
             cargando = false;
-            $('#btnMapaRefrescar').prop('disabled', false).html('<i class="bi bi-arrow-clockwise me-1"></i> Actualizar');
+            $('#btnMapaRefrescar').prop('disabled', false)
+                .html(historico ? '<i class="bi bi-clock-history me-1"></i> Recargar historial' : '<i class="bi bi-arrow-clockwise me-1"></i> Actualizar');
         });
     }
     let erroresAvisados = '';
@@ -309,10 +330,12 @@ $(document).ready(function () {
     //  DESPACHOS
     // ══════════════════════════════════════════════════════════
     function cargarDespachos(seleccionar) {
-        return $.post(CTRL_MAPA, { accion: 'despachos' }, function (r) {
-            const $s = $('#selDespacho').empty().append('<option value="">Todos los activos</option>');
+        return $.post(CTRL_MAPA, { accion: 'despachos', estado: estadoDespachos }, function (r) {
+            const historico = estadoDespachos === 'cerrado';
+            const etiquetaBase = historico ? 'Selecciona un despacho cerrado' : 'Todos los activos';
+            const $s = $('#selDespacho').empty().append(`<option value="">${etiquetaBase}</option>`);
             if (r.ok) r.data.despachos.forEach(d =>
-                $s.append(`<option value="${d.id_despacho}">${esc(d.nombre)} (${d.carros})</option>`));
+                $s.append(`<option value="${d.id_despacho}">${esc(d.nombre)} (${d.carros})${historico && d.fecha_cierre ? ' · ' + esc(d.fecha_cierre) : ''}</option>`));
             if (seleccionar !== undefined) $s.val(String(seleccionar));
             despachoActual = $s.val() || '';
             aplicarModoDespacho();
@@ -320,14 +343,34 @@ $(document).ready(function () {
     }
     function aplicarModoDespacho() {
         const hay = despachoActual !== '';
-        $('#btnAgregarVehiculos').prop('disabled', !hay);
-        $('#btnCerrarDespacho').prop('disabled', !hay);
+        const historico = estadoDespachos === 'cerrado';
+        $('#btnNuevoDespacho').prop('disabled', historico);
+        $('#btnAgregarVehiculos').prop('disabled', !hay || historico);
+        $('#btnCerrarDespacho').prop('disabled', !hay || historico);
+        $('#btnMapaRefrescar').html(historico ? '<i class="bi bi-clock-history me-1"></i> Recargar historial' : '<i class="bi bi-arrow-clockwise me-1"></i> Actualizar');
+        $('#mapaAutoRefresh').prop('disabled', historico);
+        if (historico && $('#mapaAutoRefresh').prop('checked')) {
+            $('#mapaAutoRefresh').prop('checked', false);
+            if (timer) { clearInterval(timer); timer = null; }
+        }
     }
 
     $('#selDespacho').on('change', function () {
         despachoActual = $(this).val() || '';
-        aplicarModoDespacho(); ajustado = false;
-        cargar(false).always(() => cargar(true));
+        aplicarModoDespacho(); ajustado = false; limpiarRecorrido();
+        if (estadoDespachos === 'cerrado') cargar(false);
+        else cargar(false).always(() => cargar(true));
+    });
+
+    $('input[name="modoDespacho"]').on('change', function () {
+        estadoDespachos = this.value === 'cerrado' ? 'cerrado' : 'activo';
+        despachoActual = ''; seleccionado = null; ajustado = false; limpiarRecorrido();
+        $('#fltEstado').val('');
+        if (timer) { clearInterval(timer); timer = null; $('#mapaAutoRefresh').prop('checked', false); }
+        cargarDespachos('').then(() => {
+            if (estadoDespachos === 'cerrado') cargar(false);
+            else cargar(false).always(() => cargar(true));
+        });
     });
 
     $('#btnNuevoDespacho').on('click', function () {
@@ -480,10 +523,11 @@ $(document).ready(function () {
     });
 
     // ── Controles ──────────────────────────────────────────────
-    $('#btnMapaRefrescar').on('click', () => cargar(true));
+    $('#btnMapaRefrescar').on('click', () => cargar(estadoDespachos !== 'cerrado'));
     $('#fltTransporte, #fltEstado').on('change', render);
     $('#fltPlaca').on('input', render);
     $('#mapaAutoRefresh').on('change', function () {
+        if (estadoDespachos === 'cerrado') { this.checked = false; return; }
         if (this.checked) { cargar(true); timer = setInterval(() => cargar(true), 30000); }
         else if (timer) { clearInterval(timer); timer = null; }
     });

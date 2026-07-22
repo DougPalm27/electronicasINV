@@ -50,12 +50,13 @@ class mdlDespachos
     /** Despachos por estado ('activo' | 'cerrado'), con conteo de carros. */
     public function listar(string $estado = 'activo'): array
     {
+        $soloActivos = $estado === 'activo' ? 'AND dv.activo = 1' : '';
         $stmt = $this->conn->prepare(
             "SELECT d.id_despacho, d.nombre, d.estado,
                     CONVERT(varchar(19), d.fecha_apertura, 120) AS fecha_apertura,
                     CONVERT(varchar(19), d.fecha_cierre,   120) AS fecha_cierre,
                     (SELECT COUNT(*) FROM gps.DespachoVehiculos dv
-                     WHERE dv.id_despacho = d.id_despacho AND dv.activo = 1) AS carros
+                     WHERE dv.id_despacho = d.id_despacho $soloActivos) AS carros
              FROM gps.Despachos d
              WHERE d.estado = ?
              ORDER BY d.fecha_apertura DESC"
@@ -134,25 +135,43 @@ class mdlDespachos
      * Vehículos (activos) de uno o todos los despachos activos, con su última
      * posición en caché. Si $id_despacho es null → todos los despachos activos.
      */
-    public function vehiculos(?int $id_despacho): array
+    public function vehiculos(?int $id_despacho, bool $historico = false): array
     {
-        $where = "d.estado = 'activo' AND dv.activo = 1";
+        $where = $historico ? "d.estado = 'cerrado'" : "d.estado = 'activo' AND dv.activo = 1";
         $params = [];
-        if ($id_despacho !== null) { $where = "dv.id_despacho = ? AND dv.activo = 1"; $params = [$id_despacho]; }
+        if ($id_despacho !== null) {
+            $where = $historico ? "dv.id_despacho = ?" : "dv.id_despacho = ? AND dv.activo = 1";
+            $params = [$id_despacho];
+        }
+
+        $posJoin = "LEFT  JOIN gps.Posiciones pos ON pos.id_cuenta = dv.id_cuenta AND pos.imei = dv.imei";
+        $posPrefix = "pos";
+        if ($historico) {
+            $posJoin = "OUTER APPLY (
+                    SELECT TOP 1 r.lat, r.lng, r.velocidad, r.rumbo, r.encendido, r.direccion, r.fecha_posicion
+                    FROM gps.DespachoRecorridos r
+                    WHERE r.id_dv = dv.id_dv
+                    ORDER BY ISNULL(r.fecha_posicion, r.fecha_captura) DESC, r.id_recorrido DESC
+                ) pos";
+            $posPrefix = "pos";
+        }
 
         $stmt = $this->conn->prepare(
             "SELECT dv.id_dv, dv.id_despacho, d.nombre AS despacho,
                     dv.placa, dv.imei, dv.id_cuenta, dv.dispositivo,
+                    d.estado AS estado_despacho,
+                    CONVERT(varchar(19), d.fecha_apertura, 120) AS fecha_apertura,
+                    CONVERT(varchar(19), d.fecha_cierre, 120) AS fecha_cierre,
                     p.nombre AS plataforma, p.tipo_integracion, t.nombre AS transporte,
-                    CAST(pos.lat AS FLOAT) AS lat, CAST(pos.lng AS FLOAT) AS lng,
-                    pos.velocidad, pos.rumbo, pos.encendido, pos.direccion,
-                    CONVERT(varchar(19), pos.fecha_posicion, 120) AS fecha
+                    CAST($posPrefix.lat AS FLOAT) AS lat, CAST($posPrefix.lng AS FLOAT) AS lng,
+                    $posPrefix.velocidad, $posPrefix.rumbo, $posPrefix.encendido, $posPrefix.direccion,
+                    CONVERT(varchar(19), $posPrefix.fecha_posicion, 120) AS fecha
              FROM gps.DespachoVehiculos dv
              INNER JOIN gps.Despachos    d ON d.id_despacho  = dv.id_despacho
              INNER JOIN gps.CuentasGPS   c ON c.id_cuenta    = dv.id_cuenta
              INNER JOIN gps.Plataformas  p ON p.id_plataforma = c.id_plataforma
              INNER JOIN gps.Transportes  t ON t.id_transporte = c.id_transporte
-             LEFT  JOIN gps.Posiciones pos ON pos.id_cuenta = dv.id_cuenta AND pos.imei = dv.imei
+             $posJoin
              WHERE $where
              ORDER BY dv.placa"
         );
@@ -224,7 +243,6 @@ class mdlDespachos
             $pos['rumbo'] ?? null,
             $pos['encendido'] ?? null,
             $pos['direccion'] ?? null,
-            $fecha,
             $fecha,
         ]);
     }
