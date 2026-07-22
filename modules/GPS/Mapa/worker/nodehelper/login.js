@@ -3,13 +3,27 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 // Ruta de Chrome: configurable por env (CHROME_PATH) para el despliegue en el servidor.
-const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const BROWSER_CANDIDATES = [
+  process.env.CHROME_PATH,
+  'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+  'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
+  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+].filter(Boolean);
+const CHROME = BROWSER_CANDIDATES.find(p => fs.existsSync(p));
 // Carpeta de perfil de Chrome: imprescindible cuando lo lanza IIS/servicio (Sesion 0),
-// que no tiene perfil de usuario. Configurable con CHROME_USER_DATA.
-const USER_DATA = process.env.CHROME_USER_DATA || path.join(os.tmpdir(), 'ts-chrome-profile');
+// que no tiene perfil de usuario. Se usa una subcarpeta por ejecucion para evitar
+// bloqueos cuando varias cuentas TrackSolid refrescan al mismo tiempo.
+const USER_DATA_ROOT = process.env.CHROME_USER_DATA || path.join(os.tmpdir(), 'ts-chrome-profile');
+const USER_DATA = path.join(USER_DATA_ROOT, `run-${process.pid}-${Date.now()}`);
 try { fs.mkdirSync(USER_DATA, { recursive: true }); } catch (e) {}
 const USER = process.env.TS_USER, PWD = process.env.TS_PWD;
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+if (!USER || !PWD) {
+  console.error('ERR faltan TS_USER/TS_PWD. En PowerShell usa: $env:TS_USER="usuario"; $env:TS_PWD="clave"; node login.js');
+  process.exit(1);
+}
 
 async function visibleInputs(page) {
   const inputs = await page.$$('input');
@@ -98,9 +112,13 @@ async function fillLogin(page) {
 }
 
 (async () => {
+  if (!CHROME) {
+    throw new Error('no se encontro Chrome/Edge. Configura CHROME_PATH con la ruta real del navegador.');
+  }
   const browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: 'new',
+    pipe: true,                    // evita esperar el WS endpoint por stdout
     timeout: 90000,               // Sesion 0 arranca mas lento
     args: [
       '--no-sandbox',
@@ -143,5 +161,14 @@ async function fillLogin(page) {
     const token = await page.evaluate(()=>localStorage.getItem('token'));
     let accountId=null; try{ accountId=JSON.parse(Buffer.from(token.split('.')[1],'base64').toString()).accountId; }catch(e){}
     console.log(JSON.stringify({ token, accountId, queryBody:qBody, groupBody:gBody }));
-  } finally { await browser.close(); }
-})().catch(e=>{ console.error('ERR '+e.message); process.exit(1); });
+  } finally {
+    await browser.close();
+    try { fs.rmSync(USER_DATA, { recursive: true, force: true }); } catch (e) {}
+  }
+})().catch(e=>{
+  try { fs.rmSync(USER_DATA, { recursive: true, force: true }); } catch (_) {}
+  console.error('ERR '+e.message);
+  console.error('BROWSER '+(CHROME || '(no encontrado)'));
+  console.error('USER_DATA '+USER_DATA);
+  process.exit(1);
+});

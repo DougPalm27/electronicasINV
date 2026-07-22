@@ -177,6 +177,21 @@ $(document).ready(function () {
             recorridoLayer = null;
         }
         recorridoId = null;
+        $('#recorridoCheckpoint').remove();
+    }
+
+    function fechaPunto(p) {
+        return p.fecha || p.fecha_captura || 'Sin fecha';
+    }
+
+    function popupCheckpoint(p, idx) {
+        return `<div class="mapa-pop">
+            <div class="mp-placa">Checkpoint ${idx + 1}</div>
+            <div class="mp-row"><span class="mp-lbl">Fecha</span>${esc(fechaPunto(p))}</div>
+            <div class="mp-row"><span class="mp-lbl">Velocidad</span>${esc(p.velocidad == null ? '—' : p.velocidad + ' km/h')}</div>
+            <div class="mp-row"><span class="mp-lbl">Ubicación</span>${esc(p.direccion || 'Sin dirección guardada')}</div>
+            <div class="mp-row"><span class="mp-lbl">Coords</span>${Number(p.lat).toFixed(6)}, ${Number(p.lng).toFixed(6)}</div>
+        </div>`;
     }
 
     function mostrarRecorrido(id) {
@@ -205,12 +220,26 @@ $(document).ready(function () {
                 opacity: .9,
                 lineJoin: 'round'
             });
-            const inicio = L.circleMarker(coords[0], { radius: 4, color: '#156b45', weight: 2, fillColor: '#fff', fillOpacity: 1 });
-            const fin = L.circleMarker(coords[coords.length - 1], { radius: 5, color: '#156b45', weight: 2, fillColor: '#156b45', fillOpacity: 1 });
-            recorridoLayer = L.layerGroup([linea, inicio, fin]).addTo(mapa);
+            const checkpoints = puntos.map((p, idx) => {
+                const esInicio = idx === 0, esFin = idx === puntos.length - 1;
+                const marker = L.circleMarker(coords[idx], {
+                    radius: esInicio || esFin ? 5 : 3,
+                    color: esFin ? '#156b45' : '#0f5434',
+                    weight: 2,
+                    fillColor: esInicio ? '#fff' : (esFin ? '#156b45' : '#d9a300'),
+                    fillOpacity: 1
+                }).bindPopup(popupCheckpoint(p, idx));
+                marker.on('click', () => $('#recorridoCheckpoint').val(String(idx)));
+                return marker;
+            });
+            recorridoLayer = L.layerGroup([linea, ...checkpoints]).addTo(mapa);
             recorridoId = id;
             mapa.fitBounds(linea.getBounds(), { padding: [35, 35], maxZoom: 15 });
-            $('#mapaStatus').html(`${puntos.length} puntos de recorrido · <button class="btn btn-link btn-sm p-0 align-baseline" id="btnLimpiarRecorrido">ocultar</button>`);
+            const opciones = puntos.map((p, idx) => `<option value="${idx}">${idx + 1}. ${esc(fechaPunto(p))}</option>`).join('');
+            $('#mapaStatus').html(`${puntos.length} checkpoints ·
+                <select class="form-select form-select-sm d-inline-block w-auto ms-1" id="recorridoCheckpoint">${opciones}</select>
+                <button class="btn btn-link btn-sm p-0 align-baseline ms-1" id="btnLimpiarRecorrido">ocultar</button>`);
+            $('#recorridoCheckpoint').data('puntos', puntos);
         }, 'json');
     }
 
@@ -224,6 +253,17 @@ $(document).ready(function () {
     $(document).on('click', '#btnLimpiarRecorrido', function () {
         limpiarRecorrido();
         estadoTexto(filtrar());
+    });
+    $(document).on('change', '#recorridoCheckpoint', function () {
+        const puntos = $(this).data('puntos') || [];
+        const p = puntos[Number($(this).val())];
+        if (!p) return;
+        mapa.flyTo([Number(p.lat), Number(p.lng)], Math.max(mapa.getZoom(), 15));
+        if (recorridoLayer) {
+            const layers = recorridoLayer.getLayers();
+            const marker = layers[Number($(this).val()) + 1]; // +1 porque la linea es el primer layer
+            if (marker && marker.openPopup) marker.openPopup();
+        }
     });
     // Quitar carro del despacho
     $('#mapaLista').on('click', '.mi-quitar', function () {
