@@ -252,34 +252,83 @@ $(document).ready(function () {
     // ══════════════════════════════════════════════════════════
     //  SELECTOR — Agregar vehículos al despacho
     // ══════════════════════════════════════════════════════════
-    let dispCache = [];
+    let dispCache = [], cuentaCache = [];
     const modalAgregar = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAgregarVeh'));
     function abrirModalAgregar() {
         if (!despachoActual) return;
         $('#modalAgregarSub').text('Despacho: ' + $('#selDespacho option:selected').text());
         $('#dispositivosWrap').html('<div class="text-muted small">Selecciona una cuenta para ver sus equipos.</div>');
+        $('#cuentaInfo').addClass('d-none').empty();
         $('#buscarDispositivo').val(''); $('#selCuentaAgregar').val(''); actualizarSeleccion();
         $.post(CTRL_MAPA, { accion: 'cuentas' }, function (r) {
-            const $s = $('#selCuentaAgregar').empty().append('<option value="">— Selecciona una cuenta —</option>');
-            if (r.ok) r.data.cuentas.forEach(c =>
-                $s.append(`<option value="${c.id_cuenta}">${esc(c.transporte)} · ${esc(c.plataforma)}</option>`));
+            cuentaCache = (r.ok && r.data.cuentas) ? r.data.cuentas : [];
+            renderCuentasSelector();
         }, 'json');
         modalAgregar().show();
     }
     $('#btnAgregarVehiculos').on('click', abrirModalAgregar);
 
+    function renderCuentasSelector() {
+        const $s = $('#selCuentaAgregar').empty().append('<option value="">— Selecciona una cuenta —</option>');
+        const grupos = {};
+        cuentaCache.forEach(c => {
+            const tr = c.transporte || 'Sin transporte';
+            if (!grupos[tr]) grupos[tr] = [];
+            grupos[tr].push(c);
+        });
+        Object.keys(grupos).sort().forEach(tr => {
+            const $g = $(`<optgroup label="${esc(tr)}"></optgroup>`);
+            grupos[tr].sort((a, b) =>
+                String(a.plataforma || '').localeCompare(String(b.plataforma || ''), 'es') ||
+                String(a.usuario || '').localeCompare(String(b.usuario || ''), 'es')
+            ).forEach(c => {
+                const label = `${c.plataforma || 'Plataforma'} · ${c.usuario || 'sin usuario'} · ${c.vinculados || 0} vinculados`;
+                $g.append(`<option value="${c.id_cuenta}">${esc(label)}</option>`);
+            });
+            $s.append($g);
+        });
+    }
+
+    function cuentaSeleccionada() {
+        const id = $('#selCuentaAgregar').val();
+        return cuentaCache.find(c => String(c.id_cuenta) === String(id)) || null;
+    }
+
+    function renderCuentaInfo(cuenta, total) {
+        const c = cuenta || cuentaSeleccionada();
+        if (!c) { $('#cuentaInfo').addClass('d-none').empty(); return; }
+        const totalTxt = total == null ? '—' : total;
+        $('#cuentaInfo').removeClass('d-none').html(`
+            <div class="ci-title">${esc(c.transporte || 'Sin transporte')}</div>
+            <div class="ci-grid">
+              <span><span class="ci-lbl">Plataforma</span><span class="ci-val" title="${esc(c.plataforma || '')}">${esc(c.plataforma || '—')}</span></span>
+              <span><span class="ci-lbl">Usuario</span><span class="ci-val" title="${esc(c.usuario || '')}">${esc(c.usuario || '—')}</span></span>
+              <span><span class="ci-lbl">Motor</span><span class="ci-val">${esc(c.tipo_integracion || c.motor || '—')}</span></span>
+              <span><span class="ci-lbl">Equipos</span><span class="ci-val">${esc(totalTxt)} / ${esc(c.vinculados || 0)} vinculados</span></span>
+            </div>`);
+    }
+
     $('#selCuentaAgregar').on('change', function () {
         const id = $(this).val();
+        dispCache = [];
+        actualizarSeleccion();
+        renderCuentaInfo();
         if (!id) { $('#dispositivosWrap').html('<div class="text-muted small">Selecciona una cuenta.</div>'); return; }
         $('#dispositivosWrap').html('<div class="text-muted small py-3"><span class="spinner-border spinner-border-sm me-1"></span> Cargando equipos…</div>');
         $.post(CTRL_MAPA, { accion: 'dispositivos', id_cuenta: id, id_despacho: despachoActual }, function (r) {
             if (!r.ok) { $('#dispositivosWrap').html(`<div class="text-danger small">${esc(r.mensaje)}</div>`); return; }
-            dispCache = r.data.dispositivos; renderDispositivos();
+            dispCache = r.data.dispositivos;
+            if (r.data.cuenta) {
+                const c = cuentaCache.find(x => String(x.id_cuenta) === String(r.data.cuenta.id_cuenta));
+                if (c) Object.assign(c, r.data.cuenta);
+            }
+            renderCuentaInfo(r.data.cuenta || cuentaSeleccionada(), dispCache.length);
+            renderDispositivos();
         }, 'json');
     });
     function renderDispositivos() {
         const q = ($('#buscarDispositivo').val() || '').trim().toUpperCase();
-        const lista = dispCache.filter(d => !q || d.placa.includes(q) || (d.dispositivo || '').toUpperCase().includes(q));
+        const lista = dispCache.filter(d => !q || d.placa.includes(q) || (d.dispositivo || '').toUpperCase().includes(q) || (d.imei || '').toUpperCase().includes(q));
         if (!lista.length) { $('#dispositivosWrap').html('<div class="text-muted small">Sin equipos que coincidan.</div>'); return; }
         $('#dispositivosWrap').html(lista.map(d => {
             const idx = dispCache.indexOf(d);

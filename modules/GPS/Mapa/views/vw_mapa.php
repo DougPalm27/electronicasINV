@@ -108,7 +108,7 @@
       <div class="modal-body">
         <div class="row g-2 align-items-end mb-3">
           <div class="col-md-8">
-            <label class="form-label small mb-1">Cuenta (transporte · plataforma)</label>
+            <label class="form-label small mb-1">Cuenta (transporte · plataforma · usuario)</label>
             <select class="form-select form-select-sm" id="selCuentaAgregar">
               <option value="">— Selecciona una cuenta —</option>
             </select>
@@ -118,6 +118,7 @@
                    placeholder="Filtrar por placa/nombre">
           </div>
         </div>
+        <div class="cuenta-info mb-3 d-none" id="cuentaInfo"></div>
         <div id="dispositivosWrap">
           <div class="text-muted small">Selecciona una cuenta para ver sus equipos.</div>
         </div>
@@ -162,4 +163,10 @@
   .disp-name { font-size:.72rem; color:#8a919c; }
   .disp-imei { margin-left:auto; font-size:.68rem; color:#adb5bd; font-family:'IBM Plex Mono', monospace; }
   .disp-ya { font-size:.66rem; color:#156b45; font-weight:600; }
+  .cuenta-info { border:1px solid #d7ddd9; border-left:4px solid #156b45; background:#f8faf9; padding:.55rem .7rem; }
+  .cuenta-info .ci-title { font-family:'IBM Plex Mono', ui-monospace, monospace; font-weight:700; font-size:.78rem; }
+  .cuenta-info .ci-grid { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:.5rem; margin-top:.35rem; }
+  .cuenta-info .ci-lbl { display:block; color:#8a919c; font-size:.62rem; line-height:1.1; }
+  .cuenta-info .ci-val { display:block; font-family:'IBM Plex Mono', ui-monospace, monospace; font-size:.72rem; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  @media (max-width: 767.98px) { .cuenta-info .ci-grid { grid-template-columns:repeat(2, minmax(0,1fr)); } }
 </style>

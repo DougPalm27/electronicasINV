@@ -71,10 +71,13 @@ class mdlDespachos
      */
     public function agregarVehiculos(int $id_despacho, array $items, int $uid): array
     {
+        // Duplicado: si el equipo tiene IMEI, se compara por IMEI (único).
+        // Solo si NO hay IMEI se compara por placa (varios equipos pueden llamarse
+        // igual, p.ej. "gps" sin configurar → placas repetidas, imeis distintos).
         $existe = $this->conn->prepare(
             "SELECT COUNT(*) FROM gps.DespachoVehiculos
              WHERE id_despacho = ? AND activo = 1 AND id_cuenta = ?
-               AND (placa = ? OR (imei IS NOT NULL AND imei = ?))"
+               AND ( (? <> '' AND imei = ?) OR (? = '' AND placa = ?) )"
         );
         $insert = $this->conn->prepare(
             "INSERT INTO gps.DespachoVehiculos (id_despacho, id_cuenta, placa, imei, dispositivo, agregado_por)
@@ -89,7 +92,7 @@ class mdlDespachos
                 $imei  = trim($it['imei'] ?? '');
                 if (!$id_cuenta || $placa === '') { $omitidos++; continue; }
 
-                $existe->execute([$id_despacho, $id_cuenta, $placa, $imei]);
+                $existe->execute([$id_despacho, $id_cuenta, $imei, $imei, $imei, $placa]);
                 if ((int)$existe->fetchColumn() > 0) { $omitidos++; continue; }
 
                 $insert->execute([$id_despacho, $id_cuenta, $placa, $imei ?: null,

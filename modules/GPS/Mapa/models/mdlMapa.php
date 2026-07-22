@@ -47,14 +47,14 @@ class mdlMapa
     public function cuentasSelector(): array
     {
         $stmt = $this->conn->prepare(
-            "SELECT c.id_cuenta, p.nombre AS plataforma, p.tipo_integracion,
+            "SELECT c.id_cuenta, c.usuario, p.nombre AS plataforma, p.tipo_integracion,
                     t.nombre AS transporte,
                     (SELECT COUNT(*) FROM gps.GPS g WHERE g.id_cuenta = c.id_cuenta AND g.estado = 1) AS vinculados
              FROM gps.CuentasGPS c
              INNER JOIN gps.Plataformas p ON p.id_plataforma = c.id_plataforma
              INNER JOIN gps.Transportes t ON t.id_transporte = c.id_transporte
              WHERE c.activo = 1 AND p.tipo_integracion IS NOT NULL
-             ORDER BY t.nombre, p.nombre"
+             ORDER BY t.nombre, p.nombre, c.usuario"
         );
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);

@@ -10,6 +10,93 @@ const USER_DATA = process.env.CHROME_USER_DATA || path.join(os.tmpdir(), 'ts-chr
 try { fs.mkdirSync(USER_DATA, { recursive: true }); } catch (e) {}
 const USER = process.env.TS_USER, PWD = process.env.TS_PWD;
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+async function visibleInputs(page) {
+  const inputs = await page.$$('input');
+  const out = [];
+  for (const input of inputs) {
+    const meta = await input.evaluate(el => {
+      const r = el.getBoundingClientRect();
+      const s = window.getComputedStyle(el);
+      return {
+        type: (el.getAttribute('type') || 'text').toLowerCase(),
+        placeholder: el.getAttribute('placeholder') || '',
+        name: el.getAttribute('name') || '',
+        id: el.getAttribute('id') || '',
+        autocomplete: el.getAttribute('autocomplete') || '',
+        disabled: !!el.disabled,
+        readonly: !!el.readOnly,
+        visible: r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none',
+      };
+    });
+    if (meta.visible && !meta.disabled && !meta.readonly && meta.type !== 'hidden') {
+      out.push({ input, meta });
+    }
+  }
+  return out;
+}
+
+function scoreAccountInput(meta) {
+  if (meta.type === 'password') return -100;
+  const hay = `${meta.placeholder} ${meta.name} ${meta.id} ${meta.autocomplete}`.toLowerCase();
+  let score = 0;
+  if (/(account|username|user|login|email|mail|cuenta|usuario)/.test(hay)) score += 20;
+  if (/(account|cuenta)/.test(hay)) score += 10;
+  if (['text', 'email', 'tel', 'search'].includes(meta.type)) score += 5;
+  return score;
+}
+
+async function typeInto(handle, value) {
+  await handle.click({ clickCount: 3 });
+  await handle.press('Backspace').catch(()=>{});
+  await handle.type(value, { delay: 25 });
+}
+
+async function fillLogin(page) {
+  await page.waitForFunction(() => {
+    return !!localStorage.getItem('token') ||
+      Array.from(document.querySelectorAll('input')).some(el => {
+        const r = el.getBoundingClientRect();
+        const s = window.getComputedStyle(el);
+        return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+      });
+  }, { timeout: 30000 });
+
+  const inputs = await visibleInputs(page);
+  const pwd = inputs.find(x => x.meta.type === 'password');
+  const account = inputs
+    .filter(x => x.input !== (pwd && pwd.input))
+    .sort((a, b) => scoreAccountInput(b.meta) - scoreAccountInput(a.meta))[0];
+
+  if (!account || !pwd) {
+    const seen = inputs.map(x => `${x.meta.type}:${x.meta.placeholder || x.meta.name || x.meta.id || '(sin etiqueta)'}`).join(', ');
+    throw new Error('no se detectaron campos de login visibles. Inputs: ' + (seen || 'ninguno'));
+  }
+
+  await typeInto(account.input, USER);
+  await typeInto(pwd.input, PWD);
+
+  const clicked = await page.evaluate(() => {
+    const candidates = Array.from(document.querySelectorAll('button, .login-button, [role="button"], input[type="button"], input[type="submit"]'));
+    const visible = el => {
+      const r = el.getBoundingClientRect();
+      const s = window.getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && !el.disabled;
+    };
+    const score = el => {
+      const text = `${el.innerText || ''} ${el.value || ''} ${el.className || ''} ${el.id || ''}`.toLowerCase();
+      if (/(login|log in|sign in|entrar|ingresar|iniciar|acceder)/.test(text)) return 20;
+      if (el.type === 'submit') return 10;
+      return 0;
+    };
+    const btn = candidates.filter(visible).sort((a, b) => score(b) - score(a))[0];
+    if (!btn) return false;
+    btn.click();
+    return true;
+  });
+  if (!clicked) await page.keyboard.press('Enter');
+}
+
 (async () => {
   const browser = await puppeteer.launch({
     executablePath: CHROME,
@@ -38,12 +125,18 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
       if (u.indexOf('queryEquipmentList')>-1 && !qBody) qBody=req.postData();
       if (u.indexOf('getUserGroup')>-1 && !gBody)      gBody=req.postData();
     });
-    await page.goto('https://us.tracksolidpro.com/', { waitUntil:'networkidle2', timeout:45000 });
-    await page.waitForSelector('input[placeholder="Account"]', { timeout:20000 });
-    await page.type('input[placeholder="Account"]', USER, {delay:25});
-    await page.type('input[type="password"]', PWD, {delay:25});
-    await page.click('.login-button');
-    await page.waitForFunction(() => !!localStorage.getItem('token'), { timeout:25000 });
+    await page.goto('https://us.tracksolidpro.com/resource/dev/index.html#/login', { waitUntil:'networkidle2', timeout:60000 });
+    await page.evaluate(() => {
+      localStorage.removeItem('token');
+      sessionStorage.clear();
+    }).catch(()=>{});
+    await page.goto('https://us.tracksolidpro.com/resource/dev/index.html#/login', { waitUntil:'networkidle2', timeout:60000 });
+    await fillLogin(page);
+    try {
+      await page.waitForFunction(() => !!localStorage.getItem('token'), { timeout:25000 });
+    } catch (e) {
+      throw new Error('no se obtuvo token despues de enviar el login; revisa usuario/clave o si TrackSolid pidio captcha/2FA');
+    }
     await sleep(1500);
     await page.reload({ waitUntil:'networkidle2', timeout:30000 }); // arranca el monitor logueado
     for (let i=0;i<30 && !qBody;i++) await sleep(500);

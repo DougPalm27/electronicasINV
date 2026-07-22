@@ -1,7 +1,7 @@
 <?php
 require_once '../../../../config/auth.php';
 requireLogin(true);
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=UTF-8');
 include_once '../models/mdlMapa.php';
 include_once '../models/mdlDespachos.php';
 require_once '../adapters/AdapterFactory.php';
@@ -14,7 +14,11 @@ $uid    = (int)($_SESSION['id_usuario'] ?? 0);
 const FRESCURA_SEG = 1800; // 30 min
 
 function respM($data = [], bool $error = false, string $msg = ''): void {
-    echo json_encode(['ok' => !$error, 'data' => $data, 'mensaje' => $msg]); exit;
+    echo json_encode(
+        ['ok' => !$error, 'data' => $data, 'mensaje' => $msg],
+        JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
+    );
+    exit;
 }
 function esFresco(?string $fecha): bool {
     if (!$fecha) return false;
@@ -194,16 +198,36 @@ try {
             $devs    = $adapter->listarDispositivos();
             $vin     = $id_despacho ? $desp->vinculadosDeDespacho($id_despacho) : ['placas'=>[], 'imeis'=>[]];
 
+            $conNombreCompleto = !in_array($c['tipo_integracion'], ['optimus', 'tracksolid'], true);
             $out = [];
             foreach ($devs as $d) {
                 $nombre = trim($d['dispositivo']);
-                $placa  = strtoupper(trim(strtok($nombre, ' ')));
-                $imei   = trim($d['imei']);
-                $ya = isset($vin['placas'][$id_cuenta . '|' . $placa])
-                   || ($imei !== '' && isset($vin['imeis'][$id_cuenta . '|' . $imei]));
+                // Optimus/TrackSolid: el nombre es "PLACA alias" → placa = 1er token.
+                // Los demás: el nombre ES la etiqueta (quitar sufijo de batería " (NN%)").
+                $placa = $conNombreCompleto
+                    ? strtoupper(trim(preg_replace('/\s*\(\d+%\)\s*$/', '', $nombre)))
+                    : strtoupper(trim(strtok($nombre, ' ')));
+                $imei  = trim($d['imei']);
+                // Marcar "ya vinculado" por IMEI (único) si el equipo lo tiene;
+                // solo por placa cuando no hay IMEI (evita colisión de equipos "gps").
+                $ya = $imei !== ''
+                    ? isset($vin['imeis'][$id_cuenta . '|' . $imei])
+                    : isset($vin['placas'][$id_cuenta . '|' . $placa]);
                 $out[] = ['id_cuenta'=>$id_cuenta, 'dispositivo'=>$nombre, 'placa'=>$placa, 'imei'=>$imei, 'ya'=>$ya];
             }
-            respM(['plataforma'=>$c['plataforma'], 'transporte'=>$c['transporte'], 'dispositivos'=>$out]);
+            respM([
+                'cuenta' => [
+                    'id_cuenta'  => $id_cuenta,
+                    'transporte' => $c['transporte'],
+                    'plataforma' => $c['plataforma'],
+                    'usuario'    => $c['usuario'],
+                    'motor'      => $c['tipo_integracion'],
+                ],
+                'plataforma' => $c['plataforma'],
+                'transporte' => $c['transporte'],
+                'usuario'    => $c['usuario'],
+                'dispositivos' => $out
+            ]);
             break;
 
         default:
