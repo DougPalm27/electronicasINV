@@ -150,16 +150,19 @@
   .mapa-item .mi-quitar:hover { color:#dc3545; }
 
   .mk { background:none; border:none; }
-  .mk-veh { position:relative; width:34px; height:40px; color:var(--mk-color); filter:drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
-  .mk-body { position:absolute; left:4px; top:7px; width:26px; height:26px; display:flex; align-items:center; justify-content:center; background:#fff; border:2px solid var(--mk-color); color:var(--mk-color); font-size:15px; line-height:1; }
-  .mk-pin { position:absolute; left:12px; bottom:2px; width:10px; height:10px; background:#fff; border-right:2px solid var(--mk-color); border-bottom:2px solid var(--mk-color); transform:rotate(45deg); }
-  .mk-heading { position:absolute; left:14px; top:0; width:0; height:0; border-left:3px solid transparent; border-right:3px solid transparent; border-bottom:8px solid var(--mk-color); transform-origin:3px 18px; }
-  .mk-veh.mov .mk-body { background:#f4fbf7; }
-  .mk-veh.idle .mk-body { background:#fff9df; }
-  .mk-veh.stop .mk-body { background:#f4f5f6; }
+  .mk-veh { position:relative; width:38px; height:28px; transform-origin:50% 50%; filter:drop-shadow(0 1px 2px rgba(0,0,0,.32)); }
+  .mk-veh.sel { filter:drop-shadow(0 1px 2px rgba(0,0,0,.32)) drop-shadow(0 0 5px var(--mk-color)); }
+  .mk-veh svg { position:relative; display:block; width:38px; height:28px; }
+  .mk-outline { fill:none; stroke:#fff; stroke-width:5; stroke-linejoin:round; stroke-linecap:round; }
+  .mk-body, .mk-bed { fill:var(--mk-color); stroke:#17221c; stroke-width:1.4; stroke-linejoin:round; }
+  .mk-veh.sel .mk-body, .mk-veh.sel .mk-bed { stroke:#fff; stroke-width:2; }
+  .mk-window { fill:rgba(255,255,255,.78); stroke:#17221c; stroke-width:1.2; stroke-linejoin:round; }
+  .mk-line { fill:none; stroke:#17221c; stroke-width:1.2; stroke-linecap:round; }
+  .mk-wheel { fill:#17221c; stroke:#fff; stroke-width:1.2; }
   .mapa-pop .mp-placa { font-family:'IBM Plex Mono', ui-monospace, monospace; font-weight:700; font-size:.95rem; }
   .mapa-pop .mp-row { font-size:.78rem; margin-top:2px; }
   .mapa-pop .mp-lbl { color:#8a919c; display:inline-block; min-width:74px; }
+  .mapa-pop .mp-actions { margin-top:.5rem; }
   .leaflet-popup-content { margin:.6rem .8rem; }
 
   .disp-row { display:flex; align-items:center; gap:.6rem; padding:.4rem .5rem; border-bottom:1px solid #eef1ef; }

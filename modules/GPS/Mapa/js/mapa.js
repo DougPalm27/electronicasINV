@@ -8,7 +8,7 @@ const CTRL_MAPA = './modules/GPS/Mapa/controllers/mapaController.php';
 $(document).ready(function () {
     if (!document.getElementById('mapaGPS')) return;
 
-    let mapa, capa, datos = [], markers = {}, timer = null, cargando = false, ajustado = false;
+    let mapa, capa, recorridoLayer = null, datos = [], markers = {}, timer = null, cargando = false, ajustado = false, seleccionado = null, recorridoId = null;
     let despachoActual = '';   // '' = todos los activos ; o el id de un despacho
 
     // ── Mapa base + selector de capas (calles / satélite) ──────
@@ -59,14 +59,21 @@ $(document).ready(function () {
     function movimiento(v) { if ((v.velocidad || 0) > 0) return 'mov'; if (Number(v.encendido) === 1) return 'idle'; return 'stop'; }
     function tienePos(v) { return v.lat != null && v.lng != null; }
 
-    function icono(v) {
+    function icono(v, activo = false) {
         const est = movimiento(v), col = MOV[est];
         const rumbo = Number(v.rumbo || 0);
-        return L.divIcon({ className: 'mk', iconSize: [34, 40], iconAnchor: [17, 36],
-            html: `<div class="mk-veh ${est}" style="--mk-color:${col}">
-                     ${est === 'mov' ? `<span class="mk-heading" style="transform:rotate(${rumbo}deg)"></span>` : ''}
-                     <span class="mk-body"><i class="bi bi-truck-front-fill"></i></span>
-                     <span class="mk-pin"></span>
+        return L.divIcon({ className: 'mk', iconSize: [38, 28], iconAnchor: [19, 20],
+            html: `<div class="mk-veh ${est} ${activo ? 'sel' : ''}" style="--mk-color:${col}; transform:rotate(${rumbo}deg)">
+                     <svg viewBox="0 0 76 48" aria-hidden="true">
+                       <path class="mk-outline" d="M3 29h6l5-8h17v20H24a8 8 0 0 0-16 0H3zM34 15h38v26h-6a7 7 0 0 0-14 0h-4a7 7 0 0 0-14 0H34z"/>
+                       <path class="mk-body" d="M3 29h6l5-8h17v20H24a8 8 0 0 0-16 0H3zM34 15h38v26h-6a7 7 0 0 0-14 0h-4a7 7 0 0 0-14 0H34z"/>
+                       <path class="mk-bed" d="M34 8h5l2 3h26l2-3h3v6H34z"/>
+                       <path class="mk-window" d="M16 24h11v7H14z"/>
+                       <path class="mk-line" d="M34 15h38M15 21h16M3 34h4"/>
+                       <circle class="mk-wheel" cx="16" cy="41" r="5"/>
+                       <circle class="mk-wheel" cx="44" cy="41" r="5"/>
+                       <circle class="mk-wheel" cx="58" cy="41" r="5"/>
+                     </svg>
                    </div>` });
     }
     function popup(v) {
@@ -81,6 +88,11 @@ $(document).ready(function () {
             <div class="mp-row"><span class="mp-lbl">Transporte</span>${esc(v.transporte || '—')}</div>
             <div class="mp-row"><span class="mp-lbl">Ubicación</span><span class="mp-ubic">${v.direccion ? esc(v.direccion) : 'Buscando dirección…'}</span></div>
             <div class="mp-row"><span class="mp-lbl">Reporte</span>${esc(v.fecha || '—')}</div>
+            <div class="mp-actions">
+              <button class="btn btn-sm btn-outline-primary btn-recorrido" type="button" data-id="${v.id_dv}">
+                <i class="bi bi-signpost-split me-1"></i> Ver recorrido
+              </button>
+            </div>
         </div>`;
     }
 
@@ -105,8 +117,10 @@ $(document).ready(function () {
         const bounds = [];
         lista.forEach(v => {
             if (!tienePos(v)) return;
-            const m = L.marker([v.lat, v.lng], { icon: icono(v) }).bindPopup(popup(v));
-            m._veh = v; m.addTo(capa); markers[v.id_dv] = m; bounds.push([v.lat, v.lng]);
+            const activo = String(v.id_dv) === String(seleccionado);
+            const m = L.marker([v.lat, v.lng], { icon: icono(v, activo), zIndexOffset: activo ? 1000 : 0 }).bindPopup(popup(v));
+            m._veh = v; m.on('click', () => seleccionarVehiculo(v.id_dv, false));
+            m.addTo(capa); markers[v.id_dv] = m; bounds.push([v.lat, v.lng]);
         });
 
         const $l = $('#mapaLista').empty();
@@ -121,7 +135,7 @@ $(document).ready(function () {
                         : seg === 'pendiente' ? 'Pendiente' : 'Sin señal';
                 const sub = [v.transporte, v.plataforma].filter(Boolean).join(' · ');
                 $l.append(
-                    `<div class="mapa-item" data-id="${v.id_dv}">
+                    `<div class="mapa-item ${String(v.id_dv) === String(seleccionado) ? 'activo' : ''}" data-id="${v.id_dv}">
                        <span class="mi-dot" style="background:${SEG[seg]}"></span>
                        <span class="mi-body" data-id="${v.id_dv}">
                          <span class="mi-placa">${esc(v.placa)}</span><br>
@@ -141,11 +155,75 @@ $(document).ready(function () {
         $('#mapaStatus').text(`${lista.length} carros · ${vivo} en vivo · ${new Date().toLocaleTimeString('es-HN')}`);
     }
 
+    function seleccionarVehiculo(id, volar = true) {
+        seleccionado = id;
+        $('.mapa-item').removeClass('activo');
+        $(`.mapa-item[data-id="${id}"]`).addClass('activo');
+        Object.keys(markers).forEach(k => {
+            const m = markers[k], activo = String(k) === String(id);
+            if (m && m._veh) {
+                m.setIcon(icono(m._veh, activo));
+                m.setZIndexOffset(activo ? 1000 : 0);
+            }
+        });
+        const m = markers[id];
+        if (m && volar) mapa.flyTo(m.getLatLng(), Math.max(mapa.getZoom(), 15));
+        if (m) m.openPopup();
+    }
+
+    function limpiarRecorrido() {
+        if (recorridoLayer) {
+            mapa.removeLayer(recorridoLayer);
+            recorridoLayer = null;
+        }
+        recorridoId = null;
+    }
+
+    function mostrarRecorrido(id) {
+        const v = datos.find(x => String(x.id_dv) === String(id));
+        $('#mapaStatus').text(`Cargando recorrido de ${v ? v.placa : 'vehículo'}…`);
+        $.post(CTRL_MAPA, { accion: 'recorrido', id_dv: id }, function (r) {
+            if (!r.ok) {
+                Swal.fire({ icon: 'error', title: 'No se pudo cargar', text: r.mensaje || 'Error desconocido.' });
+                return;
+            }
+            const puntos = (r.data.puntos || []).filter(p => p.lat != null && p.lng != null);
+            if (puntos.length < 2) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Recorrido aún corto',
+                    text: 'Se necesitan al menos dos reportes guardados para dibujar la ruta.'
+                });
+                estadoTexto(filtrar());
+                return;
+            }
+            limpiarRecorrido();
+            const coords = puntos.map(p => [Number(p.lat), Number(p.lng)]);
+            const linea = L.polyline(coords, {
+                color: '#0f5434',
+                weight: 4,
+                opacity: .9,
+                lineJoin: 'round'
+            });
+            const inicio = L.circleMarker(coords[0], { radius: 4, color: '#156b45', weight: 2, fillColor: '#fff', fillOpacity: 1 });
+            const fin = L.circleMarker(coords[coords.length - 1], { radius: 5, color: '#156b45', weight: 2, fillColor: '#156b45', fillOpacity: 1 });
+            recorridoLayer = L.layerGroup([linea, inicio, fin]).addTo(mapa);
+            recorridoId = id;
+            mapa.fitBounds(linea.getBounds(), { padding: [35, 35], maxZoom: 15 });
+            $('#mapaStatus').html(`${puntos.length} puntos de recorrido · <button class="btn btn-link btn-sm p-0 align-baseline" id="btnLimpiarRecorrido">ocultar</button>`);
+        }, 'json');
+    }
+
     // Clic en la ficha → volar al carro
     $('#mapaLista').on('click', '.mi-body', function () {
-        const id = $(this).data('id'), m = markers[id];
-        $('.mapa-item').removeClass('activo'); $(this).closest('.mapa-item').addClass('activo');
-        if (m) { mapa.flyTo(m.getLatLng(), Math.max(mapa.getZoom(), 15)); m.openPopup(); }
+        seleccionarVehiculo($(this).data('id'));
+    });
+    $(document).on('click', '.btn-recorrido', function () {
+        mostrarRecorrido($(this).data('id'));
+    });
+    $(document).on('click', '#btnLimpiarRecorrido', function () {
+        limpiarRecorrido();
+        estadoTexto(filtrar());
     });
     // Quitar carro del despacho
     $('#mapaLista').on('click', '.mi-quitar', function () {

@@ -57,6 +57,10 @@ function armarRegistro(array $v, ?array $pos): array {
         'fecha'         => $pos['fecha']     ?? null,
     ];
 }
+function guardarRecorridoSeguro(mdlDespachos $desp, array $vehiculo, ?array $pos): void {
+    if (!$pos || ($pos['lat'] ?? null) === null || ($pos['lng'] ?? null) === null) return;
+    try { $desp->guardarPuntoRecorrido($vehiculo, $pos); } catch (Throwable $e) { /* migracion pendiente: no bloquea el mapa */ }
+}
 
 try {
     switch ($accion) {
@@ -86,6 +90,12 @@ try {
             if (!$id_dv) respM([], true, 'Vehículo no especificado.');
             $desp->quitarVehiculo($id_dv);
             respM([], false, 'Vehículo quitado del despacho.');
+            break;
+
+        case 'recorrido':
+            $id_dv = (int)($_POST['id_dv'] ?? 0);
+            if (!$id_dv) respM([], true, 'Vehículo no especificado.');
+            respM(['puntos' => $desp->recorridoVehiculo($id_dv)]);
             break;
 
         case 'agregarADespacho':
@@ -148,6 +158,7 @@ try {
                                     'rumbo'=>$pos['rumbo'],'encendido'=>$pos['encendido'],
                                     'direccion'=>$pos['direccion'],'fecha'=>$pos['fecha'],
                                 ]);
+                                guardarRecorridoSeguro($desp, $v, $pos);
                                 $resumen['en_vivo']++;
                             }
                             $out[] = armarRegistro($v, $pos);
@@ -162,6 +173,7 @@ try {
                 elseif (AdapterFactory::soportaWorker($motor)) {
                     foreach ($vs as $v) {
                         $reg = armarRegistro($v, posDeFila($v));
+                        guardarRecorridoSeguro($desp, $v, posDeFila($v));
                         if ($reg['estado_seg'] === 'live') $resumen['en_vivo']++;
                         $out[] = $reg;
                     }

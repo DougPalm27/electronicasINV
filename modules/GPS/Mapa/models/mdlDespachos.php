@@ -182,4 +182,67 @@ class mdlDespachos
         }
         return $map;
     }
+
+    /** Guarda un punto de recorrido del carro dentro de su despacho, evitando duplicados por reporte. */
+    public function guardarPuntoRecorrido(array $vehiculo, array $pos): void
+    {
+        if (($pos['lat'] ?? null) === null || ($pos['lng'] ?? null) === null) return;
+
+        $fecha = trim((string)($pos['fecha'] ?? ''));
+        $existe = $this->conn->prepare(
+            "SELECT COUNT(*) FROM gps.DespachoRecorridos
+             WHERE id_dv = ?
+               AND ABS(CAST(lat AS FLOAT) - ?) < 0.000001
+               AND ABS(CAST(lng AS FLOAT) - ?) < 0.000001
+               AND (
+                    (? <> '' AND fecha_posicion = TRY_CONVERT(datetime, NULLIF(?, ''), 120))
+                    OR
+                    (? = '' AND DATEDIFF(second, fecha_captura, GETDATE()) < 120)
+               )"
+        );
+        $existe->execute([
+            (int)$vehiculo['id_dv'], (float)$pos['lat'], (float)$pos['lng'],
+            $fecha, $fecha, $fecha
+        ]);
+        if ((int)$existe->fetchColumn() > 0) return;
+
+        $insert = $this->conn->prepare(
+            "INSERT INTO gps.DespachoRecorridos
+                (id_dv, id_despacho, id_cuenta, placa, imei, lat, lng,
+                 velocidad, rumbo, encendido, direccion, fecha_posicion)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRY_CONVERT(datetime, NULLIF(?, ''), 120))"
+        );
+        $insert->execute([
+            (int)$vehiculo['id_dv'],
+            (int)$vehiculo['id_despacho'],
+            (int)$vehiculo['id_cuenta'],
+            $vehiculo['placa'],
+            $vehiculo['imei'] ?? null,
+            (float)$pos['lat'],
+            (float)$pos['lng'],
+            $pos['velocidad'] ?? null,
+            $pos['rumbo'] ?? null,
+            $pos['encendido'] ?? null,
+            $pos['direccion'] ?? null,
+            $fecha,
+            $fecha,
+        ]);
+    }
+
+    /** Recorrido historico de un vehiculo en un despacho. */
+    public function recorridoVehiculo(int $id_dv): array
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT r.id_recorrido, r.id_dv, r.id_despacho, r.placa,
+                    CAST(r.lat AS FLOAT) AS lat, CAST(r.lng AS FLOAT) AS lng,
+                    r.velocidad, r.rumbo, r.encendido, r.direccion,
+                    CONVERT(varchar(19), r.fecha_posicion, 120) AS fecha,
+                    CONVERT(varchar(19), r.fecha_captura, 120) AS fecha_captura
+             FROM gps.DespachoRecorridos r
+             WHERE r.id_dv = ?
+             ORDER BY ISNULL(r.fecha_posicion, r.fecha_captura), r.id_recorrido"
+        );
+        $stmt->execute([$id_dv]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }
