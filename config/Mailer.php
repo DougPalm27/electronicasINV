@@ -29,6 +29,11 @@ class Mailer
      */
     public function send(string|array $to, string $subject, string $body): void
     {
+        if (($this->cfg['driver'] ?? 'smtp') === 'sendgrid') {
+            $this->sendSendGrid($to, $subject, $body);
+            return;
+        }
+
         $mail = new PHPMailer(true);
 
         $mail->isSMTP();
@@ -36,9 +41,19 @@ class Mailer
         $mail->SMTPAuth   = true;
         $mail->Username   = $this->cfg['username'];
         $mail->Password   = $this->cfg['password'];
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = $this->cfg['port'];
         $mail->CharSet    = 'UTF-8';
+        $mail->Timeout    = $this->cfg['timeout'] ?? 20;
+
+        $encryption = strtolower((string)($this->cfg['encryption'] ?? 'tls'));
+        if ($encryption === 'tls' || $encryption === 'starttls') {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        } elseif ($encryption === 'ssl' || $encryption === 'smtps') {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        } else {
+            $mail->SMTPSecure = false;
+            $mail->SMTPAutoTLS = false;
+        }
 
         $mail->setFrom($this->cfg['from_email'], $this->cfg['from_name']);
 
@@ -65,6 +80,127 @@ class Mailer
             self::log('ERROR', $subject, $destinatarios, $mail->ErrorInfo);
             throw $e;
         }
+    }
+
+    private function sendSendGrid(string|array $to, string $subject, string $body): void
+    {
+        $apiKey = (string)($this->cfg['sendgrid']['api_key'] ?? '');
+        if ($apiKey === '') {
+            throw new RuntimeException('SENDGRID_API_KEY no esta configurado.');
+        }
+
+        $destinatarios = $this->normalizarDestinatarios($to);
+        if (!$destinatarios) {
+            throw new RuntimeException('No hay destinatarios para enviar el correo.');
+        }
+
+        $fromEmail = $this->cfg['sendgrid']['from_email'] ?? $this->cfg['from_email'];
+        $fromName  = $this->cfg['sendgrid']['from_name']  ?? $this->cfg['from_name'];
+
+        $payload = [
+            'personalizations' => [[
+                'to' => array_map(
+                    fn($d) => ['email' => $d['email'], 'name' => $d['name'] ?? ''],
+                    $destinatarios
+                ),
+            ]],
+            'from' => [
+                'email' => $fromEmail,
+                'name'  => $fromName,
+            ],
+            'subject' => $subject,
+            'content' => [
+                [
+                    'type'  => 'text/plain',
+                    'value' => strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $body)),
+                ],
+                [
+                    'type'  => 'text/html',
+                    'value' => $body,
+                ],
+            ],
+        ];
+
+        [$status, $response] = $this->postSendGrid($apiKey, $payload);
+        $emails   = array_column($destinatarios, 'email');
+
+        if ($status === 202) {
+            self::log('OK', $subject, $emails);
+            return;
+        }
+
+        $error = $response !== false ? trim($response) : 'No se pudo conectar con SendGrid.';
+        self::log('ERROR', $subject, $emails, "HTTP $status $error");
+        throw new RuntimeException("SendGrid no acepto el correo. HTTP $status $error");
+    }
+
+    private function postSendGrid(string $apiKey, array $payload): array
+    {
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        $url  = 'https://api.sendgrid.com/v3/mail/send';
+
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => $this->cfg['timeout'] ?? 20,
+                CURLOPT_HTTPHEADER     => [
+                    'Authorization: Bearer ' . $apiKey,
+                    'Content-Type: application/json',
+                ],
+                CURLOPT_POSTFIELDS     => $json,
+            ]);
+            $response = curl_exec($ch);
+            $status   = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error    = curl_error($ch);
+            curl_close($ch);
+            return [$status, $response !== false ? $response : $error];
+        }
+
+        $context = stream_context_create([
+            'http' => [
+                'method'        => 'POST',
+                'header'        => [
+                    'Authorization: Bearer ' . $apiKey,
+                    'Content-Type: application/json',
+                ],
+                'content'       => $json,
+                'ignore_errors' => true,
+                'timeout'       => $this->cfg['timeout'] ?? 20,
+            ],
+        ]);
+
+        $response = @file_get_contents($url, false, $context);
+        $status   = $this->extraerHttpStatus($http_response_header ?? []);
+        return [$status, $response];
+    }
+
+    private function normalizarDestinatarios(string|array $to): array
+    {
+        if (is_string($to)) {
+            return [['email' => $to, 'name' => '']];
+        }
+
+        $destinatarios = [];
+        foreach ($to as $recipient) {
+            if (empty($recipient['email'])) continue;
+            $destinatarios[] = [
+                'email' => $recipient['email'],
+                'name'  => $recipient['name'] ?? '',
+            ];
+        }
+        return $destinatarios;
+    }
+
+    private function extraerHttpStatus(array $headers): int
+    {
+        foreach ($headers as $header) {
+            if (preg_match('/^HTTP\/\S+\s+(\d+)/', $header, $m)) {
+                return (int)$m[1];
+            }
+        }
+        return 0;
     }
 
     private static function log(string $estado, string $subject, array $to, string $error = ''): void
