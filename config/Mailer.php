@@ -289,12 +289,20 @@ class Mailer
         $descripcion = htmlspecialchars($d['descripcion'] ?? '—');
         $proveedor   = htmlspecialchars($d['proveedor'] ?? 'Sin especificar');
         $fecha       = htmlspecialchars($d['fecha'] ?? date('d/m/Y'));
+        $divisa      = htmlspecialchars($d['divisa'] ?? '');
         $items       = is_array($d['items'] ?? null) ? $d['items'] : [];
 
         $itemsRows = '';
+        $totalGeneral = 0;
         foreach ($items as $it) {
             $repuesto = htmlspecialchars($it['repuesto'] ?? '---');
+            $cantNum  = (float)($it['cantidad_solicitada'] ?? 0);
+            $costoNum = (float)($it['costo_unitario'] ?? 0);
+            $subtotalNum = $cantNum * $costoNum;
+            $totalGeneral += $subtotalNum;
             $cantidad = htmlspecialchars((string)($it['cantidad_solicitada'] ?? '---'));
+            $precio   = $costoNum > 0 ? htmlspecialchars(trim($divisa . ' ' . number_format($costoNum, 2))) : '<span style="color:#64748b">---</span>';
+            $subtotal = $subtotalNum > 0 ? htmlspecialchars(trim($divisa . ' ' . number_format($subtotalNum, 2))) : '<span style="color:#64748b">---</span>';
             $provItem = htmlspecialchars($it['proveedor_item'] ?? '---');
             $enlace   = trim((string)($it['enlace_externo'] ?? ''));
             $enlaceHtml = $enlace !== ''
@@ -303,26 +311,37 @@ class Mailer
             $obs      = trim((string)($it['observacion'] ?? ''));
             $obsHtml  = $obs !== '' ? htmlspecialchars($obs) : '<span style="color:#64748b">Sin observacion</span>';
             $itemsRows .= "<tr>
-                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0'>$repuesto</td>
-                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center'>$cantidad</td>
-                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0'>$provItem</td>
-                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0'>$enlaceHtml</td>
-                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0'>$obsHtml</td>
+                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top'>$repuesto</td>
+                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:center;vertical-align:top'>$cantidad</td>
+                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;vertical-align:top'>$precio</td>
+                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;vertical-align:top;font-weight:600'>$subtotal</td>
+                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top'>$provItem</td>
+                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top'>$enlaceHtml</td>
+                <td style='padding:8px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top'>$obsHtml</td>
               </tr>";
         }
+        $totalHtml = $totalGeneral > 0
+            ? "<tr>
+                 <td colspan='3' style='padding:10px;border-top:2px solid #0f172a;text-align:right;font-weight:700'>Total estimado</td>
+                 <td style='padding:10px;border-top:2px solid #0f172a;text-align:right;font-weight:700'>" . htmlspecialchars(trim($divisa . ' ' . number_format($totalGeneral, 2))) . "</td>
+                 <td colspan='3' style='padding:10px;border-top:2px solid #0f172a'></td>
+               </tr>"
+            : '';
         $itemsTable = $itemsRows !== ''
             ? "<p style='margin-top:18px;margin-bottom:8px'><strong>Detalle de repuestos solicitados</strong></p>
-               <table style='width:100%;border-collapse:collapse;margin:0 0 16px 0;font-size:13px'>
+               <table style='width:100%;border-collapse:collapse;margin:0 0 16px 0;font-size:13px;table-layout:fixed'>
                  <thead>
                    <tr>
-                     <th style='padding:8px 10px;background:#f1f5f9;text-align:left'>Repuesto</th>
-                     <th style='padding:8px 10px;background:#f1f5f9;text-align:center;width:70px'>Cant.</th>
-                     <th style='padding:8px 10px;background:#f1f5f9;text-align:left'>Proveedor</th>
-                     <th style='padding:8px 10px;background:#f1f5f9;text-align:left'>Enlace</th>
-                     <th style='padding:8px 10px;background:#f1f5f9;text-align:left'>Observacion</th>
+                     <th style='padding:8px 10px;background:#f1f5f9;text-align:left;width:24%'>Repuesto</th>
+                     <th style='padding:8px 10px;background:#f1f5f9;text-align:center;width:7%'>Cant.</th>
+                     <th style='padding:8px 10px;background:#f1f5f9;text-align:right;width:11%'>Precio</th>
+                     <th style='padding:8px 10px;background:#f1f5f9;text-align:right;width:12%'>Subtotal</th>
+                     <th style='padding:8px 10px;background:#f1f5f9;text-align:left;width:16%'>Proveedor</th>
+                     <th style='padding:8px 10px;background:#f1f5f9;text-align:left;width:10%'>Enlace</th>
+                     <th style='padding:8px 10px;background:#f1f5f9;text-align:left;width:20%'>Observacion</th>
                    </tr>
                  </thead>
-                 <tbody>$itemsRows</tbody>
+                 <tbody>$itemsRows$totalHtml</tbody>
                </table>"
             : '';
 
@@ -400,19 +419,19 @@ class Mailer
         <body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif;color:#1e293b">
           <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0">
             <tr><td align="center">
-              <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+              <table width="860" cellpadding="0" cellspacing="0" style="width:860px;max-width:96%;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
                 <tr>
-                  <td style="background:$headerColor;padding:24px 32px">
+                  <td style="background:$headerColor;padding:24px 36px">
                     <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700">$heading</h1>
                   </td>
                 </tr>
                 <tr>
-                  <td style="padding:28px 32px;font-size:15px;line-height:1.6">
+                  <td style="padding:28px 36px;font-size:15px;line-height:1.6">
                     $content
                   </td>
                 </tr>
                 <tr>
-                  <td style="background:#f1f5f9;padding:16px 32px;font-size:12px;color:#64748b;text-align:center">
+                  <td style="background:#f1f5f9;padding:16px 36px;font-size:12px;color:#64748b;text-align:center">
                     Sistema Electronicas &copy; $year — Este es un mensaje automático, no responder.
                   </td>
                 </tr>

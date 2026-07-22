@@ -65,6 +65,7 @@ try {
                     'solicitante' => $det['solicitante'] ?? '---',
                     'descripcion' => $det['descripcion'] ?? '---',
                     'proveedor'   => $det['proveedor_nombre'] ?? 'Sin especificar',
+                    'divisa'      => $det['divisa_simbolo'] ?? '',
                     'fecha'       => date('d/m/Y'),
                     'items'       => $det['items'] ?? [],
                 ])
@@ -126,6 +127,7 @@ try {
                             'solicitante' => $_SESSION['nombre'] ?? '—',
                             'descripcion' => $det['descripcion'] ?? '—',
                             'proveedor'   => $det['proveedor_nombre'] ?? 'Sin especificar',
+                            'divisa'      => $det['divisa_simbolo'] ?? '',
                             'fecha'       => date('d/m/Y'),
                             'items'       => $det['items'] ?? [],
                         ])
@@ -157,6 +159,7 @@ try {
                             'solicitante' => $_SESSION['nombre'] ?? '—',
                             'descripcion' => $det['descripcion'] ?? '—',
                             'proveedor'   => $det['proveedor_nombre'] ?? 'Sin especificar',
+                            'divisa'      => $det['divisa_simbolo'] ?? '',
                             'fecha'       => date('d/m/Y'),
                             'items'       => $det['items'] ?? [],
                         ])
