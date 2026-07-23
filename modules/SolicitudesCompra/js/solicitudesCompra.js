@@ -170,10 +170,10 @@ function botonesTabla(r, esAdmin) {
                </button>
            </li>`
         : '';
-    const btnCorreoPrueba = esAdmin
+    const btnCorreoManual = esAdmin
         ? `<li>
-               <button class="dropdown-item btn-correo-prueba" type="button" data-id="${r.id_solicitud_compra}">
-                   <i class="bi bi-envelope-paper me-2 text-primary"></i>Enviar correo prueba
+               <button class="dropdown-item btn-correo-manual" type="button" data-id="${r.id_solicitud_compra}">
+                   <i class="bi bi-envelope-paper me-2 text-primary"></i>Enviar correo
                </button>
            </li>`
         : '';
@@ -190,8 +190,13 @@ function botonesTabla(r, esAdmin) {
                         <i class="bi bi-eye me-2 text-info"></i>Ver detalle
                     </button>
                 </li>
+                <li>
+                    <button class="dropdown-item btn-imprimir-compra" type="button" data-id="${r.id_solicitud_compra}">
+                        <i class="bi bi-printer me-2 text-secondary"></i>Imprimir
+                    </button>
+                </li>
                 ${btnEditar}
-                ${btnCorreoPrueba}
+                ${btnCorreoManual}
             </ul>
         </div>`;
 }
@@ -625,6 +630,9 @@ function renderDetalle(d) {
         <button type="button" class="btn btn-sm btn-outline-primary" id="btnCopiarTablaCompra">
             <i class="bi bi-clipboard me-1"></i> Copiar tabla
         </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnImprimirDetalleCompra">
+            <i class="bi bi-printer me-1"></i> Imprimir
+        </button>
     </div>
     <div class="compra-detalle-wrap">
     <table class="table table-hover w-100 compra-detalle-table mb-0">
@@ -743,6 +751,135 @@ function copiarTexto(texto) {
     const ok = document.execCommand('copy');
     document.body.removeChild(ta);
     return ok ? Promise.resolve() : Promise.reject(new Error('No se pudo copiar.'));
+}
+
+function htmlImpresionCompra(d) {
+    const simbolo = escHtml(d.divisa_simbolo || '');
+    const codigo  = escHtml(d.codigo || `#${d.id_solicitud_compra}`);
+    let total = 0;
+    let rows = '';
+
+    (d.items || []).forEach(it => {
+        const cant = parseFloat(it.cantidad_solicitada || 0);
+        const costo = parseFloat(it.costo_unitario || 0);
+        const sub = cant * costo;
+        total += sub;
+        const extra = [it.marca, it.modelo].filter(Boolean).join(' / ');
+        const nombre = `${escHtml(it.repuesto || '')}${extra ? `<br><span class="muted">${escHtml(extra)}</span>` : ''}`;
+        const obs = it.observacion ? `<br><span class="muted"><strong>Obs.:</strong> ${escHtml(it.observacion)}</span>` : '';
+        const enlace = it.enlace_externo
+            ? `<a href="${escHtml(it.enlace_externo)}">${escHtml(it.enlace_externo)}</a>`
+            : '<span class="muted">---</span>';
+
+        rows += `<tr>
+            <td>${nombre}${obs}</td>
+            <td>${escHtml(it.proveedor_item || '---')}</td>
+            <td class="num">${escHtml(String(it.cantidad_solicitada || ''))}</td>
+            <td class="num">${costo > 0 ? `${simbolo} ${fmtNum(costo)}` : '---'}</td>
+            <td class="num strong">${sub > 0 ? `${simbolo} ${fmtNum(sub)}` : '---'}</td>
+            <td class="link">${enlace}</td>
+        </tr>`;
+    });
+
+    return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Solicitud de compra ${codigo}</title>
+<style>
+    @page { size: letter landscape; margin: 12mm; }
+    body { font-family: Arial, sans-serif; color:#17202a; margin:0; font-size:12px; }
+    .top { border-bottom:3px solid #17202a; padding-bottom:10px; margin-bottom:14px; display:flex; justify-content:space-between; gap:20px; }
+    h1 { margin:0; font-size:20px; }
+    .code { font-family: "Courier New", monospace; font-weight:700; color:#0f5132; }
+    .muted { color:#5f6b7a; font-size:11px; }
+    .meta { display:grid; grid-template-columns: repeat(4, 1fr); gap:8px 14px; margin-bottom:14px; }
+    .box { border-left:3px solid #198754; padding:4px 8px; background:#f8fafc; }
+    .label { color:#5f6b7a; font-size:10px; text-transform:uppercase; letter-spacing:.02em; margin-bottom:2px; }
+    .value { font-weight:600; }
+    table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    th { background:#17202a; color:#fff; padding:7px; text-align:left; font-size:11px; }
+    td { border-bottom:1px solid #d8dee6; padding:7px; vertical-align:top; word-wrap:break-word; }
+    .num { text-align:right; white-space:nowrap; }
+    .strong { font-weight:700; }
+    .link { font-size:10px; }
+    tfoot td { border-top:2px solid #17202a; border-bottom:0; font-weight:700; }
+    .footer { margin-top:14px; color:#5f6b7a; font-size:10px; text-align:right; }
+    @media print { .no-print { display:none; } }
+</style>
+</head>
+<body>
+    <div class="top">
+        <div>
+            <h1>Solicitud de compra</h1>
+            <div class="muted">Detalle para revision, aprobacion y gestion de pago</div>
+        </div>
+        <div class="code">${codigo}</div>
+    </div>
+    <div class="meta">
+        <div class="box"><div class="label">Estado</div><div class="value">${escHtml(d.estado || '---')}</div></div>
+        <div class="box"><div class="label">Solicitante</div><div class="value">${escHtml(d.solicitante || '---')}</div></div>
+        <div class="box"><div class="label">Fecha</div><div class="value">${escHtml(d.fecha_sol_fmt || '---')}</div></div>
+        <div class="box"><div class="label">Divisa</div><div class="value">${escHtml(d.divisa_nombre || '---')} ${simbolo ? `(${simbolo})` : ''}</div></div>
+        <div class="box" style="grid-column:span 2"><div class="label">Descripcion</div><div class="value">${escHtml(d.descripcion || '---')}</div></div>
+        <div class="box"><div class="label">Orden</div><div class="value">${escHtml(d.numero_orden || '---')}</div></div>
+        <div class="box"><div class="label">Proveedor cabecera</div><div class="value">${escHtml(d.proveedor_nombre || '---')}</div></div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width:30%">Repuesto</th>
+                <th style="width:17%">Proveedor</th>
+                <th style="width:8%" class="num">Cant.</th>
+                <th style="width:12%" class="num">Precio</th>
+                <th style="width:12%" class="num">Subtotal</th>
+                <th style="width:21%">Enlace</th>
+            </tr>
+        </thead>
+        <tbody>${rows || '<tr><td colspan="6">Sin items.</td></tr>'}</tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4" class="num">Total estimado</td>
+                <td class="num">${total > 0 ? `${simbolo} ${fmtNum(total)}` : '---'}</td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>
+    <div class="footer">Sistema Electronicas - Impreso ${new Date().toLocaleString('es-HN')}</div>
+    <script>window.onload = function(){ window.print(); };</script>
+</body>
+</html>`;
+}
+
+function imprimirCompra(id, datos = null) {
+    const win = window.open('', '_blank');
+    if (!win) {
+        Swal.fire({ icon: 'warning', title: 'Ventana bloqueada', text: 'Permite ventanas emergentes para imprimir.' });
+        return;
+    }
+    const imprimir = d => {
+        win.document.open();
+        win.document.write(htmlImpresionCompra(d));
+        win.document.close();
+    };
+
+    if (datos) {
+        imprimir(datos);
+        return;
+    }
+
+    win.document.write('<p style="font-family:Arial;padding:20px">Preparando impresion...</p>');
+    $.post(CTRL_COMPRAS, { accion: 'detalle', id }, function (r) {
+        if (!r.ok) {
+            win.close();
+            Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje });
+            return;
+        }
+        imprimir(r.data);
+    }, 'json').fail(() => {
+        win.close();
+        Swal.fire({ icon: 'error', title: 'Error de red', text: 'No se pudo conectar al servidor.' });
+    });
 }
 
 function mostrarBotonesDetalle(d, esAdmin) {
@@ -900,6 +1037,10 @@ function abrirModalRecepcion(items) {
 function bindEventos(esAdmin) {
 
     bindFiltros();
+    $('#detalleCompraBody').on('click', '#btnImprimirDetalleCompra', function () {
+        if (!_detalleDatos) return;
+        imprimirCompra(_detalleId, _detalleDatos);
+    });
 
     // ── Nueva solicitud ──────────────────────────────────────
     $('#btnNuevaCompra').on('click', abrirModalNueva);
@@ -962,15 +1103,18 @@ function bindEventos(esAdmin) {
     $('#tblCompras').on('click', '.btn-editar-compra', function () {
         cargarBorradorEnModal(Number($(this).data('id')));
     });
-    $('#tblCompras').on('click', '.btn-correo-prueba', function () {
+    $('#tblCompras').on('click', '.btn-imprimir-compra', function () {
+        imprimirCompra(Number($(this).data('id')));
+    });
+    $('#tblCompras').on('click', '.btn-correo-manual', function () {
         const id = Number($(this).data('id'));
         Swal.fire({
             icon: 'question',
-            title: 'Enviar correo de prueba',
-            html: '<p class="mb-2">Escribe el correo donde quieres recibir la prueba.</p>' +
+            title: 'Enviar correo',
+            html: '<p class="mb-2">Escribe el correo destino.</p>' +
                   '<input type="email" id="correoPruebaCompra" class="swal2-input" placeholder="correo@empresa.com">',
             showCancelButton: true,
-            confirmButtonText: 'Enviar prueba',
+            confirmButtonText: 'Enviar correo',
             cancelButtonText: 'Cancelar',
             confirmButtonColor: '#0d6efd',
             preConfirm: () => {
@@ -988,7 +1132,7 @@ function bindEventos(esAdmin) {
         }).then(res => {
             if (!res.isConfirmed) return;
             $.post(CTRL_COMPRAS, {
-                accion: 'enviarCorreoPrueba',
+                accion: 'enviarCorreoManual',
                 id,
                 correo: res.value
             }, function (r) {
@@ -999,7 +1143,7 @@ function bindEventos(esAdmin) {
                 const dest = (r.data?.destinatarios || []).join(', ');
                 Swal.fire({
                     icon: 'success',
-                    title: 'SMTP acepto el correo',
+                    title: 'Correo enviado',
                     html: `<p class="mb-1">${escHtml(r.mensaje)}</p><p class="small text-muted mb-0">Destino: ${escHtml(dest)}</p>`,
                     confirmButtonText: 'Aceptar'
                 });
