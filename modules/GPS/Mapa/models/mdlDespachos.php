@@ -66,6 +66,47 @@ class mdlDespachos
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function registrarHeartbeat(string $worker, string $estado = 'ok', ?string $detalle = null): void
+    {
+        if (!$this->tablaExiste('gps.WorkerHeartbeats')) return;
+        $stmt = $this->conn->prepare(
+            "MERGE gps.WorkerHeartbeats AS t
+             USING (SELECT ? AS worker) AS s ON t.worker = s.worker
+             WHEN MATCHED THEN UPDATE SET
+                estado = ?, detalle = ?, pid = ?, host = ?, fecha_latido = GETDATE()
+             WHEN NOT MATCHED THEN INSERT
+                (worker, estado, detalle, pid, host, fecha_latido, fecha_inicio)
+                VALUES (?, ?, ?, ?, ?, GETDATE(), GETDATE());"
+        );
+        $pid = function_exists('getmypid') ? getmypid() : null;
+        $host = gethostname() ?: null;
+        $stmt->execute([$worker, $estado, $detalle, $pid, $host, $worker, $estado, $detalle, $pid, $host]);
+    }
+
+    public function estadoHeartbeat(string $worker, int $maxEdadSeg = 90): array
+    {
+        if (!$this->tablaExiste('gps.WorkerHeartbeats')) {
+            return ['worker' => $worker, 'ok' => false, 'estado' => 'sin_tabla', 'detalle' => 'Falta aplicar la migracion de heartbeats.'];
+        }
+        $stmt = $this->conn->prepare(
+            "SELECT worker, estado, detalle, pid, host,
+                    CONVERT(varchar(19), fecha_latido, 120) AS fecha_latido,
+                    CONVERT(varchar(19), fecha_inicio, 120) AS fecha_inicio,
+                    DATEDIFF(second, fecha_latido, GETDATE()) AS edad_seg
+             FROM gps.WorkerHeartbeats
+             WHERE worker = ?"
+        );
+        $stmt->execute([$worker]);
+        $r = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$r) {
+            return ['worker' => $worker, 'ok' => false, 'estado' => 'sin_latido', 'detalle' => 'El worker aun no ha registrado latido.'];
+        }
+        $edad = (int)($r['edad_seg'] ?? 999999);
+        $r['edad_seg'] = $edad;
+        $r['ok'] = ($r['estado'] === 'ok' && $edad <= $maxEdadSeg);
+        return $r;
+    }
+
     // ── Vehículos del despacho ──────────────────────────────────
     /**
      * Agrega carros a un despacho. $items = [['id_cuenta','placa','imei','dispositivo'], ...]
@@ -176,6 +217,20 @@ class mdlDespachos
                          t2.id_tramo DESC
              ) tr"
             : "";
+        $incOk = $this->tablaExiste('gps.DespachoVehiculoIncidencias');
+        $incSelect = $incOk
+            ? "ISNULL(inc.incidencias_total, 0) AS incidencias_total,
+                    ISNULL(inc.incidencias_abiertas, 0) AS incidencias_abiertas"
+            : "CAST(0 AS INT) AS incidencias_total,
+                    CAST(0 AS INT) AS incidencias_abiertas";
+        $incJoin = $incOk
+            ? "OUTER APPLY (
+                SELECT COUNT(*) AS incidencias_total,
+                       SUM(CASE WHEN i.estado <> 'cerrada' THEN 1 ELSE 0 END) AS incidencias_abiertas
+                FROM gps.DespachoVehiculoIncidencias i
+                WHERE i.id_dv = dv.id_dv
+             ) inc"
+            : "";
 
         $stmt = $this->conn->prepare(
             "SELECT dv.id_dv, dv.id_despacho, d.nombre AS despacho,
@@ -183,11 +238,12 @@ class mdlDespachos
                     d.estado AS estado_despacho,
                     CONVERT(varchar(19), d.fecha_apertura, 120) AS fecha_apertura,
                     CONVERT(varchar(19), d.fecha_cierre, 120) AS fecha_cierre,
-                    p.nombre AS plataforma, p.tipo_integracion, t.nombre AS transporte,
+                    p.nombre AS plataforma, p.tipo_integracion, t.nombre AS transporte, c.usuario,
                     CAST($posPrefix.lat AS FLOAT) AS lat, CAST($posPrefix.lng AS FLOAT) AS lng,
                     $posPrefix.velocidad, $posPrefix.rumbo, $posPrefix.encendido, $posPrefix.direccion,
                     CONVERT(varchar(19), $posPrefix.fecha_posicion, 120) AS fecha,
-                    $tramoSelect
+                    $tramoSelect,
+                    $incSelect
              FROM gps.DespachoVehiculos dv
              INNER JOIN gps.Despachos    d ON d.id_despacho  = dv.id_despacho
              INNER JOIN gps.CuentasGPS   c ON c.id_cuenta    = dv.id_cuenta
@@ -195,6 +251,7 @@ class mdlDespachos
              INNER JOIN gps.Transportes  t ON t.id_transporte = c.id_transporte
              $posJoin
              $tramoJoin
+             $incJoin
              WHERE $where
              ORDER BY dv.placa"
         );
@@ -314,15 +371,276 @@ class mdlDespachos
         return $n;
     }
 
+    public function crearIncidencia(int $id_dv, string $tipo, string $severidad, ?string $descripcion, int $uid): array
+    {
+        if (!$this->tablaExiste('gps.DespachoVehiculoIncidencias')) {
+            throw new RuntimeException('Falta aplicar la migracion de incidencias de despacho.');
+        }
+        $tipo = trim($tipo);
+        $severidad = strtolower(trim($severidad));
+        if ($tipo === '') throw new RuntimeException('Selecciona el tipo de incidencia.');
+        if (!in_array($severidad, ['baja', 'media', 'alta'], true)) $severidad = 'media';
+
+        $tramoSelect = $this->tablaExiste('gps.DespachoVehiculoTramos')
+            ? "tr.id_tramo"
+            : "CAST(NULL AS INT) AS id_tramo";
+        $tramoJoin = $this->tablaExiste('gps.DespachoVehiculoTramos')
+            ? "OUTER APPLY (
+                SELECT TOP 1 id_tramo
+                FROM gps.DespachoVehiculoTramos
+                WHERE id_dv = dv.id_dv AND estado = 'en_ruta'
+                ORDER BY fecha_inicio DESC, id_tramo DESC
+             ) tr"
+            : "";
+        $stmt = $this->conn->prepare(
+            "SELECT TOP 1 dv.id_dv, dv.id_despacho, dv.id_cuenta, dv.placa, dv.imei,
+                    d.estado AS estado_despacho,
+                    CAST(pos.lat AS FLOAT) AS lat, CAST(pos.lng AS FLOAT) AS lng,
+                    pos.direccion,
+                    $tramoSelect
+             FROM gps.DespachoVehiculos dv
+             INNER JOIN gps.Despachos d ON d.id_despacho = dv.id_despacho
+             LEFT JOIN gps.Posiciones pos ON pos.id_cuenta = dv.id_cuenta AND pos.imei = dv.imei
+             $tramoJoin
+             WHERE dv.id_dv = ?"
+        );
+        $stmt->execute([$id_dv]);
+        $v = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$v) throw new RuntimeException('Vehiculo no encontrado.');
+        if (($v['estado_despacho'] ?? '') !== 'activo') throw new RuntimeException('El despacho ya esta cerrado.');
+
+        $ins = $this->conn->prepare(
+            "INSERT INTO gps.DespachoVehiculoIncidencias
+                (id_despacho, id_dv, id_tramo, id_cuenta, placa, imei, tipo, severidad,
+                 descripcion, lat, lng, direccion, creado_por)
+             OUTPUT INSERTED.id_incidencia,
+                    CONVERT(varchar(19), INSERTED.fecha_incidencia, 120) AS fecha_incidencia
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        $ins->execute([
+            (int)$v['id_despacho'],
+            (int)$v['id_dv'],
+            $v['id_tramo'] === null ? null : (int)$v['id_tramo'],
+            (int)$v['id_cuenta'],
+            $v['placa'],
+            $v['imei'] ?? null,
+            $tipo,
+            $severidad,
+            trim((string)$descripcion) ?: null,
+            $v['lat'] === null ? null : (float)$v['lat'],
+            $v['lng'] === null ? null : (float)$v['lng'],
+            $v['direccion'] ?? null,
+            $uid ?: null,
+        ]);
+        return $ins->fetch(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function cerrarIncidencia(int $id_incidencia, int $uid): void
+    {
+        if (!$this->tablaExiste('gps.DespachoVehiculoIncidencias')) {
+            throw new RuntimeException('Falta aplicar la migracion de incidencias de despacho.');
+        }
+        $stmt = $this->conn->prepare(
+            "UPDATE gps.DespachoVehiculoIncidencias
+             SET estado = 'cerrada', fecha_cierre = GETDATE(), cerrado_por = ?
+             WHERE id_incidencia = ? AND estado <> 'cerrada'"
+        );
+        $stmt->execute([$uid ?: null, $id_incidencia]);
+    }
+
+    public function incidenciasVehiculo(int $id_dv): array
+    {
+        if (!$this->tablaExiste('gps.DespachoVehiculoIncidencias')) {
+            return ['actuales' => [], 'historial' => []];
+        }
+        $actuales = $this->conn->prepare(
+            "SELECT i.id_incidencia, i.id_despacho, i.id_dv, i.id_tramo, i.tipo, i.severidad,
+                    i.descripcion, i.estado, CAST(i.lat AS FLOAT) AS lat, CAST(i.lng AS FLOAT) AS lng,
+                    i.direccion,
+                    CONVERT(varchar(19), i.fecha_incidencia, 120) AS fecha_incidencia,
+                    CONVERT(varchar(19), i.fecha_cierre, 120) AS fecha_cierre
+             FROM gps.DespachoVehiculoIncidencias i
+             WHERE i.id_dv = ?
+             ORDER BY CASE WHEN i.estado = 'cerrada' THEN 1 ELSE 0 END,
+                      i.fecha_incidencia DESC"
+        );
+        $actuales->execute([$id_dv]);
+
+        $base = $this->conn->prepare(
+            "SELECT id_cuenta, placa, imei FROM gps.DespachoVehiculos WHERE id_dv = ?"
+        );
+        $base->execute([$id_dv]);
+        $v = $base->fetch(PDO::FETCH_ASSOC);
+        if (!$v) throw new RuntimeException('Vehiculo no encontrado.');
+
+        $porImei = trim((string)($v['imei'] ?? '')) !== '';
+        $where = $porImei ? "i.id_cuenta = ? AND i.imei = ?" : "i.id_cuenta = ? AND i.placa = ?";
+        $params = $porImei ? [(int)$v['id_cuenta'], $v['imei']] : [(int)$v['id_cuenta'], $v['placa']];
+        $hist = $this->conn->prepare(
+            "SELECT TOP 50 i.id_incidencia, i.id_despacho, d.nombre AS despacho, i.placa, i.imei,
+                    i.tipo, i.severidad, i.descripcion, i.estado,
+                    CONVERT(varchar(19), i.fecha_incidencia, 120) AS fecha_incidencia,
+                    CONVERT(varchar(19), i.fecha_cierre, 120) AS fecha_cierre
+             FROM gps.DespachoVehiculoIncidencias i
+             INNER JOIN gps.Despachos d ON d.id_despacho = i.id_despacho
+             WHERE $where
+             ORDER BY i.fecha_incidencia DESC, i.id_incidencia DESC"
+        );
+        $hist->execute($params);
+        return [
+            'actuales' => $actuales->fetchAll(PDO::FETCH_ASSOC),
+            'historial' => $hist->fetchAll(PDO::FETCH_ASSOC),
+        ];
+    }
+
+    public function reporteDespacho(int $id_despacho): array
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT id_despacho, nombre, estado,
+                    CONVERT(varchar(19), fecha_apertura, 120) AS fecha_apertura,
+                    CONVERT(varchar(19), fecha_cierre, 120) AS fecha_cierre
+             FROM gps.Despachos
+             WHERE id_despacho = ?"
+        );
+        $stmt->execute([$id_despacho]);
+        $despacho = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$despacho) throw new RuntimeException('Despacho no encontrado.');
+
+        $tramosOk = $this->tablaExiste('gps.DespachoVehiculoTramos');
+        $tramoSelect = $tramosOk
+            ? "tr.id_tramo, tr.estado AS estado_tramo,
+               CONVERT(varchar(19), tr.fecha_inicio, 120) AS fecha_inicio_tramo,
+               CONVERT(varchar(19), tr.fecha_fin, 120) AS fecha_fin_tramo,
+               tr.duracion_minutos,
+               CAST(tr.lat_inicio AS FLOAT) AS lat_inicio, CAST(tr.lng_inicio AS FLOAT) AS lng_inicio,
+               CAST(tr.lat_fin AS FLOAT) AS lat_fin, CAST(tr.lng_fin AS FLOAT) AS lng_fin,
+               tr.direccion_inicio, tr.direccion_fin"
+            : "CAST(NULL AS INT) AS id_tramo, CAST(NULL AS NVARCHAR(12)) AS estado_tramo,
+               CAST(NULL AS varchar(19)) AS fecha_inicio_tramo,
+               CAST(NULL AS varchar(19)) AS fecha_fin_tramo,
+               CAST(NULL AS INT) AS duracion_minutos,
+               CAST(NULL AS FLOAT) AS lat_inicio, CAST(NULL AS FLOAT) AS lng_inicio,
+               CAST(NULL AS FLOAT) AS lat_fin, CAST(NULL AS FLOAT) AS lng_fin,
+               CAST(NULL AS NVARCHAR(500)) AS direccion_inicio,
+               CAST(NULL AS NVARCHAR(500)) AS direccion_fin";
+        $tramoJoin = $tramosOk
+            ? "OUTER APPLY (
+                SELECT TOP 1 t2.id_tramo, t2.estado, t2.fecha_inicio, t2.fecha_fin,
+                       t2.duracion_minutos, t2.lat_inicio, t2.lng_inicio, t2.lat_fin, t2.lng_fin,
+                       t2.direccion_inicio, t2.direccion_fin
+                FROM gps.DespachoVehiculoTramos t2
+                WHERE t2.id_dv = dv.id_dv
+                ORDER BY CASE WHEN t2.estado = 'en_ruta' THEN 0 ELSE 1 END,
+                         ISNULL(t2.fecha_fin, t2.fecha_inicio) DESC,
+                         t2.id_tramo DESC
+             ) tr"
+            : "";
+
+        $stmt = $this->conn->prepare(
+            "SELECT dv.id_dv, dv.placa, dv.imei, dv.dispositivo, dv.activo,
+                    CONVERT(varchar(19), dv.fecha_agregado, 120) AS fecha_agregado,
+                    CONVERT(varchar(19), dv.fecha_removido, 120) AS fecha_removido,
+                    p.nombre AS plataforma, p.tipo_integracion, t.nombre AS transporte, c.usuario,
+                    CAST(pos.lat AS FLOAT) AS lat_actual, CAST(pos.lng AS FLOAT) AS lng_actual,
+                    pos.velocidad AS velocidad_actual, pos.direccion AS direccion_actual,
+                    CONVERT(varchar(19), pos.fecha_posicion, 120) AS fecha_posicion_actual,
+                    $tramoSelect
+             FROM gps.DespachoVehiculos dv
+             INNER JOIN gps.CuentasGPS   c ON c.id_cuenta = dv.id_cuenta
+             INNER JOIN gps.Plataformas  p ON p.id_plataforma = c.id_plataforma
+             INNER JOIN gps.Transportes  t ON t.id_transporte = c.id_transporte
+             LEFT  JOIN gps.Posiciones pos ON pos.id_cuenta = dv.id_cuenta AND pos.imei = dv.imei
+             $tramoJoin
+             WHERE dv.id_despacho = ?
+             ORDER BY dv.placa"
+        );
+        $stmt->execute([$id_despacho]);
+        $equipos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if ($this->tablaExiste('gps.DespachoRecorridos')) {
+            $stats = $this->conn->prepare(
+                "SELECT COUNT(*) AS checkpoints,
+                        CONVERT(varchar(19), MIN(ISNULL(fecha_posicion, fecha_captura)), 120) AS primer_reporte,
+                        CONVERT(varchar(19), MAX(ISNULL(fecha_posicion, fecha_captura)), 120) AS ultimo_reporte
+                 FROM gps.DespachoRecorridos
+                 WHERE id_dv = ?"
+            );
+            foreach ($equipos as &$e) {
+                $stats->execute([(int)$e['id_dv']]);
+                $s = $stats->fetch(PDO::FETCH_ASSOC) ?: [];
+                $e['checkpoints'] = (int)($s['checkpoints'] ?? 0);
+                $e['primer_reporte'] = $s['primer_reporte'] ?? null;
+                $e['ultimo_reporte'] = $s['ultimo_reporte'] ?? null;
+            }
+            unset($e);
+        } else {
+            foreach ($equipos as &$e) {
+                $e['checkpoints'] = 0;
+                $e['primer_reporte'] = null;
+                $e['ultimo_reporte'] = null;
+            }
+            unset($e);
+        }
+
+        if ($this->tablaExiste('gps.DespachoVehiculoIncidencias')) {
+            $inc = $this->conn->prepare(
+                "SELECT COUNT(*) AS incidencias_total,
+                        SUM(CASE WHEN estado <> 'cerrada' THEN 1 ELSE 0 END) AS incidencias_abiertas,
+                        MAX(CASE severidad WHEN 'alta' THEN 3 WHEN 'media' THEN 2 WHEN 'baja' THEN 1 ELSE 0 END) AS severidad_nivel,
+                        CONVERT(varchar(19), MAX(fecha_incidencia), 120) AS ultima_incidencia
+                 FROM gps.DespachoVehiculoIncidencias
+                 WHERE id_dv = ?"
+            );
+            $det = $this->conn->prepare(
+                "SELECT id_incidencia, tipo, severidad, descripcion, estado,
+                        CONVERT(varchar(19), fecha_incidencia, 120) AS fecha_incidencia,
+                        CONVERT(varchar(19), fecha_cierre, 120) AS fecha_cierre
+                 FROM gps.DespachoVehiculoIncidencias
+                 WHERE id_dv = ?
+                 ORDER BY fecha_incidencia DESC, id_incidencia DESC"
+            );
+            foreach ($equipos as &$e) {
+                $inc->execute([(int)$e['id_dv']]);
+                $s = $inc->fetch(PDO::FETCH_ASSOC) ?: [];
+                $nivel = (int)($s['severidad_nivel'] ?? 0);
+                $e['incidencias_total'] = (int)($s['incidencias_total'] ?? 0);
+                $e['incidencias_abiertas'] = (int)($s['incidencias_abiertas'] ?? 0);
+                $e['incidencia_severidad_max'] = $nivel === 3 ? 'alta' : ($nivel === 2 ? 'media' : ($nivel === 1 ? 'baja' : null));
+                $e['ultima_incidencia'] = $s['ultima_incidencia'] ?? null;
+                $det->execute([(int)$e['id_dv']]);
+                $e['incidencias_detalle'] = $det->fetchAll(PDO::FETCH_ASSOC);
+            }
+            unset($e);
+        } else {
+            foreach ($equipos as &$e) {
+                $e['incidencias_total'] = 0;
+                $e['incidencias_abiertas'] = 0;
+                $e['incidencia_severidad_max'] = null;
+                $e['ultima_incidencia'] = null;
+                $e['incidencias_detalle'] = [];
+            }
+            unset($e);
+        }
+
+        return ['despacho' => $despacho, 'equipos' => $equipos];
+    }
+
     private function tablaExiste(string $tabla): bool
     {
         if ($tabla === 'gps.DespachoVehiculoTramos' && $this->tablaTramosExiste !== null) {
             return $this->tablaTramosExiste;
         }
-        if ($tabla !== 'gps.DespachoVehiculoTramos') return false;
-        $stmt = $this->conn->query("SELECT CASE WHEN OBJECT_ID('gps.DespachoVehiculoTramos', 'U') IS NULL THEN 0 ELSE 1 END");
+        $permitidas = [
+            'gps.DespachoVehiculoTramos' => 'gps.DespachoVehiculoTramos',
+            'gps.DespachoRecorridos' => 'gps.DespachoRecorridos',
+            'gps.DespachoVehiculoIncidencias' => 'gps.DespachoVehiculoIncidencias',
+            'gps.WorkerHeartbeats' => 'gps.WorkerHeartbeats',
+        ];
+        if (!isset($permitidas[$tabla])) return false;
+        $nombre = $permitidas[$tabla];
+        $stmt = $this->conn->query("SELECT CASE WHEN OBJECT_ID('$nombre', 'U') IS NULL THEN 0 ELSE 1 END");
         $ok = (int)$stmt->fetchColumn() === 1;
-        $this->tablaTramosExiste = $ok;
+        if ($tabla === 'gps.DespachoVehiculoTramos') $this->tablaTramosExiste = $ok;
         return $ok;
     }
 

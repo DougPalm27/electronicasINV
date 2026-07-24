@@ -86,7 +86,7 @@ class DetektorAdapter implements GpsAdapterInterface
                 'rumbo'       => 0,                              // Detektor no envía rumbo
                 'encendido'   => isset($r[5]) ? ((int)$r[5] ? 1 : 0) : null,
                 'fecha'       => $r[2] ?? null,                  // 'Y-m-d H:i:s'
-                'direccion'   => null,
+                'direccion'   => trim((string)($r[7] ?? '')) ?: null,
             ];
         }
         return $out;

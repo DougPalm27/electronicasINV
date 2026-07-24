@@ -6,11 +6,14 @@ include_once '../models/mdlMapa.php';
 include_once '../models/mdlDespachos.php';
 require_once '../adapters/AdapterFactory.php';
 
-$model  = new mdlMapa();       // adaptadores, credenciales de cuenta, caché
-$desp   = new mdlDespachos();  // despachos
 $accion = $_POST['accion'] ?? '';
 $uid    = (int)($_SESSION['id_usuario'] ?? 0);
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
 
+$model  = new mdlMapa();       // adaptadores, credenciales de cuenta, caché
+$desp   = new mdlDespachos();  // despachos
 const FRESCURA_SEG = 1800; // 30 min
 
 function respM($data = [], bool $error = false, string $msg = ''): void {
@@ -35,11 +38,22 @@ function posDeFila(array $r): ?array {
     return ['lat'=>(float)$r['lat'],'lng'=>(float)$r['lng'],'velocidad'=>$r['velocidad'],
             'rumbo'=>$r['rumbo'],'encendido'=>$r['encendido'],'direccion'=>$r['direccion'],'fecha'=>$r['fecha']];
 }
-function armarRegistro(array $v, ?array $pos, bool $historico = false): array {
+function clavePlacaMotor(?string $nombre, string $motor): string {
+    $nombre = strtoupper(trim((string)$nombre));
+    if ($nombre === '') return '';
+    if (in_array(strtolower(trim($motor)), ['optimus', 'tracksolid'], true)) {
+        $partes = preg_split('/\s+/', $nombre);
+        return trim($partes[0] ?? $nombre);
+    }
+    return strtoupper(trim(preg_replace('/\s*\(\d+%\)\s*$/', '', $nombre)));
+}
+function armarRegistro(array $v, ?array $pos, bool $historico = false, bool $desdeConsultaViva = false): array {
     $motor = (string)($v['tipo_integracion'] ?? '');
+    $estadoSeg = $historico ? 'historial' : ($desdeConsultaViva && $pos ? 'live' : estadoSeg($motor, $pos));
     return [
         'id_dv'         => (int)$v['id_dv'],
         'id_despacho'   => (int)$v['id_despacho'],
+        'id_cuenta'     => (int)($v['id_cuenta'] ?? 0),
         'despacho'      => $v['despacho'] ?? null,
         'estado_despacho' => $v['estado_despacho'] ?? null,
         'fecha_apertura'=> $v['fecha_apertura'] ?? null,
@@ -49,14 +63,17 @@ function armarRegistro(array $v, ?array $pos, bool $historico = false): array {
         'fecha_inicio_tramo' => $v['fecha_inicio_tramo'] ?? null,
         'fecha_fin_tramo' => $v['fecha_fin_tramo'] ?? null,
         'duracion_minutos' => isset($v['duracion_minutos']) ? (int)$v['duracion_minutos'] : null,
+        'incidencias_total' => (int)($v['incidencias_total'] ?? 0),
+        'incidencias_abiertas' => (int)($v['incidencias_abiertas'] ?? 0),
         'placa'         => $v['placa'],
         'imei'          => $v['imei'] ?? null,
         'transporte'    => $v['transporte'],
         'plataforma'    => $v['plataforma'],
+        'usuario'       => $v['usuario'] ?? null,
         'motor'         => $motor,
         'soporta_vivo'  => !$historico && AdapterFactory::tieneVivo($motor),
         'historico'     => $historico,
-        'estado_seg'    => $historico ? 'historial' : estadoSeg($motor, $pos),
+        'estado_seg'    => $estadoSeg,
         'lat'           => $pos['lat']       ?? null,
         'lng'           => $pos['lng']       ?? null,
         'velocidad'     => $pos['velocidad'] ?? null,
@@ -78,6 +95,12 @@ try {
         case 'despachos':
             $estado = ($_POST['estado'] ?? 'activo') === 'cerrado' ? 'cerrado' : 'activo';
             respM(['despachos' => $desp->listar($estado)]);
+            break;
+
+        case 'workerStatus':
+            $worker = trim($_POST['worker'] ?? 'optimus');
+            if ($worker !== 'optimus') respM([], true, 'Worker no soportado.');
+            respM(['worker' => $desp->estadoHeartbeat($worker)]);
             break;
 
         case 'crearDespacho':
@@ -115,6 +138,34 @@ try {
             $id_tramo = ($_POST['id_tramo'] ?? '') === '' ? null : (int)$_POST['id_tramo'];
             if (!$id_dv) respM([], true, 'Vehículo no especificado.');
             respM(['puntos' => $desp->recorridoVehiculo($id_dv, $id_tramo)]);
+            break;
+
+        case 'reporteDespacho':
+            $id = (int)($_POST['id_despacho'] ?? 0);
+            if (!$id) respM([], true, 'Despacho no especificado.');
+            respM($desp->reporteDespacho($id));
+            break;
+
+        case 'crearIncidencia':
+            $id_dv = (int)($_POST['id_dv'] ?? 0);
+            if (!$id_dv) respM([], true, 'VehÃ­culo no especificado.');
+            $tipo = trim($_POST['tipo'] ?? '');
+            $severidad = trim($_POST['severidad'] ?? 'media');
+            $descripcion = trim($_POST['descripcion'] ?? '');
+            respM(['incidencia' => $desp->crearIncidencia($id_dv, $tipo, $severidad, $descripcion, $uid)], false, 'Incidencia registrada.');
+            break;
+
+        case 'cerrarIncidencia':
+            $id_incidencia = (int)($_POST['id_incidencia'] ?? 0);
+            if (!$id_incidencia) respM([], true, 'Incidencia no especificada.');
+            $desp->cerrarIncidencia($id_incidencia, $uid);
+            respM([], false, 'Incidencia cerrada.');
+            break;
+
+        case 'incidenciasVehiculo':
+            $id_dv = (int)($_POST['id_dv'] ?? 0);
+            if (!$id_dv) respM([], true, 'VehÃ­culo no especificado.');
+            respM($desp->incidenciasVehiculo($id_dv));
             break;
 
         case 'iniciarTramo':
@@ -166,7 +217,7 @@ try {
             foreach ($vehiculos as $v) $grupos[$v['id_cuenta']][] = $v;
 
             $out = [];
-            $resumen = ['cuentas'=>0,'ok'=>0,'error'=>0,'en_vivo'=>0,'pendientes'=>0,'errores'=>[]];
+            $resumen = ['cuentas'=>0,'ok'=>0,'error'=>0,'en_vivo'=>0,'pendientes'=>0,'lecturas'=>0,'sin_match'=>0,'errores'=>[]];
 
             foreach ($grupos as $id_cuenta => $vs) {
                 $motor = (string)($vs[0]['tipo_integracion'] ?? '');
@@ -179,15 +230,22 @@ try {
                     try {
                         $lecturas = $adapter->obtenerPosiciones();
                         $resumen['ok']++;
+                        $resumen['lecturas'] += count($lecturas);
                         $porImei = []; $porPlaca = [];
                         foreach ($lecturas as $p) {
-                            if (($p['imei'] ?? '') !== '') $porImei[$p['imei']] = $p;
-                            $porPlaca[strtoupper(trim($p['dispositivo'] ?? ''))] = $p;
+                            $imeiPos = trim((string)($p['imei'] ?? ''));
+                            if ($imeiPos !== '') $porImei[$imeiPos] = $p;
+                            $placaPos = clavePlacaMotor($p['dispositivo'] ?? '', $motor);
+                            if ($placaPos !== '') $porPlaca[$placaPos] = $p;
+                            $nombreCompleto = strtoupper(trim((string)($p['dispositivo'] ?? '')));
+                            if ($nombreCompleto !== '') $porPlaca[$nombreCompleto] = $p;
                         }
                         foreach ($vs as $v) {
                             $pos = null;
-                            if (!empty($v['imei']) && isset($porImei[$v['imei']]))   $pos = $porImei[$v['imei']];
-                            elseif (isset($porPlaca[strtoupper(trim($v['placa']))])) $pos = $porPlaca[strtoupper(trim($v['placa']))];
+                            $imeiVeh = trim((string)($v['imei'] ?? ''));
+                            $placaVeh = clavePlacaMotor($v['placa'] ?? '', $motor);
+                            if ($imeiVeh !== '' && isset($porImei[$imeiVeh])) $pos = $porImei[$imeiVeh];
+                            elseif ($placaVeh !== '' && isset($porPlaca[$placaVeh])) $pos = $porPlaca[$placaVeh];
                             if ($pos) {
                                 $model->guardarPosicion([
                                     'id_cuenta'=>(int)$id_cuenta,'id_gps'=>null,
@@ -198,8 +256,10 @@ try {
                                 ]);
                                 guardarRecorridoSeguro($desp, $v, $pos);
                                 $resumen['en_vivo']++;
+                            } else {
+                                $resumen['sin_match']++;
                             }
-                            $out[] = armarRegistro($v, $pos);
+                            $out[] = armarRegistro($v, $pos, false, $pos !== null);
                         }
                     } catch (Throwable $e) {
                         $resumen['error']++;
@@ -235,6 +295,7 @@ try {
             break;
 
         case 'dispositivos':
+            @set_time_limit(180);
             $id_cuenta   = (int)($_POST['id_cuenta'] ?? 0);
             $id_despacho = (int)($_POST['id_despacho'] ?? 0);
             if (!$id_cuenta) respM([], true, 'Cuenta no especificada.');

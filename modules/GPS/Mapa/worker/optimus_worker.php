@@ -44,32 +44,65 @@ function utcALocal(?string $utc): ?string
     } catch (Throwable $e) { return null; }
 }
 
+function direccionDesdePayload($data): ?string
+{
+    if (!is_array($data)) return null;
+    $keys = [
+        'address', 'addr', 'direccion', 'location', 'locationName', 'locationDesc',
+        'gpsAddress', 'formattedAddress', 'currentAddress', 'lastAddress',
+        'mapAddress', 'positionAddress', 'descriptionAddress', 'poi'
+    ];
+    foreach ($keys as $k) {
+        if (!empty($data[$k]) && is_scalar($data[$k])) {
+            $txt = trim(preg_replace('/\s+/', ' ', (string)$data[$k]));
+            if ($txt !== '') return $txt;
+        }
+    }
+    foreach ($data as $v) {
+        if (is_array($v)) {
+            $txt = direccionDesdePayload($v);
+            if ($txt) return $txt;
+        }
+    }
+    return null;
+}
+
 wlog('Worker Optimus iniciado.');
 
 $errAnt = ''; $errCont = 0; // para no llenar el log durante un corte largo
 while (true) {
     $cli = null;
+    $desp = null;
     try {
         $model = new mdlMapa();                       // conexión fresca cada ciclo (auto-recuperación)
         $desp  = new mdlDespachos();
+        $desp->registrarHeartbeat('optimus', 'ok', 'Iniciado.');
         $veh = $desp->imeisOptimusActivos();          // imei => [id_cuenta,placa] (solo despachos activos)
-        if (!$veh) { wlog('Sin carros Optimus en despachos activos. Reintento en 60s.'); sleep(60); continue; }
+        if (!$veh) {
+            $desp->registrarHeartbeat('optimus', 'ok', 'Sin carros Optimus en despachos activos.');
+            wlog('Sin carros Optimus en despachos activos. Reintento en 60s.');
+            sleep(60);
+            continue;
+        }
 
         $topics = array_map(fn($imei) => $imei . '/' . $SUFFIX, array_keys($veh));
         wlog('Vehículos Optimus con IMEI: ' . count($veh) . '. Conectando al broker...');
+        $desp->registrarHeartbeat('optimus', 'ok', 'Conectando al broker con ' . count($veh) . ' unidades.');
 
         $cli = new MqttWsClient($HOST, $PORT, $PATH, $USER, $PASS);
         $cli->conectar();
         $cli->suscribir($topics);
         wlog('Conectado y suscrito a ' . count($topics) . ' unidades. Escuchando...');
+        $desp->registrarHeartbeat('optimus', 'ok', 'Escuchando ' . count($topics) . ' unidades.');
 
-        $onMsg = function (string $topic, string $payload) use ($model, $veh) {
+        $onMsg = function (string $topic, string $payload) use ($model, $desp, $veh) {
             $imei = strtok($topic, '/');
             if (!isset($veh[$imei])) return;
 
             $d   = json_decode($payload, true);
             $pos = $d['data']['position'] ?? null;
             if (!$pos || !isset($pos['latitude'], $pos['longitude'])) return;
+            $direccion = direccionDesdePayload($pos) ?? direccionDesdePayload($d['data'] ?? []) ?? direccionDesdePayload($d);
 
             $v = $veh[$imei];
             $model->guardarPosicion([
@@ -83,13 +116,15 @@ while (true) {
                 'velocidad'   => (int)round($pos['speed'] ?? 0),
                 'rumbo'       => (int)round($pos['azimuth'] ?? 0),
                 'encendido'   => isset($pos['isOn']) ? ($pos['isOn'] ? 1 : 0) : null,
-                'direccion'   => null, // Optimus no envía dirección en el reporte
+                'direccion'   => $direccion,
                 'fecha'       => utcALocal($pos['utcDate'] ?? null),
             ]);
+            $desp->registrarHeartbeat('optimus', 'ok', 'Ultimo reporte: ' . $v['placa']);
         };
 
         $recargar = time() + $RECARGA_SEG;
         while (time() < $recargar) {
+            $desp->registrarHeartbeat('optimus', 'ok', 'Escuchando ' . count($topics) . ' unidades.');
             $cli->escuchar($onMsg, 20);
         }
         $cli->cerrar();
@@ -98,6 +133,9 @@ while (true) {
         $msg = $e->getMessage();
         if ($msg === $errAnt) { $errCont++; } else { $errCont = 0; $errAnt = $msg; }
         if ($errCont % 12 === 0) wlog('ERROR: ' . $msg . ' — reintentando cada 5s...'); // 1a vez y luego ~cada min
+        try {
+            if ($desp instanceof mdlDespachos) $desp->registrarHeartbeat('optimus', 'error', $msg);
+        } catch (Throwable $ignored) {}
         @$cli?->cerrar();
         sleep(5);
     }

@@ -9,8 +9,10 @@ $(document).ready(function () {
     if (!document.getElementById('mapaGPS')) return;
 
     let mapa, capa, recorridoLayer = null, datos = [], markers = {}, timer = null, cargando = false, ajustado = false, seleccionado = null, recorridoId = null;
+    let timerWorker = null;
     let despachoActual = '';   // '' = todos los activos ; o el id de un despacho
     let estadoDespachos = 'activo';
+    let ultimoResumen = null, estadoWorkerOptimus = null, reporteActual = null;
 
     // ── Mapa base + selector de capas (calles / satélite) ──────
     mapa = L.map('mapaGPS', { zoomControl: true }).setView([15.5, -87.9], 8);
@@ -40,10 +42,13 @@ $(document).ready(function () {
     function geocode(lat, lng) {
         const key = lat.toFixed(4) + ',' + lng.toFixed(4);
         if (geoCache[key] !== undefined) return Promise.resolve(geoCache[key]);
-        return fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=16&addressdetails=0&lat=${lat}&lon=${lng}`)
+        const ctl = new AbortController();
+        const tm = setTimeout(() => ctl.abort(), 6500);
+        return fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=16&addressdetails=0&lat=${lat}&lon=${lng}`, { signal: ctl.signal })
             .then(r => r.json())
             .then(d => { const a = (d && d.display_name) ? d.display_name : null; geoCache[key] = a; return a; })
-            .catch(() => null);
+            .catch(() => null)
+            .finally(() => clearTimeout(tm));
     }
     mapa.on('popupopen', function (e) {
         const m = e.popup._source; if (!m || !m._veh) return;
@@ -82,6 +87,27 @@ $(document).ready(function () {
                   <i class="bi bi-play-fill"></i>${enPopup ? ' Iniciar ruta' : ''}
                 </button>`;
     }
+    function botonesIncidencias(v, enPopup = false) {
+        if (enPopup) {
+            const registrar = estadoDespachos === 'cerrado' ? '' :
+                `<button class="btn btn-sm btn-outline-warning btn-registrar-incidencia" type="button" data-id="${v.id_dv}">
+                   <i class="bi bi-exclamation-triangle me-1"></i> Incidencia
+                 </button>`;
+            return `${registrar}
+                <button class="btn btn-sm btn-outline-secondary btn-ver-incidencias" type="button" data-id="${v.id_dv}">
+                  <i class="bi bi-list-check me-1"></i> Ver incidencias
+                </button>`;
+        }
+        const abiertas = Number(v.incidencias_abiertas || 0);
+        const total = Number(v.incidencias_total || 0);
+        const cls = abiertas ? 'btn-outline-danger' : (total ? 'btn-outline-secondary' : 'btn-outline-warning');
+        const accion = total ? 'btn-ver-incidencias' : 'btn-registrar-incidencia';
+        const titulo = total ? 'Ver incidencias' : 'Registrar incidencia';
+        return `<button class="mi-ruta ${accion} ${cls}"
+                    type="button" title="${titulo}" data-id="${v.id_dv}">
+                  <i class="bi bi-exclamation-triangle"></i>
+                </button>`;
+    }
 
     function icono(v, activo = false) {
         const est = movimiento(v), col = MOV[est];
@@ -113,8 +139,10 @@ $(document).ready(function () {
             <div class="mp-row"><span class="mp-lbl">Ubicación</span><span class="mp-ubic">${v.direccion ? esc(v.direccion) : 'Buscando dirección…'}</span></div>
             <div class="mp-row"><span class="mp-lbl">Reporte</span>${esc(v.fecha || '—')}</div>
             <div class="mp-row"><span class="mp-lbl">Ruta</span>${esc(textoTramo(v))}</div>
+            <div class="mp-row"><span class="mp-lbl">Incidencias</span>${esc(v.incidencias_total || 0)} (${esc(v.incidencias_abiertas || 0)} abiertas)</div>
             <div class="mp-actions">
               ${botonesTramo(v, true)}
+              ${botonesIncidencias(v, true)}
               <button class="btn btn-sm btn-outline-primary btn-recorrido" type="button" data-id="${v.id_dv}" data-tramo="${v.id_tramo || ''}">
                 <i class="bi bi-signpost-split me-1"></i> Ver recorrido
               </button>
@@ -163,6 +191,9 @@ $(document).ready(function () {
                         : seg === 'pendiente' ? 'Pendiente' : seg === 'historial' ? 'Historial' : 'Sin señal';
                 const sub = [v.transporte, v.plataforma, estadoDespachos === 'cerrado' && v.fecha_cierre ? 'Cerrado ' + v.fecha_cierre : ''].filter(Boolean).join(' · ');
                 const ruta = textoTramo(v);
+                const incTxt = Number(v.incidencias_total || 0)
+                    ? `<br><span class="mi-inc">${esc(v.incidencias_total)} incidencias · ${esc(v.incidencias_abiertas || 0)} abiertas</span>`
+                    : '';
                 const btnQuitar = estadoDespachos === 'cerrado' ? '' :
                     `<button class="mi-quitar" title="Quitar del despacho" data-id="${v.id_dv}">
                          <i class="bi bi-x-lg"></i></button>`;
@@ -172,10 +203,11 @@ $(document).ready(function () {
                        <span class="mi-body" data-id="${v.id_dv}">
                          <span class="mi-placa">${esc(v.placa)}</span><br>
                          <span class="mi-sub">${esc(sub)}</span><br>
-                         <span class="mi-tramo">${esc(ruta)}</span>
+                         <span class="mi-tramo">${esc(ruta)}</span>${incTxt}
                        </span>
                        <span class="mi-vel">${esc(der)}</span>
                        ${botonesTramo(v)}
+                       ${botonesIncidencias(v)}
                        ${btnQuitar}
                      </div>`);
             });
@@ -304,6 +336,10 @@ $(document).ready(function () {
             cancelButtonText: 'Cancelar'
         }).then(r => { if (r.isConfirmed) cambiarTramo('finalizarTramo', id); });
     });
+    $(document).on('click', '.btn-registrar-incidencia, .btn-ver-incidencias', function (e) {
+        e.stopPropagation();
+        abrirIncidenciasVehiculo($(this).data('id'), $(this).hasClass('btn-registrar-incidencia'));
+    });
     $(document).on('click', '#btnLimpiarRecorrido', function () {
         limpiarRecorrido();
         estadoTexto(filtrar());
@@ -335,6 +371,107 @@ $(document).ready(function () {
         });
     });
 
+    const modalIncidencias = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalIncidenciasVeh'));
+    function abrirIncidenciasVehiculo(id, registrar = false) {
+        const v = datos.find(x => String(x.id_dv) === String(id));
+        $('#incIdDv').val(id);
+        $('#incidenciasSub').text(v ? `${v.placa} · ${v.transporte || ''} · ${v.plataforma || ''}` : 'Seguimiento por vehiculo');
+        $('#formNuevaIncidencia').toggleClass('d-none', estadoDespachos === 'cerrado');
+        $('#incDescripcion').val('');
+        $('#incSeveridad').val('media');
+        $('#incTipo').val('Detencion no autorizada');
+        $('#incidenciasWrap').html('<div class="text-muted small py-3"><span class="spinner-border spinner-border-sm me-1"></span> Cargando incidencias...</div>');
+        modalIncidencias().show();
+        cargarIncidenciasVehiculo(id).always(() => {
+            if (registrar && estadoDespachos !== 'cerrado') setTimeout(() => $('#incDescripcion').trigger('focus'), 250);
+        });
+    }
+    function badgeIncidencia(i) {
+        const sev = String(i.severidad || 'media').toLowerCase();
+        const cls = sev === 'alta' ? 'text-danger' : (sev === 'baja' ? 'text-success' : 'text-warning');
+        return `<span class="${cls}">${esc(sev.toUpperCase())}</span>`;
+    }
+    function renderIncidencias(resp) {
+        const actuales = resp.actuales || [];
+        const historial = resp.historial || [];
+        const actualesHtml = actuales.length ? actuales.map(i => `
+            <div class="inc-row ${esc(i.severidad || 'media')}">
+              <div class="inc-head">
+                <span>${esc(i.tipo)}</span>
+                ${badgeIncidencia(i)}
+                <span class="inc-meta">${esc(i.estado)} · ${esc(i.fecha_incidencia || '')}</span>
+                ${i.estado !== 'cerrada' ? `<button class="btn btn-sm btn-outline-success ms-auto btn-cerrar-incidencia" type="button" data-id="${i.id_incidencia}">
+                  <i class="bi bi-check2-circle me-1"></i> Cerrar
+                </button>` : ''}
+              </div>
+              ${i.descripcion ? `<div class="inc-desc">${esc(i.descripcion)}</div>` : ''}
+              <div class="inc-meta">${esc(i.direccion || 'Sin direccion guardada')}</div>
+            </div>`).join('') : '<div class="text-muted small mb-3">Este despacho no tiene incidencias para este equipo.</div>';
+        const histHtml = historial.length ? historial.map(i => `
+            <div class="inc-row ${esc(i.severidad || 'media')}">
+              <div class="inc-head">
+                <span>${esc(i.tipo)}</span>
+                ${badgeIncidencia(i)}
+                <span class="inc-meta">${esc(i.estado)} · ${esc(i.fecha_incidencia || '')}</span>
+              </div>
+              <div class="inc-meta">${esc(i.despacho || '')}</div>
+              ${i.descripcion ? `<div class="inc-desc">${esc(i.descripcion)}</div>` : ''}
+            </div>`).join('') : '<div class="text-muted small">Sin historial previo para este equipo.</div>';
+        $('#incidenciasWrap').html(`
+            <div class="mb-3">
+              <h6 class="mb-2">En este despacho</h6>
+              ${actualesHtml}
+            </div>
+            <div>
+              <h6 class="mb-2">Historial del equipo</h6>
+              ${histHtml}
+            </div>`);
+    }
+    function cargarIncidenciasVehiculo(id) {
+        return $.post(CTRL_MAPA, { accion: 'incidenciasVehiculo', id_dv: id }, function (r) {
+            if (!r.ok) {
+                $('#incidenciasWrap').html(`<div class="text-danger small">${esc(r.mensaje || 'No se pudieron cargar las incidencias.')}</div>`);
+                return;
+            }
+            renderIncidencias(r.data || {});
+        }, 'json');
+    }
+    $('#formNuevaIncidencia').on('submit', function (e) {
+        e.preventDefault();
+        const id = $('#incIdDv').val();
+        if (!id) return;
+        $('#btnGuardarIncidencia').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Guardando...');
+        $.post(CTRL_MAPA, {
+            accion: 'crearIncidencia',
+            id_dv: id,
+            tipo: $('#incTipo').val(),
+            severidad: $('#incSeveridad').val(),
+            descripcion: $('#incDescripcion').val()
+        }, function (r) {
+            if (!r.ok) {
+                Swal.fire({ icon: 'error', title: 'No se pudo guardar', text: r.mensaje || 'Error desconocido.' });
+                return;
+            }
+            $('#incDescripcion').val('');
+            cargarIncidenciasVehiculo(id);
+            cargar(false).always(() => { if (estadoDespachos !== 'cerrado') cargar(true); });
+        }, 'json').always(function () {
+            $('#btnGuardarIncidencia').prop('disabled', false).html('<i class="bi bi-check-lg me-1"></i> Registrar incidencia');
+        });
+    });
+    $('#incidenciasWrap').on('click', '.btn-cerrar-incidencia', function () {
+        const idInc = $(this).data('id');
+        const idDv = $('#incIdDv').val();
+        $.post(CTRL_MAPA, { accion: 'cerrarIncidencia', id_incidencia: idInc }, function (r) {
+            if (!r.ok) {
+                Swal.fire({ icon: 'error', title: 'No se pudo cerrar', text: r.mensaje || 'Error desconocido.' });
+                return;
+            }
+            cargarIncidenciasVehiculo(idDv);
+            cargar(false).always(() => { if (estadoDespachos !== 'cerrado') cargar(true); });
+        }, 'json');
+    });
+
     function cambiarTramo(accion, id) {
         $.post(CTRL_MAPA, { accion, id_dv: id }, function (r) {
             if (!r.ok) {
@@ -347,7 +484,13 @@ $(document).ready(function () {
     }
 
     // ── Carga de posiciones ────────────────────────────────────
-    function pintar(vehiculos) { datos = vehiculos || []; poblarFiltros(); render(); }
+    function pintar(vehiculos, resumen = ultimoResumen) {
+        datos = vehiculos || [];
+        ultimoResumen = resumen || null;
+        poblarFiltros();
+        render();
+        renderPlataformasStatus();
+    }
     function cargar(live) {
         if (cargando) return $.Deferred().resolve().promise();
         const historico = estadoDespachos === 'cerrado';
@@ -365,7 +508,13 @@ $(document).ready(function () {
             id_despacho: despachoActual,
             historico: historico ? 1 : 0
         }, function (r) {
-            if (r && r.ok) { pintar(r.data.vehiculos); if (live && r.data.resumen) avisarErrores(r.data.resumen); }
+            if (r && r.ok) {
+                pintar(r.data.vehiculos, r.data.resumen || null);
+                if (live && r.data.resumen) {
+                    avisarErrores(r.data.resumen);
+                    avisarSinMatch(r.data.resumen);
+                }
+            }
             else if (r && !r.ok) $('#mapaStatus').text('Error: ' + (r.mensaje || 'desconocido'));
         }, 'json').always(function () {
             cargando = false;
@@ -373,6 +522,24 @@ $(document).ready(function () {
                 .html(historico ? '<i class="bi bi-clock-history me-1"></i> Recargar historial' : '<i class="bi bi-arrow-clockwise me-1"></i> Actualizar');
         });
     }
+
+    function iniciarAutoRefresh() {
+        if (estadoDespachos === 'cerrado') return detenerAutoRefresh();
+        $('#mapaAutoRefresh').prop('checked', true).prop('disabled', true);
+        if (timer) return;
+        timer = setInterval(() => cargar(true), 30000);
+    }
+
+    function detenerAutoRefresh() {
+        if (timer) { clearInterval(timer); timer = null; }
+        $('#mapaAutoRefresh').prop('checked', false).prop('disabled', true);
+    }
+
+    function sincronizarAutoRefresh() {
+        if (estadoDespachos === 'cerrado') detenerAutoRefresh();
+        else iniciarAutoRefresh();
+    }
+
     let erroresAvisados = '';
     function avisarErrores(resumen) {
         if (!resumen.errores || !resumen.errores.length) { erroresAvisados = ''; return; }
@@ -380,6 +547,117 @@ $(document).ready(function () {
         if (firma === erroresAvisados) return; erroresAvisados = firma;
         const lst = resumen.errores.map(e => `<li><b>${esc(e.plataforma)}</b> (${esc(e.transporte)}): ${esc(e.mensaje)}</li>`).join('');
         Swal.fire({ icon: 'warning', title: 'Algunas cuentas no respondieron', html: `<ul class="text-start small mb-0">${lst}</ul>` });
+    }
+    function avisarSinMatch(resumen) {
+        if (!resumen || resumen.en_vivo || !resumen.lecturas || !resumen.sin_match) return;
+        Swal.fire({
+            icon: 'info',
+            title: 'La plataforma respondió, pero no se ubicaron carros',
+            text: 'La cuenta devolvió posiciones, pero no coinciden con los IMEI o placas del despacho. Revisa que los carros se hayan agregado desde esa misma cuenta.'
+        });
+    }
+
+    function renderPlataformasStatus() {
+        const $box = $('#platformStatus');
+        if (!$box.length) return;
+        if (estadoDespachos === 'cerrado') {
+            $box.html('<span class="text-muted small">Historial: plataformas sin consulta en vivo.</span>');
+            return;
+        }
+        if (!datos.length) {
+            $box.html('<span class="text-muted small">Sin carros para validar plataformas.</span>');
+            return;
+        }
+
+        const errores = {};
+        (ultimoResumen?.errores || []).forEach(e => {
+            errores[`${e.plataforma || ''}|${e.transporte || ''}`] = e.mensaje || 'No respondió.';
+        });
+
+        const grupos = {};
+        datos.forEach(v => {
+            const key = `${v.id_cuenta || ''}|${v.plataforma || ''}|${v.transporte || ''}|${v.usuario || ''}`;
+            if (!grupos[key]) {
+                grupos[key] = {
+                    plataforma: v.plataforma || 'Plataforma',
+                    transporte: v.transporte || 'Transporte',
+                    usuario: v.usuario || '',
+                    motor: v.motor || '',
+                    total: 0,
+                    live: 0,
+                    sin: 0,
+                    pendiente: 0,
+                    sinImei: 0,
+                    conPos: 0,
+                    error: null
+                };
+            }
+            const g = grupos[key];
+            g.total++;
+            if (v.estado_seg === 'live') g.live++;
+            if (v.estado_seg === 'sin_senal') g.sin++;
+            if (v.estado_seg === 'pendiente') g.pendiente++;
+            if (!v.imei) g.sinImei++;
+            if (tienePos(v)) g.conPos++;
+            const errKey = `${v.plataforma || ''}|${v.transporte || ''}`;
+            if (errores[errKey]) g.error = errores[errKey];
+        });
+
+        const html = Object.values(grupos).map(g => {
+            let cls = 'warn', msg = 'Sin señal';
+            if (g.error) { cls = 'err'; msg = g.error; }
+            else if (g.motor === 'optimus' && estadoWorkerOptimus && !estadoWorkerOptimus.ok) {
+                cls = estadoWorkerOptimus.estado === 'sin_tabla' ? 'warn' : 'err';
+                msg = estadoWorkerOptimus.detalle || 'Worker Optimus detenido';
+            } else if (g.live > 0) {
+                cls = 'ok'; msg = `${g.live}/${g.total} en vivo`;
+            } else if (g.conPos > 0) {
+                msg = `${g.conPos}/${g.total} con posición vieja`;
+            } else if (g.sinImei > 0) {
+                msg = `${g.sinImei}/${g.total} sin IMEI`;
+            } else if (g.pendiente > 0) {
+                msg = 'Pendiente';
+            }
+            const nombre = [g.plataforma, g.usuario ? g.usuario : '', g.motor ? `(${g.motor})` : ''].filter(Boolean).join(' ');
+            return `<span class="plat-chip ${cls}" title="${esc(msg)}">
+                      <span class="pc-main">${esc(nombre)}</span>
+                      <span class="pc-sub">${esc(g.transporte)} · ${esc(msg)}</span>
+                    </span>`;
+        }).join('');
+        $box.html(html);
+    }
+
+    function revisarWorkerOptimus() {
+        $.post(CTRL_MAPA, { accion: 'workerStatus', worker: 'optimus' }, function (r) {
+            const $w = $('#optimusWorkerStatus');
+            if (!$w.length) return;
+            $w.removeClass('ok warn err');
+            if (!r || !r.ok || !r.data || !r.data.worker) {
+                $w.addClass('err').attr('title', 'No se pudo validar el worker de Optimus.');
+                $w.find('.worker-text').text('Optimus sin validar');
+                return;
+            }
+            const st = r.data.worker;
+            estadoWorkerOptimus = st;
+            const edad = Number(st.edad_seg || 0);
+            if (st.ok) {
+                $w.addClass('ok').attr('title', `Worker activo. Ultimo latido hace ${edad}s. ${st.detalle || ''}`);
+                $w.find('.worker-text').text('Optimus activo');
+            } else if (st.estado === 'sin_tabla') {
+                $w.addClass('warn').attr('title', st.detalle || 'Falta migracion de heartbeats.');
+                $w.find('.worker-text').text('Optimus sin monitor');
+            } else {
+                $w.addClass('err').attr('title', `${st.detalle || 'Worker detenido o atrasado.'} Ultimo latido: ${st.fecha_latido || 'sin registro'}`);
+                $w.find('.worker-text').text('Optimus detenido');
+            }
+            renderPlataformasStatus();
+        }, 'json').fail(function () {
+            estadoWorkerOptimus = { ok: false, detalle: 'No se pudo consultar el estado del worker.' };
+            $('#optimusWorkerStatus').removeClass('ok warn').addClass('err')
+                .attr('title', 'No se pudo consultar el estado del worker.')
+                .find('.worker-text').text('Optimus sin validar');
+            renderPlataformasStatus();
+        });
     }
 
     // ══════════════════════════════════════════════════════════
@@ -402,18 +680,16 @@ $(document).ready(function () {
         const historico = estadoDespachos === 'cerrado';
         $('#btnNuevoDespacho').prop('disabled', historico);
         $('#btnAgregarVehiculos').prop('disabled', !hay || historico);
+        $('#btnReporteDespacho').prop('disabled', !hay);
         $('#btnCerrarDespacho').prop('disabled', !hay || historico);
         $('#btnMapaRefrescar').html(historico ? '<i class="bi bi-clock-history me-1"></i> Recargar historial' : '<i class="bi bi-arrow-clockwise me-1"></i> Actualizar');
-        $('#mapaAutoRefresh').prop('disabled', historico);
-        if (historico && $('#mapaAutoRefresh').prop('checked')) {
-            $('#mapaAutoRefresh').prop('checked', false);
-            if (timer) { clearInterval(timer); timer = null; }
-        }
+        sincronizarAutoRefresh();
     }
 
     $('#selDespacho').on('change', function () {
         despachoActual = $(this).val() || '';
         aplicarModoDespacho(); ajustado = false; limpiarRecorrido();
+        sincronizarAutoRefresh();
         if (estadoDespachos === 'cerrado') cargar(false);
         else cargar(false).always(() => cargar(true));
     });
@@ -422,7 +698,7 @@ $(document).ready(function () {
         estadoDespachos = this.value === 'cerrado' ? 'cerrado' : 'activo';
         despachoActual = ''; seleccionado = null; ajustado = false; limpiarRecorrido();
         $('#fltEstado').val('');
-        if (timer) { clearInterval(timer); timer = null; $('#mapaAutoRefresh').prop('checked', false); }
+        sincronizarAutoRefresh();
         cargarDespachos('').then(() => {
             if (estadoDespachos === 'cerrado') cargar(false);
             else cargar(false).always(() => cargar(true));
@@ -441,6 +717,7 @@ $(document).ready(function () {
                 if (!r.ok) { Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje }); return; }
                 cargarDespachos(r.data.id_despacho).then(() => {
                     ajustado = false;
+                    sincronizarAutoRefresh();
                     cargar(false).always(() => cargar(true));
                     abrirModalAgregar(); // arranca agregando carros de una vez
                 });
@@ -482,6 +759,7 @@ $(document).ready(function () {
             }
             if (!resp.ok) { Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje }); return; }
             Swal.fire({ icon: 'success', title: 'Despacho cerrado', text: resp.mensaje || '', timer: 1600, showConfirmButton: false });
+            detenerAutoRefresh();
             cargarDespachos('').then(() => { ajustado = false; cargar(false).always(() => cargar(true)); });
         }, 'json');
     }
@@ -489,10 +767,109 @@ $(document).ready(function () {
     // ══════════════════════════════════════════════════════════
     //  SELECTOR — Agregar vehículos al despacho
     // ══════════════════════════════════════════════════════════
-    let dispCache = [], cuentaCache = [];
+    const modalReporte = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalReporteDespacho'));
+    function estadoRutaReporte(e) {
+        if (e.estado_tramo === 'en_ruta') return 'En ruta';
+        if (e.estado_tramo === 'finalizado') return 'Finalizada';
+        return 'Sin iniciar';
+    }
+    function promedioDuracion(equipos) {
+        const nums = equipos.map(e => Number(e.duracion_minutos)).filter(n => !isNaN(n) && n >= 0);
+        if (!nums.length) return null;
+        return Math.round(nums.reduce((a, b) => a + b, 0) / nums.length);
+    }
+    function abrirReporteDespacho() {
+        if (!despachoActual) return;
+        $('#reporteDespachoWrap').html('<div class="text-muted small py-3"><span class="spinner-border spinner-border-sm me-1"></span> Generando reporte...</div>');
+        $('#btnExportReporteCsv').prop('disabled', true);
+        modalReporte().show();
+        $.post(CTRL_MAPA, { accion: 'reporteDespacho', id_despacho: despachoActual }, function (r) {
+            if (!r.ok) {
+                $('#reporteDespachoWrap').html(`<div class="text-danger small">${esc(r.mensaje || 'No se pudo generar el reporte.')}</div>`);
+                return;
+            }
+            reporteActual = r.data || null;
+            renderReporteDespacho(reporteActual);
+            $('#btnExportReporteCsv').prop('disabled', !reporteActual || !(reporteActual.equipos || []).length);
+        }, 'json');
+    }
+    function renderReporteDespacho(rep) {
+        const d = rep?.despacho || {};
+        const equipos = rep?.equipos || [];
+        const finalizadas = equipos.filter(e => e.estado_tramo === 'finalizado').length;
+        const abiertas = equipos.filter(e => e.estado_tramo === 'en_ruta').length;
+        const incTotal = equipos.reduce((n, e) => n + Number(e.incidencias_total || 0), 0);
+        const incAbiertas = equipos.reduce((n, e) => n + Number(e.incidencias_abiertas || 0), 0);
+        const prom = promedioDuracion(equipos);
+        $('#reporteDespachoSub').text(`${d.nombre || 'Despacho'} · ${d.estado || ''}`);
+        if (!equipos.length) {
+            $('#reporteDespachoWrap').html('<div class="text-muted small">Este despacho no tiene equipos.</div>');
+            return;
+        }
+        const filas = equipos.map(e => `
+            <tr>
+              <td><span class="rep-code">${esc(e.placa || '')}</span><br><span class="text-muted">${esc(e.imei || e.dispositivo || '')}</span></td>
+              <td>${esc(e.transporte || '')}<br><span class="text-muted">${esc(e.plataforma || '')} · ${esc(e.usuario || '')}</span></td>
+              <td>${esc(estadoRutaReporte(e))}<br><span class="text-muted">${esc(e.fecha_agregado || '')}${e.activo == 0 ? ' · removido' : ''}</span></td>
+              <td>${esc(e.fecha_inicio_tramo || '')}<br><span class="text-muted">${esc(e.direccion_inicio || '')}</span></td>
+              <td>${esc(e.fecha_fin_tramo || '')}<br><span class="text-muted">${esc(e.direccion_fin || '')}</span></td>
+              <td>${esc(formatoDuracion(e.duracion_minutos) || '')}</td>
+              <td>${esc(e.checkpoints || 0)}<br><span class="text-muted">${esc(e.primer_reporte || '')}</span></td>
+              <td>${esc(e.incidencias_total || 0)}<br><span class="text-muted">${esc(e.incidencia_severidad_max || '')}${e.incidencias_abiertas ? ' · abiertas ' + esc(e.incidencias_abiertas) : ''}</span></td>
+              <td>${esc(e.ultimo_reporte || e.fecha_posicion_actual || '')}<br><span class="text-muted">${esc(e.direccion_actual || '')}</span></td>
+            </tr>`).join('');
+        $('#reporteDespachoWrap').html(`
+            <div class="rep-kpis">
+              <div class="rep-kpi"><span class="rk-lbl">Equipos</span><span class="rk-val">${equipos.length}</span></div>
+              <div class="rep-kpi"><span class="rk-lbl">Finalizadas</span><span class="rk-val">${finalizadas}</span></div>
+              <div class="rep-kpi"><span class="rk-lbl">En ruta</span><span class="rk-val">${abiertas}</span></div>
+              <div class="rep-kpi"><span class="rk-lbl">Incidencias</span><span class="rk-val">${incTotal}/${incAbiertas}</span></div>
+              <div class="rep-kpi"><span class="rk-lbl">Promedio</span><span class="rk-val">${esc(formatoDuracion(prom) || '-')}</span></div>
+            </div>
+            <table class="table table-hover w-100 rep-table">
+              <thead>
+                <tr>
+                  <th>Equipo</th><th>Cuenta</th><th>Estado</th><th>Inicio</th>
+                  <th>Fin</th><th>Duracion</th><th>Checkpoints</th><th>Incidencias</th><th>Ultimo reporte</th>
+                </tr>
+              </thead>
+              <tbody>${filas}</tbody>
+            </table>`);
+    }
+    function csvVal(v) {
+        return `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    }
+    function exportarReporteCsv() {
+        if (!reporteActual) return;
+        const d = reporteActual.despacho || {};
+        const encabezado = ['Despacho', 'Estado', 'Apertura', 'Cierre', 'Placa', 'IMEI', 'Transporte', 'Plataforma', 'Usuario', 'Ruta', 'Inicio', 'Fin', 'Duracion minutos', 'Checkpoints', 'Primer reporte', 'Incidencias', 'Incidencias abiertas', 'Severidad max', 'Ultima incidencia', 'Detalle incidencias', 'Ultimo reporte'];
+        const filas = (reporteActual.equipos || []).map(e => [
+            d.nombre, d.estado, d.fecha_apertura, d.fecha_cierre,
+            e.placa, e.imei, e.transporte, e.plataforma, e.usuario, estadoRutaReporte(e),
+            e.fecha_inicio_tramo, e.fecha_fin_tramo, e.duracion_minutos,
+            e.checkpoints, e.primer_reporte, e.incidencias_total, e.incidencias_abiertas,
+            e.incidencia_severidad_max, e.ultima_incidencia,
+            (e.incidencias_detalle || []).map(i => `${i.fecha_incidencia || ''} ${i.tipo || ''} ${i.severidad || ''} ${i.estado || ''} ${i.descripcion || ''}`).join(' | '),
+            e.ultimo_reporte || e.fecha_posicion_actual
+        ]);
+        const csv = [encabezado, ...filas].map(row => row.map(csvVal).join(';')).join('\r\n');
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `reporte_despacho_${d.id_despacho || despachoActual}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(a.href);
+        a.remove();
+    }
+    $('#btnReporteDespacho').on('click', abrirReporteDespacho);
+    $('#btnExportReporteCsv').on('click', exportarReporteCsv);
+
+    let dispCache = [], cuentaCache = [], dispositivosReq = null, dispositivosSeq = 0;
     const modalAgregar = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAgregarVeh'));
     function abrirModalAgregar() {
         if (!despachoActual) return;
+        detenerAutoRefresh();
         $('#modalAgregarSub').text('Despacho: ' + $('#selDespacho option:selected').text());
         $('#dispositivosWrap').html('<div class="text-muted small">Selecciona una cuenta para ver sus equipos.</div>');
         $('#cuentaInfo').addClass('d-none').empty();
@@ -504,6 +881,11 @@ $(document).ready(function () {
         modalAgregar().show();
     }
     $('#btnAgregarVehiculos').on('click', abrirModalAgregar);
+    $('#modalAgregarVeh').on('hidden.bs.modal', function () {
+        if (dispositivosReq && dispositivosReq.readyState !== 4) dispositivosReq.abort();
+        dispositivosSeq++;
+        sincronizarAutoRefresh();
+    });
 
     function renderCuentasSelector() {
         const $s = $('#selCuentaAgregar').empty().append('<option value="">— Selecciona una cuenta —</option>');
@@ -547,12 +929,21 @@ $(document).ready(function () {
 
     $('#selCuentaAgregar').on('change', function () {
         const id = $(this).val();
+        if (dispositivosReq && dispositivosReq.readyState !== 4) dispositivosReq.abort();
+        const seq = ++dispositivosSeq;
         dispCache = [];
         actualizarSeleccion();
         renderCuentaInfo();
         if (!id) { $('#dispositivosWrap').html('<div class="text-muted small">Selecciona una cuenta.</div>'); return; }
         $('#dispositivosWrap').html('<div class="text-muted small py-3"><span class="spinner-border spinner-border-sm me-1"></span> Cargando equipos…</div>');
-        $.post(CTRL_MAPA, { accion: 'dispositivos', id_cuenta: id, id_despacho: despachoActual }, function (r) {
+        dispositivosReq = $.ajax({
+            url: CTRL_MAPA,
+            method: 'POST',
+            dataType: 'json',
+            timeout: 180000,
+            data: { accion: 'dispositivos', id_cuenta: id, id_despacho: despachoActual }
+        }).done(function (r) {
+            if (seq !== dispositivosSeq || String($('#selCuentaAgregar').val() || '') !== String(id)) return;
             if (!r.ok) { $('#dispositivosWrap').html(`<div class="text-danger small">${esc(r.mensaje)}</div>`); return; }
             dispCache = r.data.dispositivos;
             if (r.data.cuenta) {
@@ -561,7 +952,13 @@ $(document).ready(function () {
             }
             renderCuentaInfo(r.data.cuenta || cuentaSeleccionada(), dispCache.length);
             renderDispositivos();
-        }, 'json');
+        }).fail(function (xhr, estado) {
+            if (estado === 'abort' || seq !== dispositivosSeq) return;
+            const msg = estado === 'timeout'
+                ? 'La plataforma tardo demasiado en responder. Puedes elegir otra cuenta y volver a intentar.'
+                : 'No se pudo cargar la lista de equipos.';
+            $('#dispositivosWrap').html(`<div class="text-danger small">${esc(msg)}</div>`);
+        });
     });
     function renderDispositivos() {
         const q = ($('#buscarDispositivo').val() || '').trim().toUpperCase();
@@ -596,7 +993,7 @@ $(document).ready(function () {
             if (!r.ok) { Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje }); return; }
             Swal.fire({ icon: 'success', title: '¡Listo!', text: r.mensaje, timer: 1500, showConfirmButton: false });
             modalAgregar().hide();
-            cargarDespachos(despachoActual).then(() => { ajustado = false; cargar(false).always(() => cargar(true)); });
+            cargarDespachos(despachoActual).then(() => { ajustado = false; sincronizarAutoRefresh(); cargar(false).always(() => cargar(true)); });
         }, 'json');
     });
 
@@ -604,14 +1001,13 @@ $(document).ready(function () {
     $('#btnMapaRefrescar').on('click', () => cargar(estadoDespachos !== 'cerrado'));
     $('#fltTransporte, #fltEstado').on('change', render);
     $('#fltPlaca').on('input', render);
-    $('#mapaAutoRefresh').on('change', function () {
-        if (estadoDespachos === 'cerrado') { this.checked = false; return; }
-        if (this.checked) { cargar(true); timer = setInterval(() => cargar(true), 30000); }
-        else if (timer) { clearInterval(timer); timer = null; }
-    });
+    $('#mapaAutoRefresh').on('change', sincronizarAutoRefresh);
 
     function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
     // ── Arranque ───────────────────────────────────────────────
+    revisarWorkerOptimus();
+    timerWorker = setInterval(revisarWorkerOptimus, 60000);
+    sincronizarAutoRefresh();
     cargarDespachos().then(() => cargar(false).always(() => cargar(true)));
 });

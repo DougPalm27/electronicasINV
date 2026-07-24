@@ -168,7 +168,7 @@ class mdlMapa
              WHEN MATCHED THEN UPDATE SET
                     id_gps = ?, dispositivo = ?, placa = ?,
                     lat = ?, lng = ?, velocidad = ?, rumbo = ?, encendido = ?,
-                    direccion = ?, fecha_posicion = ?, fecha_captura = GETDATE()
+                    direccion = COALESCE(NULLIF(?, ''), direccion), fecha_posicion = ?, fecha_captura = GETDATE()
              WHEN NOT MATCHED THEN INSERT
                     (id_cuenta, id_gps, dispositivo, imei, placa,
                      lat, lng, velocidad, rumbo, encendido, direccion, fecha_posicion)

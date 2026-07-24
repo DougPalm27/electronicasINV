@@ -8,9 +8,15 @@
                 $database   = env('DB_NAME', 'ElectronicasDB');
                 $user       = env('DB_USER');
                 $password   = env('DB_PASSWORD');
+                $encrypt    = env('DB_ENCRYPT', '0');
+                $trustCert  = env('DB_TRUST_SERVER_CERTIFICATE', '1');
 
                 // Instanciar la conexion con la base de datos
-                $conn = new PDO("sqlsrv:server=$serverName; database=$database", $user, $password);
+                $conn = new PDO(
+                    "sqlsrv:server=$serverName;database=$database;Encrypt=$encrypt;TrustServerCertificate=$trustCert",
+                    $user,
+                    $password
+                );
                 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
                 // Publicar el usuario logueado en el contexto de la sesión SQL:

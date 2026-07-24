@@ -24,6 +24,7 @@ class TrackSolidAdapter implements GpsAdapterInterface
     private TrackSolidTokenStore $store;
     private ?string $token = null;
     private ?string $queryBody = null;
+    private string $ultimoError = '';
 
     private const VIGENCIA = 5400; // 90 min: refrescar el token pasado ese tiempo
 
@@ -49,7 +50,7 @@ class TrackSolidAdapter implements GpsAdapterInterface
     {
         $out = [];
         foreach ($this->consultar() as $d) {
-            $out[] = ['dispositivo' => $this->nombre($d), 'imei' => trim((string)($d['imei'] ?? ''))];
+            $out[] = ['dispositivo' => $this->nombre($d), 'imei' => $this->imei($d)];
         }
         return $out;
     }
@@ -84,14 +85,33 @@ class TrackSolidAdapter implements GpsAdapterInterface
         $script = realpath(__DIR__ . '/../worker/nodehelper/login.js');
         if (!$script) throw new RuntimeException('No se encontró el helper Node (login.js).');
         $node = (string) env('NODE_BIN', 'node');
+        $timeout = max(30, (int) env('TRACKSOLID_LOGIN_TIMEOUT', 150));
 
         $env = array_merge(getenv(), ['TS_USER' => $this->usuario, 'TS_PWD' => $this->pwd]);
         $desc = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
         $proc = proc_open([$node, $script], $desc, $pipes, dirname($script), $env);
         if (!is_resource($proc)) throw new RuntimeException('No se pudo iniciar Node para el login de TrackSolid.');
 
-        $out = stream_get_contents($pipes[1]);
-        $err = stream_get_contents($pipes[2]);
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+        $out = '';
+        $err = '';
+        $inicio = time();
+        while (true) {
+            $out .= stream_get_contents($pipes[1]);
+            $err .= stream_get_contents($pipes[2]);
+            $st = proc_get_status($proc);
+            if (!$st['running']) break;
+            if ((time() - $inicio) > $timeout) {
+                proc_terminate($proc);
+                fclose($pipes[1]); fclose($pipes[2]);
+                proc_close($proc);
+                throw new RuntimeException("TrackSolid: login headless excedio {$timeout}s. Revisa Chrome/TrackSolid o captcha/2FA.");
+            }
+            usleep(100000);
+        }
+        $out .= stream_get_contents($pipes[1]);
+        $err .= stream_get_contents($pipes[2]);
         fclose($pipes[1]); fclose($pipes[2]);
         proc_close($proc);
 
@@ -112,7 +132,10 @@ class TrackSolidAdapter implements GpsAdapterInterface
             $this->login();
             $res = $this->postQuery();
         }
-        return $res ?? [];
+        if ($res === null) {
+            throw new RuntimeException('TrackSolid: no se pudo leer la lista de equipos. ' . $this->ultimoError);
+        }
+        return $res;
     }
 
     private function postQuery(): ?array
@@ -128,15 +151,49 @@ class TrackSolidAdapter implements GpsAdapterInterface
         ]);
         $resp = curl_exec($ch);
         $err  = curl_error($ch);
+        $http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
         if ($resp === false) throw new RuntimeException("TrackSolid: fallo de conexión ($err).");
+        if ($http >= 400) {
+            $this->ultimoError = "HTTP $http";
+            return null;
+        }
 
         $data = json_decode($resp, true);
-        // Éxito = trae 'data' como arreglo. Si no, el token probablemente venció.
-        if (is_array($data) && array_key_exists('data', $data) && is_array($data['data'])) {
-            return $data['data'];
+        if (!is_array($data)) {
+            $this->ultimoError = 'Respuesta no JSON.';
+            return null;
+        }
+
+        $lista = $this->extraerLista($data);
+        if ($lista !== null) {
+            return $lista;
+        }
+
+        $msg = $data['msg'] ?? $data['message'] ?? $data['error'] ?? $data['code'] ?? '';
+        $this->ultimoError = $msg ? ('Respuesta inesperada: ' . $msg) : 'Respuesta inesperada de queryEquipmentList.';
+        return null;
+    }
+
+    private function extraerLista(array $data): ?array
+    {
+        if ($this->pareceListaEquipos($data)) return $data;
+        foreach (['data', 'list', 'rows', 'records', 'result'] as $k) {
+            if (!array_key_exists($k, $data) || !is_array($data[$k])) continue;
+            if ($this->pareceListaEquipos($data[$k])) return $data[$k];
+            $nested = $this->extraerLista($data[$k]);
+            if ($nested !== null) return $nested;
         }
         return null;
+    }
+
+    private function pareceListaEquipos(array $v): bool
+    {
+        if ($v === []) return true;
+        $first = reset($v);
+        return is_array($first) && (
+            isset($first['imei']) || isset($first['deviceName']) || isset($first['deviceId'])
+        );
     }
 
     // ── Normalización ───────────────────────────────────────────
@@ -144,25 +201,97 @@ class TrackSolidAdapter implements GpsAdapterInterface
     {
         $out = [];
         foreach ($lista as $d) {
-            if (!isset($d['lat'], $d['lng']) || $d['lat'] === null || $d['lng'] === null) continue;
+            $lat = $this->campoFloat($d, ['lat', 'latitude', 'gpsLat', 'mapLat', 'bdLat', 'latGps']);
+            $lng = $this->campoFloat($d, ['lng', 'lon', 'longitude', 'gpsLng', 'mapLng', 'bdLng', 'lngGps']);
+            if ($lat === null || $lng === null) continue;
             $out[] = [
                 'dispositivo' => $this->nombre($d),
-                'imei'        => trim((string)($d['imei'] ?? '')),
-                'lat'         => (float)$d['lat'],
-                'lng'         => (float)$d['lng'],
-                'velocidad'   => (int)round((float)($d['speed'] ?? 0)),
-                'rumbo'       => (int)round((float)($d['direction'] ?? 0)),
-                'encendido'   => isset($d['acc']) ? ((int)$d['acc'] ? 1 : 0) : null,
-                'fecha'       => $d['gpsTime'] ?? ($d['otherPosTime'] ?? null),
-                'direccion'   => null,
+                'imei'        => $this->imei($d),
+                'lat'         => $lat,
+                'lng'         => $lng,
+                'velocidad'   => (int)round($this->campoFloat($d, ['speed', 'velocity', 'gpsSpeed']) ?? 0),
+                'rumbo'       => (int)round($this->campoFloat($d, ['direction', 'course', 'angle', 'bearing']) ?? 0),
+                'encendido'   => $this->encendido($d),
+                'fecha'       => $this->fecha($d),
+                'direccion'   => $this->direccion($d),
             ];
         }
         return $out;
     }
 
+    private function campoFloat(array $d, array $keys): ?float
+    {
+        foreach ($keys as $k) {
+            if (!array_key_exists($k, $d) || $d[$k] === null || $d[$k] === '') continue;
+            $v = str_replace(',', '.', (string)$d[$k]);
+            if (is_numeric($v)) return (float)$v;
+        }
+        return null;
+    }
+
+    private function encendido(array $d): ?int
+    {
+        foreach (['acc', 'accStatus', 'ignition', 'engine'] as $k) {
+            if (!array_key_exists($k, $d) || $d[$k] === null || $d[$k] === '') continue;
+            $v = strtolower((string)$d[$k]);
+            if (is_numeric($v)) return ((int)$v) ? 1 : 0;
+            if (in_array($v, ['true', 'on', 'open', 'encendido'], true)) return 1;
+            if (in_array($v, ['false', 'off', 'close', 'apagado'], true)) return 0;
+        }
+        return null;
+    }
+
+    private function fecha(array $d): ?string
+    {
+        foreach (['gpsTime', 'otherPosTime', 'posTime', 'lastTime', 'updateTime'] as $k) {
+            if (empty($d[$k])) continue;
+            $v = $d[$k];
+            if (is_numeric($v)) {
+                $n = (int)$v;
+                if ($n > 9999999999) $n = (int)floor($n / 1000);
+                return date('Y-m-d H:i:s', $n);
+            }
+            return (string)$v;
+        }
+        return null;
+    }
+
+    private function direccion(array $d): ?string
+    {
+        $keys = [
+            'address', 'addr', 'location', 'position', 'gpsAddress', 'addressDesc',
+            'detailAddress', 'formattedAddress', 'locationName', 'locationDesc',
+            'currentAddress', 'lastAddress', 'mapAddress', 'poi'
+        ];
+        foreach ($keys as $k) {
+            if (!empty($d[$k]) && is_scalar($d[$k])) {
+                $txt = trim(preg_replace('/\s+/', ' ', (string)$d[$k]));
+                if ($txt !== '') return $txt;
+            }
+        }
+        foreach (['gps', 'positionInfo', 'locationInfo', 'lastPosition', 'position'] as $parent) {
+            if (!empty($d[$parent]) && is_array($d[$parent])) {
+                $txt = $this->direccion($d[$parent]);
+                if ($txt) return $txt;
+            }
+        }
+        return null;
+    }
+
     /** deviceName suele venir "PLACA \n alias" → una línea limpia. */
     private function nombre(array $d): string
     {
-        return trim(preg_replace('/\s+/', ' ', (string)($d['deviceName'] ?? $d['imei'] ?? '')));
+        foreach (['deviceName', 'name', 'terminalName', 'carNumber', 'plateNumber', 'plateNo'] as $k) {
+            if (!empty($d[$k])) return trim(preg_replace('/\s+/', ' ', (string)$d[$k]));
+        }
+        return $this->imei($d);
+    }
+
+    private function imei(array $d): string
+    {
+        foreach (['imei', 'imeiNo', 'deviceImei', 'terminalNo', 'deviceNo', 'sn'] as $k) {
+            if (!empty($d[$k])) return trim((string)$d[$k]);
+        }
+        return '';
     }
 }
