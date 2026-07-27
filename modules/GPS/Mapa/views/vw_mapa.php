@@ -267,8 +267,8 @@
   .mapa-item .mi-ruta:hover { background:#eaf3ee; border-color:#156b45; }
   .mapa-item .mi-ruta.btn-outline-success { color:#0f7a3a; border-color:#b9d8c5; }
   .mapa-item .mi-inc { font-size:.66rem; color:#dc3545; font-family:'IBM Plex Mono', ui-monospace, monospace; white-space:nowrap; }
-  .mapa-item .mi-quitar { border:none; background:none; color:#c0c4c9; font-size:.95rem; line-height:1; padding:2px 4px; cursor:pointer; }
-  .mapa-item .mi-quitar:hover { color:#dc3545; }
+  .mapa-item .mi-descartar { border:none; background:none; color:#c0c4c9; font-size:.95rem; line-height:1; padding:2px 4px; cursor:pointer; }
+  .mapa-item .mi-descartar:hover { color:#d9a300; }
 
   .mk { background:none; border:none; }
   .mk-veh { position:relative; width:38px; height:28px; transform-origin:50% 50%; filter:drop-shadow(0 1px 2px rgba(0,0,0,.32)); }

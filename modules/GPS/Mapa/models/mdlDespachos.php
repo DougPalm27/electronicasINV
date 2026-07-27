@@ -147,14 +147,21 @@ class mdlDespachos
         return ['agregados' => $agregados, 'omitidos' => $omitidos];
     }
 
-    /** Quita un carro del despacho (deja de seguirlo). No borra: historial. */
-    public function quitarVehiculo(int $id_dv): void
+    /**
+     * Quita un carro del despacho (deja de seguirlo). No borra: soft-delete.
+     * $motivo: 'removido' (salió de ruta / cumplió) | 'error' (se agregó por equivocación).
+     */
+    public function quitarVehiculo(int $id_dv, string $motivo = 'removido'): void
     {
-        $stmt = $this->conn->prepare(
-            "UPDATE gps.DespachoVehiculos SET activo = 0, fecha_removido = GETDATE()
-             WHERE id_dv = ? AND activo = 1"
-        );
-        $stmt->execute([$id_dv]);
+        $motivo = $motivo === 'error' ? 'error' : 'removido';
+        $col = $this->columnaExiste('gps.DespachoVehiculos', 'motivo_remocion');
+        $sql = $col
+            ? "UPDATE gps.DespachoVehiculos SET activo = 0, fecha_removido = GETDATE(), motivo_remocion = ?
+               WHERE id_dv = ? AND activo = 1"
+            : "UPDATE gps.DespachoVehiculos SET activo = 0, fecha_removido = GETDATE()
+               WHERE id_dv = ? AND activo = 1";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute($col ? [$motivo, $id_dv] : [$id_dv]);
     }
 
     /** Placas/imeis ya activos en un despacho (para marcar en el selector). */
@@ -184,6 +191,10 @@ class mdlDespachos
         if ($id_despacho !== null) {
             $where = $historico ? "dv.id_despacho = ?" : "dv.id_despacho = ? AND dv.activo = 1";
             $params = [$id_despacho];
+        }
+        // Los carros descartados por error no salen ni en históricos.
+        if ($this->columnaExiste('gps.DespachoVehiculos', 'motivo_remocion')) {
+            $where .= " AND ISNULL(dv.motivo_remocion, '') <> 'error'";
         }
 
         $posJoin = "LEFT  JOIN gps.Posiciones pos ON pos.id_cuenta = dv.id_cuenta AND pos.imei = dv.imei";
@@ -538,6 +549,8 @@ class mdlDespachos
 
         $stmt = $this->conn->prepare(
             "SELECT dv.id_dv, dv.placa, dv.imei, dv.dispositivo, dv.activo,
+                    " . ($this->columnaExiste('gps.DespachoVehiculos', 'motivo_remocion')
+                        ? "dv.motivo_remocion" : "CAST(NULL AS NVARCHAR(15)) AS motivo_remocion") . ",
                     CONVERT(varchar(19), dv.fecha_agregado, 120) AS fecha_agregado,
                     CONVERT(varchar(19), dv.fecha_removido, 120) AS fecha_removido,
                     p.nombre AS plataforma, p.tipo_integracion, t.nombre AS transporte, c.usuario,
@@ -551,7 +564,9 @@ class mdlDespachos
              INNER JOIN gps.Transportes  t ON t.id_transporte = c.id_transporte
              LEFT  JOIN gps.Posiciones pos ON pos.id_cuenta = dv.id_cuenta AND pos.imei = dv.imei
              $tramoJoin
-             WHERE dv.id_despacho = ?
+             WHERE dv.id_despacho = ?" .
+             ($this->columnaExiste('gps.DespachoVehiculos', 'motivo_remocion')
+                ? " AND ISNULL(dv.motivo_remocion, '') <> 'error'" : "") . "
              ORDER BY dv.placa"
         );
         $stmt->execute([$id_despacho]);
@@ -624,6 +639,19 @@ class mdlDespachos
 
         return ['despacho' => $despacho, 'equipos' => $equipos];
     }
+
+    /** ¿Existe una columna? (para migraciones que aún no se corren). Cachea por columna. */
+    private function columnaExiste(string $tabla, string $columna): bool
+    {
+        $clave = "$tabla.$columna";
+        if (isset($this->columnasCache[$clave])) return $this->columnasCache[$clave];
+        $stmt = $this->conn->prepare(
+            "SELECT CASE WHEN COL_LENGTH(?, ?) IS NULL THEN 0 ELSE 1 END"
+        );
+        $stmt->execute([$tabla, $columna]);
+        return $this->columnasCache[$clave] = ((int)$stmt->fetchColumn() === 1);
+    }
+    private $columnasCache = [];
 
     private function tablaExiste(string $tabla): bool
     {

@@ -195,8 +195,8 @@ $(document).ready(function () {
                     ? `<br><span class="mi-inc">${esc(v.incidencias_total)} incidencias · ${esc(v.incidencias_abiertas || 0)} abiertas</span>`
                     : '';
                 const btnQuitar = estadoDespachos === 'cerrado' ? '' :
-                    `<button class="mi-quitar" title="Quitar del despacho" data-id="${v.id_dv}">
-                         <i class="bi bi-x-lg"></i></button>`;
+                    `<button class="mi-descartar" title="Descartar (agregado por error)" data-id="${v.id_dv}">
+                         <i class="bi bi-slash-circle"></i></button>`;
                 $l.append(
                     `<div class="mapa-item ${String(v.id_dv) === String(seleccionado) ? 'activo' : ''}" data-id="${v.id_dv}">
                        <span class="mi-dot" style="background:${SEG[seg] || SEG.sin_senal}"></span>
@@ -355,16 +355,17 @@ $(document).ready(function () {
             if (marker && marker.openPopup) marker.openPopup();
         }
     });
-    // Quitar carro del despacho
-    $('#mapaLista').on('click', '.mi-quitar', function () {
+    // Descartar carro agregado por error (soft-delete con motivo = 'error')
+    $('#mapaLista').on('click', '.mi-descartar', function () {
         const id = $(this).data('id');
         const v = datos.find(x => x.id_dv == id);
-        Swal.fire({ icon: 'warning', title: '¿Quitar del despacho?',
-            text: v ? `${v.placa} dejará de seguirse.` : '', showCancelButton: true,
-            confirmButtonText: 'Sí, quitar', cancelButtonText: 'Cancelar', confirmButtonColor: '#dc3545'
+        Swal.fire({ icon: 'question', title: '¿Agregado por error?',
+            text: v ? `${v.placa} se descartará del despacho. No aparecerá en el reporte ni en el histórico.` : '',
+            showCancelButton: true, confirmButtonText: 'Sí, fue error', cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#d9a300'
         }).then(r => {
             if (!r.isConfirmed) return;
-            $.post(CTRL_MAPA, { accion: 'quitarVehiculo', id_dv: id }, function (resp) {
+            $.post(CTRL_MAPA, { accion: 'quitarVehiculo', id_dv: id, motivo: 'error' }, function (resp) {
                 if (!resp.ok) { Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje }); return; }
                 cargar(false);
             }, 'json');

@@ -127,10 +127,13 @@ try {
             break;
 
         case 'quitarVehiculo':
-            $id_dv = (int)($_POST['id_dv'] ?? 0);
+            $id_dv  = (int)($_POST['id_dv'] ?? 0);
+            $motivo = ($_POST['motivo'] ?? '') === 'error' ? 'error' : 'removido';
             if (!$id_dv) respM([], true, 'Vehículo no especificado.');
-            $desp->quitarVehiculo($id_dv);
-            respM([], false, 'Vehículo quitado del despacho.');
+            $desp->quitarVehiculo($id_dv, $motivo);
+            respM([], false, $motivo === 'error'
+                ? 'Vehículo descartado (agregado por error).'
+                : 'Vehículo quitado del despacho.');
             break;
 
         case 'recorrido':

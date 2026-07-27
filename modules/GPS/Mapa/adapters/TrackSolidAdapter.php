@@ -55,6 +55,21 @@ class TrackSolidAdapter implements GpsAdapterInterface
         return $out;
     }
 
+    /**
+     * Para el worker refrescador: renueva el token si tiene más de $maxEdadSeg.
+     * Devuelve 'vigente' (no hizo falta) o 'renovado' (login headless nuevo).
+     * Mantener $maxEdadSeg < VIGENCIA para que la web siempre encuentre caché.
+     */
+    public function renovarToken(int $maxEdadSeg = 2700): string
+    {
+        $row = $this->store->leer($this->usuario);
+        if ($row && !empty($row['token']) && !empty($row['query_body']) && (int)$row['edad'] < $maxEdadSeg) {
+            return 'vigente';
+        }
+        $this->login();
+        return 'renovado';
+    }
+
     // ── Token: caché o login headless ───────────────────────────
     private function asegurarToken(): void
     {
