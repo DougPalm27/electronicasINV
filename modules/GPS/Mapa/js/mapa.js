@@ -372,6 +372,65 @@ $(document).ready(function () {
         });
     });
 
+    // Copiar direcciones de todos los carros en pantalla (para pegar en WhatsApp/correo).
+    // Las que falten se resuelven con el mismo geocode() de los popups (Nominatim).
+    $('#btnCopiarDirecciones').on('click', async function () {
+        if (!datos.length) {
+            Swal.fire({ icon: 'info', title: 'Sin carros', text: 'No hay vehículos en el despacho para copiar.' });
+            return;
+        }
+        const faltantes = datos.filter(v => !(v.direccion || '').trim() && v.lat != null && v.lng != null);
+        if (faltantes.length) {
+            Swal.fire({ title: 'Buscando direcciones…', html: `0 de ${faltantes.length}`,
+                allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            for (let i = 0; i < faltantes.length; i++) {
+                const v = faltantes[i];
+                const dir = await geocode(v.lat, v.lng);
+                if (dir) v.direccion = dir;
+                if (Swal.getHtmlContainer()) Swal.getHtmlContainer().textContent = `${i + 1} de ${faltantes.length}`;
+                if (i < faltantes.length - 1) await new Promise(r => setTimeout(r, 1100)); // cortesía Nominatim (1 req/s)
+            }
+            Swal.close();
+        }
+        const grupos = {};
+        datos.forEach(v => {
+            const d = v.despacho || 'Despacho';
+            (grupos[d] = grupos[d] || []).push(v);
+        });
+        const nombres = Object.keys(grupos);
+        let txt = `Ubicaciones — ${new Date().toLocaleString('es-HN')}\n`;
+        nombres.forEach(d => {
+            if (nombres.length > 1) txt += `\n${d}:\n`;
+            grupos[d].forEach(v => {
+                const dir = (v.direccion || '').trim();
+                const mapsLink = (v.lat != null && v.lng != null) ? `https://maps.google.com/?q=${v.lat},${v.lng}` : '';
+                const ubic = dir || mapsLink || 'sin ubicación reciente';
+                const hora = v.fecha ? ` (${v.fecha.substring(11, 16)})` : '';
+                txt += `• ${v.placa}: ${ubic}${hora}\n`;
+            });
+        });
+        copiarTexto(txt.trim(), datos.length);
+    });
+    function copiarTexto(txt, n) {
+        const listo = () => Swal.fire({ icon: 'success', title: 'Copiado',
+            text: `Direcciones de ${n} carros en el portapapeles.`, timer: 1600, showConfirmButton: false });
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(txt).then(listo).catch(() => copiarTextoFallback(txt, listo));
+        } else {
+            copiarTextoFallback(txt, listo);
+        }
+    }
+    function copiarTextoFallback(txt, listo) {
+        const ta = document.createElement('textarea');
+        ta.value = txt;
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); listo(); }
+        catch (e) { Swal.fire({ icon: 'error', title: 'No se pudo copiar', text: 'Copia manualmente desde la consola.' }); }
+        document.body.removeChild(ta);
+    }
+
     const modalIncidencias = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalIncidenciasVeh'));
     function abrirIncidenciasVehiculo(id, registrar = false) {
         const v = datos.find(x => String(x.id_dv) === String(id));

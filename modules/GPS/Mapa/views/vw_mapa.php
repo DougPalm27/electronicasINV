@@ -49,6 +49,9 @@
     <button class="btn btn-sm btn-outline-primary" id="btnAgregarVehiculos" disabled>
       <i class="bi bi-truck me-1"></i> Agregar vehículos
     </button>
+    <button class="btn btn-sm btn-outline-secondary" id="btnCopiarDirecciones" title="Copiar placa y dirección de todos los carros en pantalla">
+      <i class="bi bi-clipboard me-1"></i> Copiar direcciones
+    </button>
     <button class="btn btn-sm btn-outline-secondary" id="btnReporteDespacho" disabled>
       <i class="bi bi-file-earmark-text me-1"></i> Reporte
     </button>
