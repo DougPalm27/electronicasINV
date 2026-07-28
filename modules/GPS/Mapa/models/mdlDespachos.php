@@ -640,6 +640,67 @@ class mdlDespachos
         return ['despacho' => $despacho, 'equipos' => $equipos];
     }
 
+    /**
+     * Cuánto lleva parado cada vehículo, según su propio recorrido guardado.
+     * "Parado" = sus reportes más recientes están a menos de ~45 m del último punto.
+     * Se mide con la hora que reporta el GPS, no con la de captura.
+     *
+     * Devuelve id_dv => ['minutos_detenido' => int, 'detenido_desde' => 'Y-m-d H:i:s'].
+     */
+    public function detenciones(array $idsDv): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $idsDv)));
+        $ids = array_filter($ids);
+        if (!$ids || !$this->tablaExiste('gps.DespachoRecorridos')) return [];
+
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->conn->prepare(
+            "WITH ult AS (
+                SELECT r.id_dv, CAST(r.lat AS FLOAT) AS lat, CAST(r.lng AS FLOAT) AS lng,
+                       ISNULL(r.fecha_posicion, r.fecha_captura) AS fecha,
+                       ROW_NUMBER() OVER (PARTITION BY r.id_dv
+                           ORDER BY ISNULL(r.fecha_posicion, r.fecha_captura) DESC, r.id_recorrido DESC) AS rn
+                FROM gps.DespachoRecorridos r
+                WHERE r.id_dv IN ($in)
+             )
+             SELECT u.id_dv,
+                    CONVERT(varchar(19), u.fecha, 120)        AS ultima,
+                    CONVERT(varchar(19), ini.fecha_ini, 120)  AS desde
+             FROM ult u
+             OUTER APPLY (
+                -- último momento en que estuvo en OTRO lugar
+                SELECT MAX(ISNULL(r2.fecha_posicion, r2.fecha_captura)) AS fecha_mov
+                FROM gps.DespachoRecorridos r2
+                WHERE r2.id_dv = u.id_dv
+                  AND ( ABS(CAST(r2.lat AS FLOAT) - u.lat) > 0.0004
+                     OR ABS(CAST(r2.lng AS FLOAT) - u.lng) > 0.0004 )
+             ) mov
+             OUTER APPLY (
+                -- primer reporte en el punto actual después de ese movimiento
+                SELECT MIN(ISNULL(r3.fecha_posicion, r3.fecha_captura)) AS fecha_ini
+                FROM gps.DespachoRecorridos r3
+                WHERE r3.id_dv = u.id_dv
+                  AND ABS(CAST(r3.lat AS FLOAT) - u.lat) <= 0.0004
+                  AND ABS(CAST(r3.lng AS FLOAT) - u.lng) <= 0.0004
+                  AND (mov.fecha_mov IS NULL
+                       OR ISNULL(r3.fecha_posicion, r3.fecha_captura) > mov.fecha_mov)
+             ) ini
+             WHERE u.rn = 1"
+        );
+        $stmt->execute($ids);
+
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            if (empty($r['ultima']) || empty($r['desde'])) continue;
+            $min = (int) floor((strtotime($r['ultima']) - strtotime($r['desde'])) / 60);
+            $out[(int)$r['id_dv']] = [
+                'minutos_detenido' => max(0, $min),
+                'detenido_desde'   => $r['desde'],
+            ];
+        }
+        return $out;
+    }
+
     /** ¿Existe una columna? (para migraciones que aún no se corren). Cachea por columna. */
     private function columnaExiste(string $tabla, string $columna): bool
     {

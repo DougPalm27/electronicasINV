@@ -93,14 +93,33 @@
       </div>
     </div>
 
-    <div class="d-flex flex-wrap gap-3 mb-3 small text-muted">
+    <div class="d-flex flex-wrap gap-3 mb-3 small text-muted align-items-center">
       <span><span class="seg-dot" style="background:#156b45"></span> En vivo</span>
       <span><span class="seg-dot" style="background:#6c757d"></span> Sin señal</span>
       <span><span class="seg-dot" style="background:#d9a300"></span> Pendiente</span>
+      <span class="ms-auto d-flex align-items-center gap-2 flex-wrap alertas-cfg">
+        <span class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="alertasOn" checked>
+          <label class="form-check-label" for="alertasOn"><i class="bi bi-bell me-1"></i>Alertas</label>
+        </span>
+        <label class="mb-0">Detenido
+          <input type="number" class="form-control form-control-sm d-inline-block" id="alertaMinDetenido"
+                 min="1" max="240" value="4" style="width:62px"> min
+        </label>
+        <label class="mb-0">Sin reportar
+          <input type="number" class="form-control form-control-sm d-inline-block" id="alertaMinSinReporte"
+                 min="1" max="240" value="15" style="width:62px"> min
+        </label>
+        <span class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="alertaSonido" checked>
+          <label class="form-check-label" for="alertaSonido"><i class="bi bi-volume-up"></i></label>
+        </span>
+      </span>
     </div>
 
     <div class="row g-3">
       <div class="col-12 col-lg-3">
+        <div id="alertasPanel" class="d-none mb-2"></div>
         <div class="mapa-lista border" id="mapaLista">
           <div class="text-muted small p-3">Cargando…</div>
         </div>
@@ -245,6 +264,23 @@
   #mapaGPS { height: calc(100vh - 360px); min-height: 440px; border: 1px solid var(--hc-banda, #d7ddd9); }
   .mapa-lista { height: calc(100vh - 360px); min-height: 440px; overflow-y: auto; background: #fff; }
   .seg-dot { display:inline-block; width:11px; height:11px; border-radius:50%; margin-right:3px; vertical-align:middle; }
+  .alertas-cfg { font-size:.72rem; }
+  .alertas-cfg label { white-space:nowrap; }
+  .alertas-cfg .form-control { font-family:'IBM Plex Mono', monospace; font-size:.72rem; padding:.1rem .25rem; }
+  #alertasPanel { border:1px solid #e3c2c2; border-left:4px solid #b02a37; background:#fdf6f6; }
+  #alertasPanel .ap-head { display:flex; align-items:center; gap:.4rem; padding:.35rem .55rem; border-bottom:1px solid #f0dcdc;
+                           font-family:'IBM Plex Mono', monospace; font-size:.72rem; font-weight:700; color:#b02a37; }
+  #alertasPanel .ap-item { display:flex; align-items:center; gap:.5rem; padding:.3rem .55rem; border-bottom:1px solid #f6eaea; cursor:pointer; }
+  #alertasPanel .ap-item:last-child { border-bottom:none; }
+  #alertasPanel .ap-item:hover { background:#f9eded; }
+  #alertasPanel .ap-placa { font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:.76rem; }
+  #alertasPanel .ap-txt { font-size:.68rem; color:#8a6b6b; flex:1 1 auto; }
+  #alertasPanel .ap-inc { border:none; background:none; color:#b02a37; font-size:.8rem; padding:1px 3px; }
+  #alertasPanel .ap-inc:hover { color:#7a1d26; }
+  .mapa-item.alerta { background:#fdf6f6; border-left-color:#b02a37; }
+  .mapa-item .mi-alerta { display:block; font-size:.66rem; color:#b02a37; font-weight:600; }
+  @keyframes alertaPulso { 0%,100% { opacity:1; } 50% { opacity:.45; } }
+  #alertasPanel .ap-head i { animation:alertaPulso 1.4s ease-in-out infinite; }
   .worker-status { align-items:center; gap:.35rem; font-family:'IBM Plex Mono', ui-monospace, monospace; font-size:.68rem; color:#8a919c; }
   .worker-dot { width:9px; height:9px; border-radius:50%; background:#adb5bd; box-shadow:0 0 0 2px rgba(0,0,0,.05); }
   .worker-status.ok .worker-dot { background:#156b45; }

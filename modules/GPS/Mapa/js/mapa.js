@@ -164,6 +164,109 @@ $(document).ready(function () {
             (!pl || (v.placa || '').toUpperCase().includes(pl)));
     }
 
+    // ── Alertas (solo carros con ruta iniciada) ────────────────
+    // Se evalúan en cada refresco (30 s). "Detenido" lo calcula el servidor con
+    // el recorrido guardado, así que sobrevive a recargas de la página.
+    const ALERTA_CFG = 'gpsAlertasCfg';
+    let alertasVistas = {};   // clave "id_dv|tipo" -> true, para sonar una sola vez
+    function cfgAlertas() {
+        return {
+            on: $('#alertasOn').is(':checked'),
+            sonido: $('#alertaSonido').is(':checked'),
+            detenido: Math.max(1, parseInt($('#alertaMinDetenido').val(), 10) || 4),
+            sinReporte: Math.max(1, parseInt($('#alertaMinSinReporte').val(), 10) || 15),
+        };
+    }
+    function guardarCfgAlertas() {
+        try { localStorage.setItem(ALERTA_CFG, JSON.stringify(cfgAlertas())); } catch (e) { /* sin storage */ }
+    }
+    function cargarCfgAlertas() {
+        let c = null;
+        try { c = JSON.parse(localStorage.getItem(ALERTA_CFG) || 'null'); } catch (e) { c = null; }
+        if (!c) return;
+        $('#alertasOn').prop('checked', c.on !== false);
+        $('#alertaSonido').prop('checked', c.sonido !== false);
+        if (c.detenido) $('#alertaMinDetenido').val(c.detenido);
+        if (c.sinReporte) $('#alertaMinSinReporte').val(c.sinReporte);
+    }
+    /** Devuelve {tipo, texto, minutos} o null. Solo aplica a carros en ruta. */
+    function alertaDe(v) {
+        const c = cfgAlertas();
+        if (!c.on || estadoDespachos === 'cerrado') return null;
+        if (v.estado_tramo !== 'en_ruta') return null;
+        const sinRep = v.minutos_sin_reporte;
+        if (sinRep != null && sinRep >= c.sinReporte) {
+            return { tipo: 'sin_reporte', minutos: sinRep, texto: `Sin reportar hace ${textoMin(sinRep)}` };
+        }
+        const det = v.minutos_detenido;
+        if (det != null && det >= c.detenido && !(v.velocidad > 0)) {
+            return { tipo: 'detenido', minutos: det, texto: `Detenido hace ${textoMin(det)}` };
+        }
+        return null;
+    }
+    function textoMin(m) {
+        m = Number(m) || 0;
+        if (m < 60) return `${m} min`;
+        const h = Math.floor(m / 60), r = m % 60;
+        return r ? `${h} h ${r} min` : `${h} h`;
+    }
+    function pintarAlertas(lista) {
+        const $p = $('#alertasPanel');
+        const activas = [];
+        lista.forEach(v => { const a = alertaDe(v); if (a) activas.push({ v, a }); });
+        if (!activas.length) { $p.addClass('d-none').empty(); alertasVistas = {}; return; }
+
+        const filas = activas.map(({ v, a }) => `
+            <div class="ap-item" data-id="${v.id_dv}">
+              <span class="ap-placa">${esc(v.placa)}</span>
+              <span class="ap-txt">${esc(a.texto)}</span>
+              <button class="ap-inc" type="button" data-id="${v.id_dv}" data-tipo="${a.tipo}"
+                      title="Registrar incidencia"><i class="bi bi-clipboard-plus"></i></button>
+            </div>`).join('');
+        $p.removeClass('d-none').html(
+            `<div class="ap-head"><i class="bi bi-exclamation-triangle-fill"></i>
+               ${activas.length} ${activas.length === 1 ? 'alerta' : 'alertas'}</div>${filas}`);
+
+        // Sonar solo cuando aparece una alerta nueva
+        const nuevas = activas.filter(({ v, a }) => !alertasVistas[v.id_dv + '|' + a.tipo]);
+        const vigentes = {};
+        activas.forEach(({ v, a }) => { vigentes[v.id_dv + '|' + a.tipo] = true; });
+        alertasVistas = vigentes;
+        if (nuevas.length && cfgAlertas().sonido) sonarAlerta();
+    }
+    let audioCtx = null;
+    function sonarAlerta() {
+        try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return;
+            audioCtx = audioCtx || new AC();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            [0, 0.22].forEach(t => {
+                const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+                o.type = 'sine';
+                o.frequency.value = 880;
+                g.gain.setValueAtTime(0.0001, audioCtx.currentTime + t);
+                g.gain.exponentialRampToValueAtTime(0.22, audioCtx.currentTime + t + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + t + 0.16);
+                o.connect(g); g.connect(audioCtx.destination);
+                o.start(audioCtx.currentTime + t); o.stop(audioCtx.currentTime + t + 0.18);
+            });
+        } catch (e) { /* sin audio disponible */ }
+    }
+    $('#alertasOn, #alertaSonido, #alertaMinDetenido, #alertaMinSinReporte').on('change', function () {
+        guardarCfgAlertas();
+        alertasVistas = {};
+        render();
+    });
+    // Clic en una alerta → centrar el carro; el botón → registrar incidencia
+    $('#alertasPanel').on('click', '.ap-item', function () { seleccionarVehiculo($(this).data('id'), true); });
+    $('#alertasPanel').on('click', '.ap-inc', function (e) {
+        e.stopPropagation();
+        const $b = $(this);
+        abrirIncidenciasVehiculo($b.data('id'), true);
+        $('#incTipo').val($b.data('tipo') === 'sin_reporte' ? 'Perdida de senal' : 'Detencion no autorizada');
+    });
+
     // ── Render ─────────────────────────────────────────────────
     function render() {
         const lista = filtrar();
@@ -197,13 +300,15 @@ $(document).ready(function () {
                 const btnQuitar = estadoDespachos === 'cerrado' ? '' :
                     `<button class="mi-descartar" title="Descartar (agregado por error)" data-id="${v.id_dv}">
                          <i class="bi bi-slash-circle"></i></button>`;
+                const al = alertaDe(v);
+                const alTxt = al ? `<span class="mi-alerta"><i class="bi bi-exclamation-triangle-fill me-1"></i>${esc(al.texto)}</span>` : '';
                 $l.append(
-                    `<div class="mapa-item ${String(v.id_dv) === String(seleccionado) ? 'activo' : ''}" data-id="${v.id_dv}">
+                    `<div class="mapa-item ${String(v.id_dv) === String(seleccionado) ? 'activo' : ''} ${al ? 'alerta' : ''}" data-id="${v.id_dv}">
                        <span class="mi-dot" style="background:${SEG[seg] || SEG.sin_senal}"></span>
                        <span class="mi-body" data-id="${v.id_dv}">
                          <span class="mi-placa">${esc(v.placa)}</span><br>
                          <span class="mi-sub">${esc(sub)}</span><br>
-                         <span class="mi-tramo">${esc(ruta)}</span>${incTxt}
+                         <span class="mi-tramo">${esc(ruta)}</span>${incTxt}${alTxt}
                        </span>
                        <span class="mi-vel">${esc(der)}</span>
                        ${botonesTramo(v)}
@@ -213,6 +318,7 @@ $(document).ready(function () {
             });
         }
         if (!ajustado && bounds.length) { mapa.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 }); ajustado = true; }
+        pintarAlertas(lista);
         estadoTexto(lista);
     }
     function estadoTexto(lista) {
@@ -1103,6 +1209,7 @@ $(document).ready(function () {
     function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
     // ── Arranque ───────────────────────────────────────────────
+    cargarCfgAlertas();
     revisarWorkerOptimus();
     timerWorker = setInterval(revisarWorkerOptimus, 60000);
     sincronizarAutoRefresh();

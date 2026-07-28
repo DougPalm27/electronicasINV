@@ -81,7 +81,32 @@ function armarRegistro(array $v, ?array $pos, bool $historico = false, bool $des
         'encendido'     => $pos['encendido'] ?? null,
         'direccion'     => $pos['direccion'] ?? null,
         'fecha'         => $pos['fecha']     ?? null,
+        // Para las alertas del mapa (se calcula con la hora del servidor, no la del navegador)
+        'minutos_sin_reporte' => minutosDesde($pos['fecha'] ?? null),
     ];
+}
+function minutosDesde(?string $fecha): ?int {
+    if (!$fecha) return null;
+    $ts = strtotime($fecha);
+    if (!$ts) return null;
+    return max(0, (int) floor((time() - $ts) / 60));
+}
+/** Añade cuánto lleva parado cada carro con ruta iniciada (solo esos generan alerta). */
+function agregarDetenciones(mdlDespachos $desp, array $registros): array {
+    $ids = [];
+    foreach ($registros as $r) {
+        if (($r['estado_tramo'] ?? '') === 'en_ruta') $ids[] = $r['id_dv'];
+    }
+    $det = [];
+    if ($ids) {
+        try { $det = $desp->detenciones($ids); } catch (Throwable $e) { $det = []; }
+    }
+    foreach ($registros as &$r) {
+        $d = $det[$r['id_dv']] ?? null;
+        $r['minutos_detenido'] = $d['minutos_detenido'] ?? null;
+        $r['detenido_desde']   = $d['detenido_desde']   ?? null;
+    }
+    return $registros;
 }
 function guardarRecorridoSeguro(mdlDespachos $desp, array $vehiculo, ?array $pos): void {
     if (!$pos || ($pos['lat'] ?? null) === null || ($pos['lng'] ?? null) === null) return;
@@ -201,6 +226,7 @@ try {
             $historico = ($_POST['historico'] ?? '0') === '1';
             $out = [];
             foreach ($desp->vehiculos($id_despacho, $historico) as $r) $out[] = armarRegistro($r, posDeFila($r), $historico);
+            if (!$historico) $out = agregarDetenciones($desp, $out);
             respM(['vehiculos' => $out]);
             break;
 
@@ -284,6 +310,7 @@ try {
                     foreach ($vs as $v) { $out[] = armarRegistro($v, null); $resumen['pendientes']++; }
                 }
             }
+            $out = agregarDetenciones($desp, $out);
             respM(['vehiculos' => $out, 'resumen' => $resumen]);
             break;
 
