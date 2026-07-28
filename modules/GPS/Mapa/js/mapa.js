@@ -221,7 +221,18 @@ $(document).ready(function () {
         const $p = $('#alertasPanel');
         const activas = [];
         lista.forEach(v => { const a = alertaDe(v); if (a) activas.push({ v, a }); });
-        if (!activas.length) { $p.addClass('d-none').empty(); alertasVistas = {}; return; }
+
+        // Contadores de las pestañas y la campana de la barra
+        $('#contCarros').text(lista.length);
+        $('#contAlertas').text(activas.length);
+        $('#campanaConteo').text(activas.length);
+        $('#btnCampanaAlertas').toggleClass('d-none', !activas.length);
+
+        if (!activas.length) {
+            $p.html('<div class="ap-vacio"><i class="bi bi-check-circle me-1"></i>Sin alertas activas</div>');
+            alertasVistas = {};
+            return;
+        }
 
         const filas = activas.map(({ v, a }) => `
             <div class="ap-item" data-id="${v.id_dv}">
@@ -230,9 +241,9 @@ $(document).ready(function () {
               <button class="ap-inc" type="button" data-id="${v.id_dv}" data-tipo="${a.tipo}"
                       title="Registrar incidencia"><i class="bi bi-clipboard-plus"></i></button>
             </div>`).join('');
-        $p.removeClass('d-none').html(
+        $p.html(
             `<div class="ap-head"><i class="bi bi-exclamation-triangle-fill"></i>
-               ${activas.length} ${activas.length === 1 ? 'alerta' : 'alertas'}</div>${filas}`);
+               ${activas.length} ${activas.length === 1 ? 'alerta activa' : 'alertas activas'}</div>${filas}`);
 
         // Sonar solo cuando aparece una alerta nueva
         const nuevas = activas.filter(({ v, a }) => !alertasVistas[v.id_dv + '|' + a.tipo]);
@@ -364,6 +375,15 @@ $(document).ready(function () {
         alertasVistas = {};
         // Recargar de caché: el servidor recalcula las detenciones con el nuevo alcance
         if (this.id === 'alertaSoloEnRuta') cargar(false); else render();
+    });
+    // El resumen del pie abre el detalle de plataformas
+    $('#platformStatus').on('click', function () {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPlataformas')).show();
+    });
+    // La campana de la barra abre la pestaña de alertas
+    $('#btnCampanaAlertas').on('click', function () {
+        const t = document.getElementById('tabBtnAlertas');
+        if (t) bootstrap.Tab.getOrCreateInstance(t).show();
     });
     // Clic en una alerta → centrar el carro; el botón → registrar incidencia
     $('#alertasPanel').on('click', '.ap-item', function () { seleccionarVehiculo($(this).data('id'), true); });
@@ -917,6 +937,7 @@ $(document).ready(function () {
             if (errores[errKey]) g.error = errores[errKey];
         });
 
+        const conteo = { ok: 0, warn: 0, err: 0 };
         const html = Object.values(grupos).map(g => {
             let cls = 'warn', msg = 'Sin señal';
             if (g.error) { cls = 'err'; msg = g.error; }
@@ -932,13 +953,22 @@ $(document).ready(function () {
             } else if (g.pendiente > 0) {
                 msg = 'Pendiente';
             }
+            conteo[cls]++;
             const nombre = [g.plataforma, g.usuario ? g.usuario : '', g.motor ? `(${g.motor})` : ''].filter(Boolean).join(' ');
             return `<span class="plat-chip ${cls}" title="${esc(msg)}">
                       <span class="pc-main">${esc(nombre)}</span>
                       <span class="pc-sub">${esc(g.transporte)} · ${esc(msg)}</span>
                     </span>`;
         }).join('');
-        $box.html(html);
+
+        // El detalle vive en su modal; en el pie solo va el resumen
+        $('#platformStatusDetalle').html(html || '<span class="text-muted small">Sin cuentas para mostrar.</span>');
+        const total = conteo.ok + conteo.warn + conteo.err;
+        const partes = [`${conteo.ok}/${total} en vivo`];
+        if (conteo.err)  partes.push(`${conteo.err} con error`);
+        if (conteo.warn) partes.push(`${conteo.warn} sin señal`);
+        $box.html(`<span class="pe-link ${conteo.err ? 'err' : ''}">
+                     <i class="bi bi-hdd-network me-1"></i>${esc(partes.join(' · '))}</span>`);
     }
 
     function revisarWorkerOptimus() {
@@ -1319,7 +1349,33 @@ $(document).ready(function () {
 
     function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
+    /**
+     * Ajusta el alto del mapa (y del panel lateral) al espacio libre real.
+     * Se mide en vivo en vez de asumir un alto fijo de cabecera, porque el
+     * marco de la plantilla cambia según pantalla y zoom.
+     */
+    function ajustarAlturaMapa() {
+        const $m = $('#mapaGPS');
+        if (!$m.length) return;
+        const top = $m[0].getBoundingClientRect().top;
+        const reservaPie = 64;   // pie de estado + padding de la tarjeta + margen inferior
+        const alto = Math.max(340, Math.round(window.innerHeight - top - reservaPie));
+        $m.height(alto);
+        $('.panel-lateral').height(alto);
+        if (mapa && mapa.invalidateSize) mapa.invalidateSize();
+    }
+    let tmAlto = null;
+    $(window).on('resize', function () {
+        clearTimeout(tmAlto);
+        tmAlto = setTimeout(ajustarAlturaMapa, 150);
+    });
+    // Al cambiar de pestaña Leaflet necesita recalcular su tamaño
+    $('.pl-tabs button[data-bs-toggle="tab"]').on('shown.bs.tab', ajustarAlturaMapa);
+    $('#filtrosExtra').on('shown.bs.collapse hidden.bs.collapse', ajustarAlturaMapa);
+
     // ── Arranque ───────────────────────────────────────────────
+    ajustarAlturaMapa();
+    setTimeout(ajustarAlturaMapa, 250);   // tras asentarse la plantilla
     cargarCfgAlertas();
     revisarWorkerOptimus();
     timerWorker = setInterval(revisarWorkerOptimus, 60000);

@@ -2,137 +2,232 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- Tarjeta 1: cabecera -->
-<div class="row mb-3">
-  <div class="col-12">
-    <div class="card shadow-sm border-0 ft-cabecera">
-      <div class="card-body d-flex justify-content-between align-items-center">
-        <div>
-          <h5 class="mb-0">Mapa GPS</h5>
-          <small class="text-muted">Seguimiento por despacho — arma tu lista de carros que salen</small>
-        </div>
-        <div class="d-flex align-items-center gap-3">
-          <span class="ft-meta d-none d-md-block">GPS<br>Despachos</span>
-          <span class="worker-status d-none d-md-inline-flex" id="optimusWorkerStatus">
-            <span class="worker-dot"></span>
-            <span class="worker-text">Optimus</span>
-          </span>
-          <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" id="mapaAutoRefresh" checked disabled>
-            <label class="form-check-label small" for="mapaAutoRefresh">Auto 30s</label>
-          </div>
-          <button class="btn btn-primary" id="btnMapaRefrescar">
-            <i class="bi bi-arrow-clockwise me-1"></i> Actualizar
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- ══════════════════════════════════════════════════════
+     BARRA ÚNICA DE OPERACIÓN
+     Solo lo que se usa a diario. Lo demás vive en el menú (⋯)
+     y en el panel de configuración (engranaje).
+══════════════════════════════════════════════════════ -->
+<div class="card shadow-sm border-0 mb-2">
+  <div class="card-body py-2 d-flex flex-wrap align-items-center gap-2 barra-op">
 
-<!-- Barra de despacho -->
-<div class="card shadow-sm border-0 mb-3">
-  <div class="card-body py-2 d-flex flex-wrap align-items-center gap-2">
-    <span class="small fw-semibold me-1"><i class="bi bi-clipboard-check me-1"></i>Despacho:</span>
+    <span class="bo-titulo"><i class="bi bi-geo-alt me-1"></i>Mapa GPS</span>
+    <span class="bo-sep d-none d-md-inline"></span>
+
+    <select class="form-select form-select-sm" id="selDespacho" style="max-width:230px">
+      <option value="">Todos los activos</option>
+    </select>
+
     <div class="btn-group btn-group-sm" role="group" aria-label="Modo de despacho">
       <input type="radio" class="btn-check" name="modoDespacho" id="modoDespachoActivo" value="activo" checked>
       <label class="btn btn-outline-primary" for="modoDespachoActivo">Activos</label>
       <input type="radio" class="btn-check" name="modoDespacho" id="modoDespachoHistorial" value="cerrado">
       <label class="btn btn-outline-primary" for="modoDespachoHistorial">Historial</label>
     </div>
-    <select class="form-select form-select-sm" id="selDespacho" style="max-width:280px">
-      <option value="">Todos los activos</option>
-    </select>
-    <button class="btn btn-sm btn-success" id="btnNuevoDespacho">
-      <i class="bi bi-plus-lg me-1"></i> Preparar despacho
-    </button>
-    <button class="btn btn-sm btn-outline-primary" id="btnAgregarVehiculos" disabled>
-      <i class="bi bi-truck me-1"></i> Agregar vehículos
-    </button>
-    <button class="btn btn-sm btn-outline-secondary" id="btnCopiarDirecciones" title="Copiar placa y dirección de todos los carros en pantalla">
-      <i class="bi bi-clipboard me-1"></i> Copiar direcciones
-    </button>
-    <button class="btn btn-sm btn-outline-secondary" id="btnReporteDespacho" disabled>
-      <i class="bi bi-file-earmark-text me-1"></i> Reporte
-    </button>
-    <button class="btn btn-sm btn-outline-danger ms-auto" id="btnCerrarDespacho" disabled>
-      <i class="bi bi-stop-circle me-1"></i> Cerrar despacho
-    </button>
+
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <button class="btn btn-sm bo-campana d-none" id="btnCampanaAlertas" type="button"
+              title="Ver alertas activas">
+        <i class="bi bi-bell-fill"></i> <span id="campanaConteo">0</span>
+      </button>
+
+      <button class="btn btn-sm btn-primary" id="btnMapaRefrescar">
+        <i class="bi bi-arrow-clockwise me-1"></i> Actualizar
+      </button>
+
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false" title="Acciones del despacho">
+          <i class="bi bi-three-dots-vertical"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+          <li>
+            <button class="dropdown-item" type="button" id="btnNuevoDespacho">
+              <i class="bi bi-plus-lg me-2 text-success"></i>Preparar despacho
+            </button>
+          </li>
+          <li>
+            <button class="dropdown-item" type="button" id="btnAgregarVehiculos" disabled>
+              <i class="bi bi-truck me-2 text-primary"></i>Agregar vehículos
+            </button>
+          </li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <button class="dropdown-item" type="button" id="btnCopiarDirecciones">
+              <i class="bi bi-clipboard me-2 text-info"></i>Copiar direcciones
+            </button>
+          </li>
+          <li>
+            <button class="dropdown-item" type="button" id="btnReporteDespacho" disabled>
+              <i class="bi bi-file-earmark-text me-2 text-secondary"></i>Reporte del despacho
+            </button>
+          </li>
+          <li>
+            <button class="dropdown-item" type="button" id="btnHistorialAlertas">
+              <i class="bi bi-clock-history me-2 text-warning"></i>Historial de alertas
+            </button>
+          </li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <button class="dropdown-item text-danger" type="button" id="btnCerrarDespacho" disabled>
+              <i class="bi bi-stop-circle me-2"></i>Cerrar despacho
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <button class="btn btn-sm btn-outline-secondary" type="button" title="Configuración"
+              data-bs-toggle="offcanvas" data-bs-target="#panelConfig">
+        <i class="bi bi-gear"></i>
+      </button>
+    </div>
   </div>
 </div>
 
-<div class="platform-status mb-3" id="platformStatus">
-  <span class="text-muted small">Validando plataformas…</span>
-</div>
-
-<!-- Tarjeta 2: filtros + lista + mapa -->
+<!-- ══════════════════════════════════════════════════════
+     CUERPO — barra lateral con pestañas + mapa
+══════════════════════════════════════════════════════ -->
 <div class="card shadow-sm border-0">
-  <div class="card-body">
+  <div class="card-body p-2">
+    <div class="row g-2">
 
-    <div class="row g-2 mb-2 align-items-end">
-      <div class="col-6 col-md-3">
-        <label class="form-label small mb-1">Transporte</label>
-        <select class="form-select form-select-sm" id="fltTransporte"><option value="">Todos</option></select>
-      </div>
-      <div class="col-6 col-md-3">
-        <label class="form-label small mb-1">Seguimiento</label>
-        <select class="form-select form-select-sm" id="fltEstado">
-          <option value="">Todos</option>
-          <option value="live">En vivo</option>
-          <option value="sin_senal">Sin señal</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="historial">Historial</option>
-        </select>
-      </div>
-      <div class="col-6 col-md-3">
-        <label class="form-label small mb-1">Buscar placa</label>
-        <input type="text" class="form-control form-control-sm" id="fltPlaca" placeholder="Ej.: JDF0364">
-      </div>
-      <div class="col-6 col-md-3 text-md-end">
-        <span class="ft-status small text-muted" id="mapaStatus">Cargando…</span>
-      </div>
-    </div>
-
-    <div class="d-flex flex-wrap gap-3 mb-3 small text-muted align-items-center">
-      <span><span class="seg-dot" style="background:#156b45"></span> En vivo</span>
-      <span><span class="seg-dot" style="background:#6c757d"></span> Sin señal</span>
-      <span><span class="seg-dot" style="background:#d9a300"></span> Pendiente</span>
-      <span class="ms-auto d-flex align-items-center gap-2 flex-wrap alertas-cfg">
-        <span class="form-check form-switch mb-0">
-          <input class="form-check-input" type="checkbox" id="alertasOn" checked>
-          <label class="form-check-label" for="alertasOn"><i class="bi bi-bell me-1"></i>Alertas</label>
-        </span>
-        <label class="mb-0">Detenido
-          <input type="number" class="form-control form-control-sm d-inline-block" id="alertaMinDetenido"
-                 min="1" max="240" value="4" style="width:62px"> min
-        </label>
-        <label class="mb-0">Sin reportar
-          <input type="number" class="form-control form-control-sm d-inline-block" id="alertaMinSinReporte"
-                 min="1" max="240" value="15" style="width:62px"> min
-        </label>
-        <span class="form-check form-switch mb-0" title="Si lo apagas, alerta de todos los carros del despacho aunque no tengan ruta iniciada">
-          <input class="form-check-input" type="checkbox" id="alertaSoloEnRuta" checked>
-          <label class="form-check-label" for="alertaSoloEnRuta">Solo en ruta</label>
-        </span>
-        <span class="form-check form-switch mb-0">
-          <input class="form-check-input" type="checkbox" id="alertaSonido" checked>
-          <label class="form-check-label" for="alertaSonido"><i class="bi bi-volume-up"></i></label>
-        </span>
-        <button class="btn btn-sm btn-outline-danger py-0" id="btnHistorialAlertas" type="button">
-          <i class="bi bi-clock-history me-1"></i>Historial
-        </button>
-      </span>
-    </div>
-
-    <div class="row g-3">
       <div class="col-12 col-lg-3">
-        <div id="alertasPanel" class="d-none mb-2"></div>
-        <div class="mapa-lista border" id="mapaLista">
-          <div class="text-muted small p-3">Cargando…</div>
+        <div class="panel-lateral">
+          <ul class="nav nav-tabs pl-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabCarros" type="button" role="tab">
+                Carros <span class="pl-cont" id="contCarros">0</span>
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabAlertas" type="button" role="tab" id="tabBtnAlertas">
+                Alertas <span class="pl-cont pl-cont-danger" id="contAlertas">0</span>
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="tabCarros" role="tabpanel">
+              <div class="pl-buscar">
+                <input type="text" class="form-control form-control-sm" id="fltPlaca" placeholder="Buscar placa">
+                <button class="btn btn-sm btn-outline-secondary" type="button" title="Más filtros"
+                        data-bs-toggle="collapse" data-bs-target="#filtrosExtra">
+                  <i class="bi bi-funnel"></i>
+                </button>
+              </div>
+              <div class="collapse" id="filtrosExtra">
+                <div class="pl-filtros">
+                  <select class="form-select form-select-sm mb-1" id="fltTransporte"><option value="">Todos los transportes</option></select>
+                  <select class="form-select form-select-sm" id="fltEstado">
+                    <option value="">Todo el seguimiento</option>
+                    <option value="live">En vivo</option>
+                    <option value="sin_senal">Sin señal</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="historial">Historial</option>
+                  </select>
+                </div>
+              </div>
+              <div class="mapa-lista" id="mapaLista">
+                <div class="text-muted small p-3">Cargando…</div>
+              </div>
+            </div>
+
+            <div class="tab-pane fade" id="tabAlertas" role="tabpanel">
+              <div id="alertasPanel" class="mapa-lista"></div>
+            </div>
+          </div>
         </div>
       </div>
+
       <div class="col-12 col-lg-9">
         <div id="mapaGPS"></div>
+      </div>
+    </div>
+
+    <!-- Pie de estado: una sola línea discreta -->
+    <div class="pie-estado">
+      <span id="mapaStatus">Cargando…</span>
+      <span class="worker-status" id="optimusWorkerStatus">
+        <span class="worker-dot"></span>
+        <span class="worker-text">Optimus</span>
+      </span>
+      <span id="platformStatus" class="pe-plataformas">Validando plataformas…</span>
+      <span class="pe-leyenda ms-auto">
+        <span><span class="seg-dot" style="background:#156b45"></span>En vivo</span>
+        <span><span class="seg-dot" style="background:#6c757d"></span>Sin señal</span>
+        <span><span class="seg-dot" style="background:#d9a300"></span>Pendiente</span>
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: estado detallado de plataformas -->
+<div class="modal fade" id="modalPlataformas" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title mb-0"><i class="bi bi-hdd-network me-1"></i> Estado de plataformas</h5>
+          <small class="text-muted">Una tarjeta por cuenta con carros en pantalla</small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="platform-status" id="platformStatusDetalle">
+          <span class="text-muted small">Validando plataformas…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PANEL DE CONFIGURACIÓN (engranaje)
+══════════════════════════════════════════════════════ -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="panelConfig">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title"><i class="bi bi-gear me-1"></i> Configuración</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+
+    <div class="cfg-grupo">
+      <div class="cfg-titulo">Actualización</div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="mapaAutoRefresh" checked disabled>
+        <label class="form-check-label small" for="mapaAutoRefresh">Actualizar automáticamente cada 30 s</label>
+      </div>
+    </div>
+
+    <div class="cfg-grupo">
+      <div class="cfg-titulo">Alertas</div>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" id="alertasOn" checked>
+        <label class="form-check-label small" for="alertasOn">Activar alertas</label>
+      </div>
+
+      <label class="form-label small mb-1">Avisar si está detenido más de</label>
+      <div class="input-group input-group-sm mb-2">
+        <input type="number" class="form-control" id="alertaMinDetenido" min="1" max="240" value="4">
+        <span class="input-group-text">minutos</span>
+      </div>
+
+      <label class="form-label small mb-1">Avisar si no reporta hace más de</label>
+      <div class="input-group input-group-sm mb-2">
+        <input type="number" class="form-control" id="alertaMinSinReporte" min="1" max="240" value="15">
+        <span class="input-group-text">minutos</span>
+      </div>
+
+      <div class="form-check form-switch mb-1">
+        <input class="form-check-input" type="checkbox" id="alertaSoloEnRuta" checked>
+        <label class="form-check-label small" for="alertaSoloEnRuta">Solo carros con ruta iniciada</label>
+      </div>
+      <div class="form-text mb-2" style="font-size:.7rem">
+        Si lo apagas, alerta de todos los carros del despacho aunque no tengan ruta iniciada.
+      </div>
+
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="alertaSonido" checked>
+        <label class="form-check-label small" for="alertaSonido">Sonido al aparecer una alerta</label>
       </div>
     </div>
 
@@ -305,16 +400,59 @@
 </div>
 
 <style>
-  #mapaGPS { height: calc(100vh - 360px); min-height: 440px; border: 1px solid var(--hc-banda, #d7ddd9); }
-  .mapa-lista { height: calc(100vh - 360px); min-height: 440px; overflow-y: auto; background: #fff; }
-  .seg-dot { display:inline-block; width:11px; height:11px; border-radius:50%; margin-right:3px; vertical-align:middle; }
-  .alertas-cfg { font-size:.72rem; }
-  .alertas-cfg label { white-space:nowrap; }
-  .alertas-cfg .form-control { font-family:'IBM Plex Mono', monospace; font-size:.72rem; padding:.1rem .25rem; }
-  #alertasPanel { border:1px solid #e3c2c2; border-left:4px solid #b02a37; background:#fdf6f6; }
+  /* El alto real lo calcula mapa.js según el espacio libre (ajustarAlturaMapa).
+     Estos valores son solo el punto de partida antes de que corra el JS. */
+  #mapaGPS { height: 460px; border: 1px solid var(--hc-banda, #d7ddd9); }
+  .panel-lateral { display:flex; flex-direction:column; height:460px; }
+  .panel-lateral .tab-content { flex:1 1 auto; min-height:0; display:flex; }
+  .panel-lateral .tab-pane.active { display:flex; flex-direction:column; width:100%; min-height:0; }
+  .mapa-lista { flex:1 1 auto; min-height:0; overflow-y:auto; background:#fff; }
+  .seg-dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:3px; vertical-align:middle; }
+
+  /* ── Barra única de operación ── */
+  .barra-op .bo-titulo { font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:.82rem; white-space:nowrap; }
+  .barra-op .bo-sep { width:1px; height:22px; background:var(--hc-banda, #d7ddd9); }
+  .barra-op .bo-campana { background:#fdf6f6; border:1px solid #e3c2c2; color:#b02a37; font-family:'IBM Plex Mono', monospace;
+                          font-weight:700; font-size:.74rem; padding:.2rem .5rem; }
+  .barra-op .bo-campana:hover { background:#f9eded; color:#7a1d26; }
+  .barra-op .bo-campana i { animation:alertaPulso 1.4s ease-in-out infinite; }
+
+  /* ── Panel lateral con pestañas ── */
+  .panel-lateral { border:1px solid var(--hc-banda, #d7ddd9); background:#fff; }
+  .panel-lateral .pl-tabs, .panel-lateral .pl-buscar, .panel-lateral .collapse { flex:0 0 auto; }
+  .pl-tabs { border-bottom:1px solid var(--hc-banda, #d7ddd9); flex-wrap:nowrap; }
+  .pl-tabs .nav-link { border:none; border-bottom:2px solid transparent; border-radius:0; padding:.4rem .6rem;
+                       font-size:.75rem; color:#6c757d; white-space:nowrap; }
+  .pl-tabs .nav-link.active { border-bottom-color:var(--hc-tinta, #156b45); color:var(--hc-tinta, #156b45); font-weight:600; background:none; }
+  .pl-cont { display:inline-block; min-width:18px; padding:0 4px; background:#eef1ef; color:#5a615c;
+             font-family:'IBM Plex Mono', monospace; font-size:.68rem; font-weight:700; text-align:center; }
+  .pl-cont-danger { background:#fdf6f6; color:#b02a37; }
+  .pl-buscar { display:flex; gap:.25rem; padding:.35rem; border-bottom:1px solid #eef1ef; }
+  .pl-filtros { padding:.35rem; border-bottom:1px solid #eef1ef; background:#fafbfa; }
+
+  /* ── Pie de estado ── */
+  .pie-estado { display:flex; flex-wrap:wrap; align-items:center; gap:.9rem; margin-top:.5rem; padding:.35rem .25rem 0;
+                border-top:1px solid #eef1ef; font-size:.68rem; color:#8a919c; }
+  .pie-estado .pe-leyenda { display:flex; gap:.7rem; }
+  .pie-estado .form-select-sm { font-size:.7rem; padding:.05rem 1.2rem .05rem .3rem; }
+  .pie-estado .btn { font-size:.68rem; }
+  .pie-estado .pe-plataformas { cursor:pointer; }
+  .pie-estado .pe-link { border-bottom:1px dotted #b9c0c7; }
+  .pie-estado .pe-plataformas:hover .pe-link { color:var(--hc-tinta, #156b45); border-bottom-color:var(--hc-tinta, #156b45); }
+  .pie-estado .pe-link.err { color:#b02a37; border-bottom-color:#b02a37; }
+
+  /* ── Panel de configuración ── */
+  .cfg-grupo { padding-bottom:1rem; margin-bottom:1rem; border-bottom:1px solid #eef1ef; }
+  .cfg-grupo:last-child { border-bottom:none; }
+  .cfg-titulo { font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:.72rem; text-transform:uppercase;
+                letter-spacing:.04em; color:var(--hc-tinta, #156b45); margin-bottom:.5rem; }
+
+  #alertasPanel { background:#fff; }
+  #alertasPanel .ap-vacio { padding:1.2rem .6rem; color:#8a919c; font-size:.72rem; text-align:center; }
   #alertasPanel .ap-head { display:flex; align-items:center; gap:.4rem; padding:.35rem .55rem; border-bottom:1px solid #f0dcdc;
-                           font-family:'IBM Plex Mono', monospace; font-size:.72rem; font-weight:700; color:#b02a37; }
-  #alertasPanel .ap-item { display:flex; align-items:center; gap:.5rem; padding:.3rem .55rem; border-bottom:1px solid #f6eaea; cursor:pointer; }
+                           background:#fdf6f6; font-family:'IBM Plex Mono', monospace; font-size:.72rem; font-weight:700; color:#b02a37; }
+  #alertasPanel .ap-item { display:flex; align-items:center; gap:.5rem; padding:.4rem .55rem; border-bottom:1px solid #f6eaea;
+                           border-left:3px solid #b02a37; background:#fdf6f6; cursor:pointer; }
   #alertasPanel .ap-item:last-child { border-bottom:none; }
   #alertasPanel .ap-item:hover { background:#f9eded; }
   #alertasPanel .ap-placa { font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:.76rem; }
