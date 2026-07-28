@@ -411,24 +411,61 @@ $(document).ready(function () {
         });
         copiarTexto(txt.trim(), datos.length);
     });
+    /**
+     * Copia al portapapeles. navigator.clipboard solo existe en contexto seguro
+     * (HTTPS o localhost); en HTTP se usa execCommand, y si ese también falla
+     * —o se perdió el gesto de usuario tras geocodificar— se muestra el texto
+     * en un cuadro para copiarlo a mano.
+     */
     function copiarTexto(txt, n) {
         const listo = () => Swal.fire({ icon: 'success', title: 'Copiado',
             text: `Direcciones de ${n} carros en el portapapeles.`, timer: 1600, showConfirmButton: false });
         if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(txt).then(listo).catch(() => copiarTextoFallback(txt, listo));
+            navigator.clipboard.writeText(txt)
+                .then(listo)
+                .catch(() => { copiaLegacy(txt) ? listo() : copiaManual(txt, n); });
+        } else if (copiaLegacy(txt)) {
+            listo();
         } else {
-            copiarTextoFallback(txt, listo);
+            copiaManual(txt, n);
         }
     }
-    function copiarTextoFallback(txt, listo) {
+    /** Copia con el método viejo. Devuelve si realmente copió. */
+    function copiaLegacy(txt) {
         const ta = document.createElement('textarea');
         ta.value = txt;
-        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.left = '0'; ta.style.opacity = '0';
         document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand('copy'); listo(); }
-        catch (e) { Swal.fire({ icon: 'error', title: 'No se pudo copiar', text: 'Copia manualmente desde la consola.' }); }
+        ta.focus(); ta.select();
+        try { ta.setSelectionRange(0, txt.length); } catch (e) { /* algunos navegadores */ }
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
         document.body.removeChild(ta);
+        return ok;
+    }
+    /** Último recurso: mostrar el texto ya seleccionado para copiar con Ctrl+C. */
+    function copiaManual(txt, n) {
+        Swal.fire({
+            title: `Direcciones (${n} carros)`,
+            html: `<p class="small text-muted mb-2">El navegador bloqueó la copia automática. Presiona
+                   <b>Ctrl+C</b> o usa el botón Copiar.</p>
+                   <textarea id="txtDirecciones" class="form-control" rows="10"
+                             style="font-size:.78rem; font-family:'IBM Plex Mono', monospace">${esc(txt)}</textarea>`,
+            width: 640,
+            showCancelButton: true,
+            confirmButtonText: 'Copiar',
+            cancelButtonText: 'Cerrar',
+            didOpen: () => { const t = document.getElementById('txtDirecciones'); t.focus(); t.select(); },
+            preConfirm: () => {
+                const t = document.getElementById('txtDirecciones');
+                t.focus(); t.select();
+                let ok = false;
+                try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+                if (!ok) { Swal.showValidationMessage('Copia con Ctrl+C — el texto ya está seleccionado.'); return false; }
+                return true;
+            }
+        }).then(r => { if (r.isConfirmed) Swal.fire({ icon: 'success', title: 'Copiado', timer: 1200, showConfirmButton: false }); });
     }
 
     const modalIncidencias = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalIncidenciasVeh'));
