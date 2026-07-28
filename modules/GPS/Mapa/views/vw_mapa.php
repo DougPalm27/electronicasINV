@@ -110,10 +110,17 @@
           <input type="number" class="form-control form-control-sm d-inline-block" id="alertaMinSinReporte"
                  min="1" max="240" value="15" style="width:62px"> min
         </label>
+        <span class="form-check form-switch mb-0" title="Si lo apagas, alerta de todos los carros del despacho aunque no tengan ruta iniciada">
+          <input class="form-check-input" type="checkbox" id="alertaSoloEnRuta" checked>
+          <label class="form-check-label" for="alertaSoloEnRuta">Solo en ruta</label>
+        </span>
         <span class="form-check form-switch mb-0">
           <input class="form-check-input" type="checkbox" id="alertaSonido" checked>
           <label class="form-check-label" for="alertaSonido"><i class="bi bi-volume-up"></i></label>
         </span>
+        <button class="btn btn-sm btn-outline-danger py-0" id="btnHistorialAlertas" type="button">
+          <i class="bi bi-clock-history me-1"></i>Historial
+        </button>
       </span>
     </div>
 
@@ -167,6 +174,43 @@
         <span class="me-auto small text-muted" id="dispSeleccion">0 seleccionados</span>
         <button class="btn btn-primary" id="btnVincularSeleccion" disabled>
           <i class="bi bi-check-lg me-1"></i> Agregar al despacho
+        </button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: historial de alertas automáticas -->
+<div class="modal fade" id="modalAlertas" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title mb-0"><i class="bi bi-bell me-1"></i> Historial de alertas</h5>
+          <small class="text-muted" id="alertasHistSub">Detenciones y pérdidas de señal registradas</small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <select class="form-select form-select-sm" id="fltAlertaEstado" style="max-width:180px">
+            <option value="todas">Todas</option>
+            <option value="activa">Solo activas</option>
+            <option value="resuelta">Solo resueltas</option>
+          </select>
+          <button class="btn btn-sm btn-outline-secondary" id="btnRefrescarAlertas">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+          <span class="ms-auto small text-muted" id="alertasHistTotal"></span>
+        </div>
+        <div id="alertasHistWrap">
+          <div class="text-muted small py-3">Cargando…</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-primary" id="btnExportAlertasCsv">
+          <i class="bi bi-filetype-csv me-1"></i> Exportar CSV
         </button>
         <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
       </div>
@@ -281,6 +325,16 @@
   .mapa-item .mi-alerta { display:block; font-size:.66rem; color:#b02a37; font-weight:600; }
   @keyframes alertaPulso { 0%,100% { opacity:1; } 50% { opacity:.45; } }
   #alertasPanel .ap-head i { animation:alertaPulso 1.4s ease-in-out infinite; }
+  /* Aro rojo que late alrededor del carro con alerta */
+  @keyframes mkAro { 0% { transform:scale(.7); opacity:.85; } 100% { transform:scale(1.9); opacity:0; } }
+  .mk-veh.alertado::before { content:''; position:absolute; left:50%; top:50%; width:30px; height:30px;
+      margin:-15px 0 0 -15px; border-radius:50%; border:2.5px solid #b02a37;
+      animation:mkAro 1.5s ease-out infinite; pointer-events:none; }
+  .al-table { font-size:.76rem; }
+  .al-table th { white-space:nowrap; }
+  .al-table td { vertical-align:top; }
+  .al-placa { font-family:'IBM Plex Mono', monospace; font-weight:600; }
+  .al-dir { color:#8a919c; font-size:.68rem; display:block; max-width:280px; }
   .worker-status { align-items:center; gap:.35rem; font-family:'IBM Plex Mono', ui-monospace, monospace; font-size:.68rem; color:#8a919c; }
   .worker-dot { width:9px; height:9px; border-radius:50%; background:#adb5bd; box-shadow:0 0 0 2px rgba(0,0,0,.05); }
   .worker-status.ok .worker-dot { background:#156b45; }

@@ -113,7 +113,7 @@ $(document).ready(function () {
         const est = movimiento(v), col = MOV[est];
         const rumbo = Number(v.rumbo || 0);
         return L.divIcon({ className: 'mk', iconSize: [38, 28], iconAnchor: [19, 20],
-            html: `<div class="mk-veh ${est} ${activo ? 'sel' : ''}" style="--mk-color:${col}; transform:rotate(${rumbo}deg)">
+            html: `<div class="mk-veh ${est} ${activo ? 'sel' : ''} ${alertaDe(v) ? 'alertado' : ''}" style="--mk-color:${col}; transform:rotate(${rumbo}deg)">
                      <svg viewBox="0 0 76 48" aria-hidden="true">
                        <path class="mk-outline" d="M3 29h6l5-8h17v20H24a8 8 0 0 0-16 0H3zM34 15h38v26h-6a7 7 0 0 0-14 0h-4a7 7 0 0 0-14 0H34z"/>
                        <path class="mk-body" d="M3 29h6l5-8h17v20H24a8 8 0 0 0-16 0H3zM34 15h38v26h-6a7 7 0 0 0-14 0h-4a7 7 0 0 0-14 0H34z"/>
@@ -169,10 +169,16 @@ $(document).ready(function () {
     // el recorrido guardado, así que sobrevive a recargas de la página.
     const ALERTA_CFG = 'gpsAlertasCfg';
     let alertasVistas = {};   // clave "id_dv|tipo" -> true, para sonar una sola vez
+    /** Si un control aún no existe (HTML viejo en caché) se usa su valor por defecto. */
+    function switchOn(sel, porDefecto = true) {
+        const $e = $(sel);
+        return $e.length ? $e.is(':checked') : porDefecto;
+    }
     function cfgAlertas() {
         return {
-            on: $('#alertasOn').is(':checked'),
-            sonido: $('#alertaSonido').is(':checked'),
+            on: switchOn('#alertasOn'),
+            sonido: switchOn('#alertaSonido'),
+            soloEnRuta: switchOn('#alertaSoloEnRuta'),
             detenido: Math.max(1, parseInt($('#alertaMinDetenido').val(), 10) || 4),
             sinReporte: Math.max(1, parseInt($('#alertaMinSinReporte').val(), 10) || 15),
         };
@@ -186,14 +192,15 @@ $(document).ready(function () {
         if (!c) return;
         $('#alertasOn').prop('checked', c.on !== false);
         $('#alertaSonido').prop('checked', c.sonido !== false);
+        $('#alertaSoloEnRuta').prop('checked', c.soloEnRuta !== false);
         if (c.detenido) $('#alertaMinDetenido').val(c.detenido);
         if (c.sinReporte) $('#alertaMinSinReporte').val(c.sinReporte);
     }
-    /** Devuelve {tipo, texto, minutos} o null. Solo aplica a carros en ruta. */
+    /** Devuelve {tipo, texto, minutos} o null. */
     function alertaDe(v) {
         const c = cfgAlertas();
         if (!c.on || estadoDespachos === 'cerrado') return null;
-        if (v.estado_tramo !== 'en_ruta') return null;
+        if (c.soloEnRuta && v.estado_tramo !== 'en_ruta') return null;
         const sinRep = v.minutos_sin_reporte;
         if (sinRep != null && sinRep >= c.sinReporte) {
             return { tipo: 'sin_reporte', minutos: sinRep, texto: `Sin reportar hace ${textoMin(sinRep)}` };
@@ -232,7 +239,24 @@ $(document).ready(function () {
         const vigentes = {};
         activas.forEach(({ v, a }) => { vigentes[v.id_dv + '|' + a.tipo] = true; });
         alertasVistas = vigentes;
-        if (nuevas.length && cfgAlertas().sonido) sonarAlerta();
+        if (nuevas.length) {
+            if (cfgAlertas().sonido) sonarAlerta();
+            avisarAlertasNuevas(nuevas);
+        }
+    }
+    /** Aviso emergente (esquina) al aparecer alertas nuevas. */
+    function avisarAlertasNuevas(nuevas) {
+        const titulo = nuevas.length === 1
+            ? `${nuevas[0].v.placa}: ${nuevas[0].a.texto}`
+            : `${nuevas.length} alertas nuevas`;
+        const detalle = nuevas.length === 1 ? esc(nuevas[0].v.direccion || '')
+            : nuevas.map(({ v, a }) => `${esc(v.placa)} — ${esc(a.texto)}`).join('<br>');
+        Swal.fire({
+            toast: true, position: 'top-end', icon: 'warning',
+            title: titulo, html: detalle ? `<span style="font-size:.75rem">${detalle}</span>` : '',
+            showConfirmButton: false, timer: 7000, timerProgressBar: true,
+            didOpen: t => { t.style.cursor = 'pointer'; t.addEventListener('click', () => { Swal.close(); seleccionarVehiculo(nuevas[0].v.id_dv, true); }); }
+        });
     }
     let audioCtx = null;
     function sonarAlerta() {
@@ -253,10 +277,93 @@ $(document).ready(function () {
             });
         } catch (e) { /* sin audio disponible */ }
     }
-    $('#alertasOn, #alertaSonido, #alertaMinDetenido, #alertaMinSinReporte').on('change', function () {
+    // ── Historial de alertas guardadas ─────────────────────────
+    let alertasHist = [];
+    const modalAlertas = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAlertas'));
+    function abrirHistorialAlertas() {
+        $('#alertasHistWrap').html('<div class="text-muted small py-3"><span class="spinner-border spinner-border-sm me-1"></span> Cargando…</div>');
+        $('#alertasHistSub').text(despachoActual
+            ? ($('#selDespacho option:selected').text() || 'Despacho')
+            : 'Todos los despachos activos');
+        modalAlertas().show();
+        cargarHistorialAlertas();
+    }
+    function cargarHistorialAlertas() {
+        return $.post(CTRL_MAPA, {
+            accion: 'alertas',
+            id_despacho: despachoActual,
+            estado: $('#fltAlertaEstado').val() || 'todas'
+        }, function (r) {
+            if (!r || !r.ok) {
+                $('#alertasHistWrap').html(`<div class="text-danger small">${esc((r && r.mensaje) || 'No se pudieron cargar las alertas.')}</div>`);
+                return;
+            }
+            alertasHist = r.data.alertas || [];
+            renderHistorialAlertas();
+        }, 'json');
+    }
+    function etiquetaTipoAlerta(t) { return t === 'sin_reporte' ? 'Sin reportar' : 'Detenido'; }
+    function renderHistorialAlertas() {
+        $('#alertasHistTotal').text(`${alertasHist.length} registro${alertasHist.length === 1 ? '' : 's'}`);
+        $('#btnExportAlertasCsv').prop('disabled', !alertasHist.length);
+        if (!alertasHist.length) {
+            $('#alertasHistWrap').html('<div class="text-muted small py-3">Sin alertas registradas todavía.</div>');
+            return;
+        }
+        const filas = alertasHist.map(a => {
+            const badge = a.estado === 'activa'
+                ? '<span class="badge bg-danger">Activa</span>'
+                : '<span class="badge bg-secondary">Resuelta</span>';
+            const dur = a.minutos_totales != null ? textoMin(a.minutos_totales) : '—';
+            return `<tr>
+                <td><span class="al-placa">${esc(a.placa)}</span><br>
+                    <span class="text-muted" style="font-size:.68rem">${esc(a.despacho || '')}</span></td>
+                <td>${esc(etiquetaTipoAlerta(a.tipo))}<br>
+                    <span class="text-muted" style="font-size:.68rem">umbral ${esc(a.umbral_min)} min</span></td>
+                <td>${badge}</td>
+                <td>${esc(a.fecha_inicio || a.fecha_detectada || '')}</td>
+                <td>${esc(a.fecha_resuelta || '')}</td>
+                <td>${esc(dur)}</td>
+                <td><span class="al-dir">${esc(a.direccion || (a.lat != null ? a.lat + ', ' + a.lng : ''))}</span></td>
+            </tr>`;
+        }).join('');
+        $('#alertasHistWrap').html(`
+            <div style="overflow-x:auto">
+              <table class="table table-hover w-100 al-table">
+                <thead><tr>
+                  <th>Equipo</th><th>Tipo</th><th>Estado</th><th>Desde</th>
+                  <th>Resuelta</th><th>Duración</th><th>Ubicación</th>
+                </tr></thead>
+                <tbody>${filas}</tbody>
+              </table>
+            </div>`);
+    }
+    function exportarAlertasCsv() {
+        if (!alertasHist.length) return;
+        const enc = ['Despacho', 'Placa', 'IMEI', 'Tipo', 'Estado', 'Umbral min', 'Desde', 'Detectada', 'Resuelta', 'Duracion min', 'Latitud', 'Longitud', 'Ubicacion'];
+        const filas = alertasHist.map(a => [
+            a.despacho, a.placa, a.imei, etiquetaTipoAlerta(a.tipo), a.estado, a.umbral_min,
+            a.fecha_inicio, a.fecha_detectada, a.fecha_resuelta, a.minutos_totales,
+            a.lat, a.lng, a.direccion
+        ]);
+        const csv = [enc, ...filas].map(row => row.map(csvVal).join(';')).join('\r\n');
+        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `alertas_gps_${new Date().toISOString().substring(0, 10)}.csv`;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(a.href);
+    }
+    $('#btnHistorialAlertas').on('click', abrirHistorialAlertas);
+    $('#btnRefrescarAlertas').on('click', cargarHistorialAlertas);
+    $('#fltAlertaEstado').on('change', cargarHistorialAlertas);
+    $('#btnExportAlertasCsv').on('click', exportarAlertasCsv);
+
+    $('#alertasOn, #alertaSonido, #alertaSoloEnRuta, #alertaMinDetenido, #alertaMinSinReporte').on('change', function () {
         guardarCfgAlertas();
         alertasVistas = {};
-        render();
+        // Recargar de caché: el servidor recalcula las detenciones con el nuevo alcance
+        if (this.id === 'alertaSoloEnRuta') cargar(false); else render();
     });
     // Clic en una alerta → centrar el carro; el botón → registrar incidencia
     $('#alertasPanel').on('click', '.ap-item', function () { seleccionarVehiculo($(this).data('id'), true); });
@@ -706,10 +813,14 @@ $(document).ready(function () {
         cargando = true;
         if (live) $('#btnMapaRefrescar').prop('disabled', true)
             .html('<span class="spinner-border spinner-border-sm me-1"></span> Actualizando…');
+        const ca = cfgAlertas();
         return $.post(CTRL_MAPA, {
             accion: live ? 'posiciones' : 'cache',
             id_despacho: despachoActual,
-            historico: historico ? 1 : 0
+            historico: historico ? 1 : 0,
+            umbral_detenido: ca.detenido,
+            umbral_sin_reporte: ca.sinReporte,
+            solo_en_ruta: ca.soloEnRuta ? 1 : 0
         }, function (r) {
             if (r && r.ok) {
                 pintar(r.data.vehiculos, r.data.resumen || null);

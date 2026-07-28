@@ -91,11 +91,12 @@ function minutosDesde(?string $fecha): ?int {
     if (!$ts) return null;
     return max(0, (int) floor((time() - $ts) / 60));
 }
-/** Añade cuánto lleva parado cada carro con ruta iniciada (solo esos generan alerta). */
-function agregarDetenciones(mdlDespachos $desp, array $registros): array {
+/** Añade cuánto lleva parado cada carro (los candidatos a alerta). */
+function agregarDetenciones(mdlDespachos $desp, array $registros, bool $soloEnRuta = true): array {
     $ids = [];
     foreach ($registros as $r) {
-        if (($r['estado_tramo'] ?? '') === 'en_ruta') $ids[] = $r['id_dv'];
+        if ($soloEnRuta && ($r['estado_tramo'] ?? '') !== 'en_ruta') continue;
+        $ids[] = $r['id_dv'];
     }
     $det = [];
     if ($ids) {
@@ -226,7 +227,7 @@ try {
             $historico = ($_POST['historico'] ?? '0') === '1';
             $out = [];
             foreach ($desp->vehiculos($id_despacho, $historico) as $r) $out[] = armarRegistro($r, posDeFila($r), $historico);
-            if (!$historico) $out = agregarDetenciones($desp, $out);
+            if (!$historico) $out = agregarDetenciones($desp, $out, ($_POST['solo_en_ruta'] ?? '1') === '1');
             respM(['vehiculos' => $out]);
             break;
 
@@ -310,8 +311,26 @@ try {
                     foreach ($vs as $v) { $out[] = armarRegistro($v, null); $resumen['pendientes']++; }
                 }
             }
-            $out = agregarDetenciones($desp, $out);
+            // Registrar/cerrar alertas automáticas (detenido · sin reportar)
+            $umbralDet = min(240, max(1, (int)($_POST['umbral_detenido'] ?? 4)));
+            $umbralSin = min(240, max(1, (int)($_POST['umbral_sin_reporte'] ?? 15)));
+            $soloEnRuta = ($_POST['solo_en_ruta'] ?? '1') === '1';
+
+            $out = agregarDetenciones($desp, $out, $soloEnRuta);
+            $paraAlerta = array_values(array_filter($out, function ($r) use ($soloEnRuta) {
+                if ($soloEnRuta && ($r['estado_tramo'] ?? '') !== 'en_ruta') return false;
+                return !empty($r['id_despacho']);
+            }));
+            try { $resumen['alertas'] = $desp->sincronizarAlertas($paraAlerta, $umbralDet, $umbralSin); }
+            catch (Throwable $e) { $resumen['alertas'] = ['error' => $e->getMessage()]; }
+
             respM(['vehiculos' => $out, 'resumen' => $resumen]);
+            break;
+
+        case 'alertas':
+            $id_despacho = ($_POST['id_despacho'] ?? '') === '' ? null : (int)$_POST['id_despacho'];
+            $estado = in_array($_POST['estado'] ?? '', ['activa', 'resuelta'], true) ? $_POST['estado'] : 'todas';
+            respM(['alertas' => $desp->alertas($id_despacho, $estado)]);
             break;
 
         // ── Selector ────────────────────────────────────────────

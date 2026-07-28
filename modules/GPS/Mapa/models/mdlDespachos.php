@@ -701,6 +701,112 @@ class mdlDespachos
         return $out;
     }
 
+    /**
+     * Abre y cierra alertas automáticas según el estado actual de cada carro.
+     * $registros trae ya calculados minutos_detenido y minutos_sin_reporte.
+     *
+     * Un "episodio" es una fila: se abre al detectarse y se marca 'resuelta'
+     * cuando el carro vuelve a la normalidad. No se duplica mientras siga activa.
+     */
+    public function sincronizarAlertas(array $registros, int $umbralDet, int $umbralSin): array
+    {
+        if (!$registros || !$this->tablaExiste('gps.DespachoAlertas')) return ['nuevas' => 0, 'resueltas' => 0];
+
+        $ids = array_map(fn($r) => (int)$r['id_dv'], $registros);
+        $in  = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->conn->prepare(
+            "SELECT id_alerta, id_dv, tipo FROM gps.DespachoAlertas
+             WHERE estado = 'activa' AND id_dv IN ($in)"
+        );
+        $stmt->execute($ids);
+        $activas = [];   // id_dv => [tipo => id_alerta]
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $a) {
+            $activas[(int)$a['id_dv']][$a['tipo']] = (int)$a['id_alerta'];
+        }
+
+        $insert = $this->conn->prepare(
+            "INSERT INTO gps.DespachoAlertas
+                (id_despacho, id_dv, id_tramo, id_cuenta, placa, imei, tipo, umbral_min,
+                 minutos_detectado, lat, lng, direccion, fecha_inicio)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRY_CONVERT(datetime, NULLIF(?, ''), 120))"
+        );
+        $resolver = $this->conn->prepare(
+            "UPDATE gps.DespachoAlertas
+                SET estado = 'resuelta', fecha_resuelta = GETDATE(),
+                    minutos_final = DATEDIFF(minute, ISNULL(fecha_inicio, fecha_detectada), GETDATE())
+              WHERE id_alerta = ? AND estado = 'activa'"
+        );
+
+        $nuevas = 0; $resueltas = 0;
+        foreach ($registros as $r) {
+            $id_dv = (int)$r['id_dv'];
+            $tipo  = $this->tipoAlerta($r, $umbralDet, $umbralSin);
+            $abiertas = $activas[$id_dv] ?? [];
+
+            // Cerrar las de otro tipo (o todas si ya no hay condición)
+            foreach ($abiertas as $t => $id_alerta) {
+                if ($t === $tipo) continue;
+                $resolver->execute([$id_alerta]);
+                $resueltas++;
+            }
+            if ($tipo === null || isset($abiertas[$tipo])) continue;
+
+            $minutos = $tipo === 'detenido' ? ($r['minutos_detenido'] ?? null) : ($r['minutos_sin_reporte'] ?? null);
+            $insert->execute([
+                (int)$r['id_despacho'], $id_dv,
+                $r['id_tramo'] ?: null,
+                (int)($r['id_cuenta'] ?? 0),
+                $r['placa'], $r['imei'] ?: null,
+                $tipo, $tipo === 'detenido' ? $umbralDet : $umbralSin,
+                $minutos !== null ? (int)$minutos : null,
+                $r['lat'] ?? null, $r['lng'] ?? null, $r['direccion'] ?? null,
+                $tipo === 'detenido' ? (string)($r['detenido_desde'] ?? '') : (string)($r['fecha'] ?? ''),
+            ]);
+            $nuevas++;
+        }
+        return ['nuevas' => $nuevas, 'resueltas' => $resueltas];
+    }
+
+    /** Qué alerta aplica ahora mismo a un carro, o null. Sin reporte manda sobre detenido. */
+    private function tipoAlerta(array $r, int $umbralDet, int $umbralSin): ?string
+    {
+        $sin = $r['minutos_sin_reporte'] ?? null;
+        if ($sin !== null && $sin >= $umbralSin) return 'sin_reporte';
+        $det = $r['minutos_detenido'] ?? null;
+        if ($det !== null && $det >= $umbralDet && !((float)($r['velocidad'] ?? 0) > 0)) return 'detenido';
+        return null;
+    }
+
+    /** Alertas de un despacho (o de todos los activos). $estado: 'activa'|'resuelta'|'todas'. */
+    public function alertas(?int $id_despacho, string $estado = 'todas', int $limite = 300): array
+    {
+        if (!$this->tablaExiste('gps.DespachoAlertas')) return [];
+        $where = [];
+        $params = [];
+        if ($id_despacho !== null) { $where[] = 'a.id_despacho = ?'; $params[] = $id_despacho; }
+        else                       { $where[] = "d.estado = 'activo'"; }
+        if ($estado === 'activa' || $estado === 'resuelta') { $where[] = 'a.estado = ?'; $params[] = $estado; }
+        $limite = max(1, min(1000, $limite));
+
+        $stmt = $this->conn->prepare(
+            "SELECT TOP $limite a.id_alerta, a.id_dv, a.id_despacho, d.nombre AS despacho,
+                    a.placa, a.imei, a.tipo, a.estado, a.umbral_min,
+                    a.minutos_detectado, a.minutos_final,
+                    CAST(a.lat AS FLOAT) AS lat, CAST(a.lng AS FLOAT) AS lng, a.direccion,
+                    CONVERT(varchar(19), a.fecha_inicio, 120)    AS fecha_inicio,
+                    CONVERT(varchar(19), a.fecha_detectada, 120) AS fecha_detectada,
+                    CONVERT(varchar(19), a.fecha_resuelta, 120)  AS fecha_resuelta,
+                    DATEDIFF(minute, ISNULL(a.fecha_inicio, a.fecha_detectada),
+                             ISNULL(a.fecha_resuelta, GETDATE())) AS minutos_totales
+             FROM gps.DespachoAlertas a
+             INNER JOIN gps.Despachos d ON d.id_despacho = a.id_despacho
+             WHERE " . implode(' AND ', $where) . "
+             ORDER BY CASE WHEN a.estado = 'activa' THEN 0 ELSE 1 END, a.fecha_detectada DESC"
+        );
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     /** ¿Existe una columna? (para migraciones que aún no se corren). Cachea por columna. */
     private function columnaExiste(string $tabla, string $columna): bool
     {
@@ -723,6 +829,7 @@ class mdlDespachos
             'gps.DespachoVehiculoTramos' => 'gps.DespachoVehiculoTramos',
             'gps.DespachoRecorridos' => 'gps.DespachoRecorridos',
             'gps.DespachoVehiculoIncidencias' => 'gps.DespachoVehiculoIncidencias',
+            'gps.DespachoAlertas' => 'gps.DespachoAlertas',
             'gps.WorkerHeartbeats' => 'gps.WorkerHeartbeats',
         ];
         if (!isset($permitidas[$tabla])) return false;
