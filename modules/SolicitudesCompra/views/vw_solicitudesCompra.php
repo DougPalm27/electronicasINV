@@ -69,6 +69,14 @@
             <div class="modal-body px-3 px-md-4">
                 <input type="hidden" id="compra_id">
 
+                <!-- Aviso al editar una solicitud ya enviada (estado Pendiente) -->
+                <div class="alert alert-warning py-2 small d-none" id="avisoEditarPendiente">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    Esta solicitud ya fue enviada y sigue <strong>pendiente de aprobación</strong>.
+                    Al guardar seguirá pendiente y se avisará a los administradores
+                    para que la revisen de nuevo.
+                </div>
+
                 <!-- Datos generales -->
                 <div class="row g-3 mb-3">
                     <div class="col-12 col-md-7">

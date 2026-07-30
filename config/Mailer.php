@@ -282,16 +282,15 @@ class Mailer
         );
     }
 
-    public static function tplNuevaSolicitudCompra(array $d): string
+    /**
+     * Tabla HTML con el detalle de ítems de una solicitud de compra.
+     * La comparten la notificación de solicitud nueva y la de solicitud editada.
+     *
+     * @param array  $items  Ítems tal como los devuelve mdlSolicitudesCompra::obtenerDetalle()
+     * @param string $divisa Símbolo de divisa ya escapado
+     */
+    private static function tblItemsCompra(array $items, string $divisa): string
     {
-        $id          = (int)($d['id'] ?? 0);
-        $solicitante = htmlspecialchars($d['solicitante'] ?? '—');
-        $descripcion = htmlspecialchars($d['descripcion'] ?? '—');
-        $proveedor   = htmlspecialchars($d['proveedor'] ?? 'Sin especificar');
-        $fecha       = htmlspecialchars($d['fecha'] ?? date('d/m/Y'));
-        $divisa      = htmlspecialchars($d['divisa'] ?? '');
-        $items       = is_array($d['items'] ?? null) ? $d['items'] : [];
-
         $itemsRows = '';
         $totalGeneral = 0;
         foreach ($items as $it) {
@@ -345,6 +344,22 @@ class Mailer
                </table>"
             : '';
 
+        return $itemsTable;
+    }
+
+    public static function tplNuevaSolicitudCompra(array $d): string
+    {
+        $id          = (int)($d['id'] ?? 0);
+        $solicitante = htmlspecialchars($d['solicitante'] ?? '—');
+        $descripcion = htmlspecialchars($d['descripcion'] ?? '—');
+        $proveedor   = htmlspecialchars($d['proveedor'] ?? 'Sin especificar');
+        $fecha       = htmlspecialchars($d['fecha'] ?? date('d/m/Y'));
+        $divisa      = htmlspecialchars($d['divisa'] ?? '');
+        $itemsTable  = self::tblItemsCompra(
+            is_array($d['items'] ?? null) ? $d['items'] : [],
+            $divisa
+        );
+
         return self::wrap(
             'Solicitud de compra para revision',
             "#0f766e",
@@ -359,6 +374,41 @@ class Mailer
              </table>
               $itemsTable
               <p style='color:#475569'>Favor revisar cantidades, proveedor, enlaces y observaciones antes de proceder.</p>"
+        );
+    }
+
+    /**
+     * Aviso a los administradores: una solicitud que sigue pendiente
+     * de aprobación fue modificada por su solicitante y hay que revisarla de nuevo.
+     */
+    public static function tplSolicitudCompraEditada(array $d): string
+    {
+        $id          = (int)($d['id'] ?? 0);
+        $codigo      = htmlspecialchars($d['codigo'] ?? "#$id");
+        $solicitante = htmlspecialchars($d['solicitante'] ?? '—');
+        $descripcion = htmlspecialchars($d['descripcion'] ?? '—');
+        $fecha       = htmlspecialchars($d['fecha'] ?? date('d/m/Y H:i'));
+        $divisa      = htmlspecialchars($d['divisa'] ?? '');
+        $itemsTable  = self::tblItemsCompra(
+            is_array($d['items'] ?? null) ? $d['items'] : [],
+            $divisa
+        );
+
+        return self::wrap(
+            "Solicitud de compra $codigo editada",
+            "#ca8a04",
+            "La solicitud <strong>$codigo</strong> fue editada",
+            "<p>Estimados,</p>
+             <p>La solicitud de compra <strong>$codigo</strong> sigue <strong>pendiente de aprobacion</strong>
+                y su solicitante acaba de modificarla.
+                <strong>Favor revisarla de nuevo</strong> antes de aprobarla o gestionar el pago.</p>
+             <table style='width:100%;border-collapse:collapse;margin:16px 0'>
+               <tr><td style='padding:6px 12px;background:#f1f5f9;font-weight:600;width:40%'>Solicitante</td><td style='padding:6px 12px;border-bottom:1px solid #e2e8f0'>$solicitante</td></tr>
+               <tr><td style='padding:6px 12px;background:#f1f5f9;font-weight:600'>Descripción actual</td><td style='padding:6px 12px;border-bottom:1px solid #e2e8f0'>$descripcion</td></tr>
+               <tr><td style='padding:6px 12px;background:#f1f5f9;font-weight:600'>Editada el</td><td style='padding:6px 12px'>$fecha</td></tr>
+             </table>
+              $itemsTable
+              <p style='color:#475569'>El detalle mostrado corresponde a la version mas reciente de la solicitud.</p>"
         );
     }
 

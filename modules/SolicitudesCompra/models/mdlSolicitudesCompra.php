@@ -68,6 +68,7 @@ class mdlSolicitudesCompra
                        sc.codigo,
                        sc.descripcion,
                        sc.estado,
+                       sc.id_usuario,
                        FORMAT(sc.fecha_solicitud, 'dd/MM/yyyy') AS fecha_solicitud,
                        u.nombre                                  AS solicitante,
                        ISNULL(p.nombre, '—')                    AS proveedor,
@@ -84,7 +85,7 @@ class mdlSolicitudesCompra
                        ON det.id_solicitud_compra = sc.id_solicitud_compra
                 $where
                 GROUP BY sc.id_solicitud_compra, sc.codigo, sc.descripcion, sc.estado,
-                         sc.fecha_solicitud, u.nombre, p.nombre,
+                         sc.id_usuario, sc.fecha_solicitud, u.nombre, p.nombre,
                          d.simbolo, d.codigo, sc.numero_orden
                 ORDER BY sc.codigo DESC";
 
@@ -165,23 +166,29 @@ class mdlSolicitudesCompra
 
     // ══════════════════════════════════════════════════════
     // CREAR / ACTUALIZAR BORRADOR
+    // Editable en Borrador y en Pendiente (aún sin aprobar).
+    // $estado_previo devuelve el estado que tenía antes de la
+    // edición para que el controller decida a quién notificar.
     // ══════════════════════════════════════════════════════
 
-    public function guardarBorrador(array $d, ?int $id_existente = null): int
+    public function guardarBorrador(array $d, ?int $id_existente = null, ?string &$estado_previo = null): int
     {
+        $estado_previo = null;
+
         $this->conn->beginTransaction();
         try {
             if ($id_existente) {
-                // Solo se puede editar si está en Borrador
+                // Solo se puede editar mientras no haya sido revisada
                 $chk = $this->conn->prepare(
                     "SELECT estado FROM electronicas.SolicitudesCompra
                      WHERE id_solicitud_compra = ? AND id_usuario = ?"
                 );
                 $chk->execute([$id_existente, $d['id_usuario']]);
                 $row = $chk->fetch(PDO::FETCH_ASSOC);
-                if (!$row || $row['estado'] !== 'Borrador') {
-                    throw new RuntimeException('Solo se puede editar una solicitud en estado Borrador.');
+                if (!$row || !in_array($row['estado'], ['Borrador', 'Pendiente'], true)) {
+                    throw new RuntimeException('Solo puedes editar tus solicitudes en estado Borrador o Pendiente.');
                 }
+                $estado_previo = $row['estado'];
 
                 $this->conn->prepare(
                     "UPDATE electronicas.SolicitudesCompra

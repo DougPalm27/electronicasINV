@@ -2,3 +2,5 @@
 .codex_spreadsheet_work/
 .env
 logs/
+outputs/
+node_modules/

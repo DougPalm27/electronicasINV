@@ -13,6 +13,7 @@ let _filtroEstado = '';
 let _itemIdx      = 0;
 let _detalleId    = 0;
 let _detalleDatos = null;
+let _estadoEditando = 'Borrador';   // estado de la solicitud abierta en el modal
 
 /* ── Modales Bootstrap ──────────────────────────────────────── */
 const $MODAL_COMPRA    = $('#modalCompra');
@@ -64,6 +65,13 @@ function s2Opts(placeholder, parent) {
 function getDivisaSimbolo(idDivisa) {
     const d = _divisas.find(x => String(x.id_divisa) === String(idDivisa));
     return d ? d.simbolo : '';
+}
+
+/* Se puede editar en Borrador y en Pendiente (aún sin aprobar),
+   pero solo el solicitante: el modelo filtra por id_usuario. */
+function puedeEditar(estado, idUsuarioSolicitud) {
+    if (estado !== 'Borrador' && estado !== 'Pendiente') return false;
+    return Number(idUsuarioSolicitud) === Number(window.USUARIO_ID);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -163,7 +171,9 @@ function initDataTable(esAdmin) {
 }
 
 function botonesTabla(r, esAdmin) {
-    const btnEditar = (r.estado === 'Borrador')
+    // Editable mientras no haya sido revisada, y solo por su solicitante
+    // (el modelo filtra por id_usuario, así que no se ofrece a terceros)
+    const btnEditar = puedeEditar(r.estado, r.id_usuario)
         ? `<li>
                <button class="dropdown-item btn-editar-compra" type="button" data-id="${r.id_solicitud_compra}">
                    <i class="bi bi-pencil me-2 text-warning"></i>Editar
@@ -384,6 +394,26 @@ function abrirModalNueva() {
     $MODAL_COMPRA.modal('show');
 }
 
+/* Adapta el pie del modal según el estado que se está editando:
+   en Pendiente ya no se "envía", solo se guardan cambios y se avisa. */
+function ajustarPieModalCompra(estado) {
+    _estadoEditando = estado;
+
+    if (estado === 'Pendiente') {
+        $('#btnGuardarEnviar').addClass('d-none');
+        $('#btnGuardarBorrador')
+            .removeClass('btn-outline-primary').addClass('btn-primary')
+            .html('<i class="bi bi-send-check me-1"></i> Guardar cambios y avisar');
+        $('#avisoEditarPendiente').removeClass('d-none');
+    } else {
+        $('#btnGuardarEnviar').removeClass('d-none');
+        $('#btnGuardarBorrador')
+            .removeClass('btn-primary').addClass('btn-outline-primary')
+            .html('<i class="bi bi-floppy me-1"></i> Guardar borrador');
+        $('#avisoEditarPendiente').addClass('d-none');
+    }
+}
+
 function limpiarModalCompra() {
     $('#compra_id').val('');
     $('#compra_descripcion').val('').removeClass('is-invalid');
@@ -401,6 +431,8 @@ function limpiarModalCompra() {
     poblarSelectDivisas();
     const sel = $('#compra_divisa').val();
     if (sel) $('#compra_divisa_simbolo').val(getDivisaSimbolo(sel));
+
+    ajustarPieModalCompra('Borrador');
 }
 
 function cargarBorradorEnModal(id) {
@@ -411,7 +443,10 @@ function cargarBorradorEnModal(id) {
         }
         const d = r.data;
         limpiarModalCompra();
-        $('#modalCompraTitulo').html('<i class="bi bi-pencil me-2"></i>Editar Borrador');
+        ajustarPieModalCompra(d.estado);
+        $('#modalCompraTitulo').html(d.estado === 'Pendiente'
+            ? '<i class="bi bi-pencil me-2"></i>Editar Solicitud Pendiente'
+            : '<i class="bi bi-pencil me-2"></i>Editar Borrador');
         $('#compra_id').val(d.id_solicitud_compra);
         $('#compra_descripcion').val(d.descripcion);
         $('#compra_divisa').val(d.id_divisa).trigger('change');
@@ -507,6 +542,24 @@ function guardarCompra(accion) {
         if (!r.ok) { Swal.fire({ icon: 'error', title: 'Error', text: r.mensaje }); return; }
         $MODAL_COMPRA.modal('hide');
         _tabla.ajax.reload(null, false);
+
+        // Edición de una solicitud ya enviada: el aviso a los admins importa,
+        // así que se confirma sin temporizador y se avisa si el correo falló
+        if (r.data?.estado === 'Pendiente') {
+            if (r.data.mail_error) console.warn('[MAIL] Error al notificar:', r.data.mail_error);
+            Swal.fire({
+                icon: r.data.mail_error ? 'warning' : 'success',
+                title: 'Cambios guardados',
+                html: r.data.mail_error
+                    ? '<p class="mb-1">La solicitud sigue en estado <strong>Pendiente</strong>.</p>' +
+                      `<p class="small text-danger mb-0">No se pudo enviar el aviso: ${escHtml(r.data.mail_error)}</p>`
+                    : '<p class="mb-0">La solicitud sigue en estado <strong>Pendiente</strong> y se avisó ' +
+                      'a los administradores para que la revisen de nuevo.</p>',
+                confirmButtonText: 'Aceptar'
+            });
+            return;
+        }
+
         Swal.fire({ icon: 'success', title: '¡Listo!', text: r.mensaje,
                     timer: 2000, showConfirmButton: false });
     }, 'json').fail(() => {
@@ -886,8 +939,13 @@ function mostrarBotonesDetalle(d, esAdmin) {
     const estado   = d.estado;
     const esPropio = Number(d.id_usuario) === Number(window.USUARIO_ID);
 
-    if (estado === 'Borrador' && (esAdmin || esPropio)) {
-        $('#btnEditarBorrador,#btnEnviarBorrador,#btnCancelarCompra').removeClass('d-none');
+    // Editar: Borrador y Pendiente, solo el solicitante (el modelo filtra por id_usuario)
+    if (puedeEditar(estado, d.id_usuario)) {
+        $('#btnEditarBorrador').removeClass('d-none');
+    }
+    if (estado === 'Borrador') {
+        if (esPropio) $('#btnEnviarBorrador').removeClass('d-none');
+        if (esAdmin || esPropio) $('#btnCancelarCompra').removeClass('d-none');
     }
     if (estado === 'Pendiente') {
         if (esAdmin) $('#btnAprobarCompra,#btnRechazarCompra').removeClass('d-none');

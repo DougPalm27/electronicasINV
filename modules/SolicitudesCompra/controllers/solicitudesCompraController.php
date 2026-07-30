@@ -19,6 +19,37 @@ function resp($data = [], $error = false, $msg = '')
     exit;
 }
 
+/**
+ * Avisa a los admins que una solicitud aún pendiente fue editada
+ * y necesita otra revisión. Devuelve el error de correo o null.
+ */
+function notificarEdicionPendiente(mdlSolicitudesCompra $model, Mailer $mailer, int $id): ?string
+{
+    try {
+        $admins = Mailer::getAdmins($model->getConn());
+        if (empty($admins)) return 'No hay admins con correo registrado.';
+
+        $det    = $model->obtenerDetalle($id);
+        $codigo = $det['codigo'] ?? "#$id";
+
+        $mailer->send($admins,
+            "Solicitud de compra $codigo editada — favor revisar de nuevo",
+            Mailer::tplSolicitudCompraEditada([
+                'id'          => $id,
+                'codigo'      => $codigo,
+                'solicitante' => $det['solicitante'] ?? '—',
+                'descripcion' => $det['descripcion'] ?? '—',
+                'divisa'      => $det['divisa_simbolo'] ?? '',
+                'fecha'       => date('d/m/Y H:i'),
+                'items'       => $det['items'] ?? [],
+            ])
+        );
+        return null;
+    } catch (Throwable $e) {
+        return $e->getMessage();
+    }
+}
+
 try {
     switch ($accion) {
 
@@ -97,8 +128,20 @@ try {
             $idExistente = !empty($payload['id_solicitud_compra'])
                 ? (int)$payload['id_solicitud_compra'] : null;
 
-            $id = $model->guardarBorrador($payload, $idExistente);
-            resp(['id_solicitud_compra' => $id], false,
+            $estadoPrevio = null;
+            $id = $model->guardarBorrador($payload, $idExistente, $estadoPrevio);
+
+            // Si ya estaba enviada, sigue Pendiente: avisar a los admins que cambió
+            if ($estadoPrevio === 'Pendiente') {
+                resp(
+                    ['id_solicitud_compra' => $id, 'estado' => 'Pendiente',
+                     'mail_error' => notificarEdicionPendiente($model, $mailer, $id)],
+                    false,
+                    'Cambios guardados. Se notificó a los administradores para que la revisen de nuevo.'
+                );
+            }
+
+            resp(['id_solicitud_compra' => $id, 'estado' => 'Borrador'], false,
                 $idExistente ? 'Borrador actualizado.' : 'Borrador guardado.');
             break;
 
@@ -111,7 +154,19 @@ try {
             $idExistente = !empty($payload['id_solicitud_compra'])
                 ? (int)$payload['id_solicitud_compra'] : null;
 
-            $id = $model->guardarBorrador($payload, $idExistente);
+            $estadoPrevio = null;
+            $id = $model->guardarBorrador($payload, $idExistente, $estadoPrevio);
+
+            // Ya estaba enviada: no se re-envía, solo se avisa que fue editada
+            if ($estadoPrevio === 'Pendiente') {
+                resp(
+                    ['id_solicitud_compra' => $id, 'estado' => 'Pendiente',
+                     'mail_error' => notificarEdicionPendiente($model, $mailer, $id)],
+                    false,
+                    'Cambios guardados. Se notificó a los administradores para que la revisen de nuevo.'
+                );
+            }
+
             $model->enviarSolicitud($id, $idUsuario);
 
             // Notificar admins
