@@ -17,6 +17,39 @@ const CHROME = BROWSER_CANDIDATES.find(p => fs.existsSync(p));
 const USER_DATA_ROOT = process.env.CHROME_USER_DATA || path.join(os.tmpdir(), 'ts-chrome-profile');
 const USER_DATA = path.join(USER_DATA_ROOT, `run-${process.pid}-${Date.now()}`);
 try { fs.mkdirSync(USER_DATA, { recursive: true }); } catch (e) {}
+
+/**
+ * Barrido de perfiles huerfanos.
+ * Si a una corrida anterior la mataron (timeout de PHP, reinicio del server),
+ * su carpeta quedo sin borrar. Aqui se limpia todo lo viejo antes de empezar:
+ * es la red de seguridad que evita que el disco se llene.
+ */
+function limpiarHuerfanos(maxEdadMin = 60) {
+  let borradas = 0;
+  try {
+    const limite = Date.now() - maxEdadMin * 60000;
+    for (const d of fs.readdirSync(USER_DATA_ROOT)) {
+      if (!d.startsWith('run-') || path.join(USER_DATA_ROOT, d) === USER_DATA) continue;
+      const dir = path.join(USER_DATA_ROOT, d);
+      try {
+        if (fs.statSync(dir).mtimeMs > limite) continue;   // aun puede estar en uso
+        fs.rmSync(dir, { recursive: true, force: true });
+        borradas++;
+      } catch (e) { /* en uso o sin permiso: se intenta la proxima vez */ }
+    }
+  } catch (e) { /* la raiz aun no existe */ }
+  if (borradas) console.error(`INFO ${borradas} perfiles huerfanos borrados.`);
+}
+limpiarHuerfanos();
+
+function limpiarPropio() {
+  try { fs.rmSync(USER_DATA, { recursive: true, force: true }); } catch (e) {}
+}
+// Si nos matan (proc_terminate de PHP, cierre del servicio) igual hay que limpiar
+['SIGTERM', 'SIGINT', 'SIGHUP', 'SIGBREAK'].forEach(s => {
+  try { process.on(s, () => { limpiarPropio(); process.exit(1); }); } catch (e) {}
+});
+process.on('exit', limpiarPropio);
 const USER = process.env.TS_USER, PWD = process.env.TS_PWD;
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 
@@ -130,6 +163,15 @@ async function fillLogin(page) {
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-blink-features=AutomationControlled',
+      // Sin cache ni volcados en disco: el perfil pesa KB en vez de decenas de MB
+      '--disk-cache-size=1',
+      '--media-cache-size=1',
+      '--disable-breakpad',                  // no genera crash dumps
+      '--no-crashpad',
+      '--disable-background-networking',
+      '--disable-component-update',
+      '--disable-sync',
+      '--disable-domain-reliability',
       '--user-data-dir=' + USER_DATA,        // clave para IIS/servicio
     ],
   });

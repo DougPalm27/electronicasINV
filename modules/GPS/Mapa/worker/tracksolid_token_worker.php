@@ -39,7 +39,7 @@ $stmt->execute();
 $cuentas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 wlog('Cuentas TrackSolid activas: ' . count($cuentas));
-$renovados = 0; $vigentes = 0; $fallidos = 0; $errores = [];
+$renovados = 0; $vigentes = 0; $fallidos = 0; $enEspera = 0; $errores = [];
 
 foreach ($cuentas as $c) {
     $u = $c['usuario'];
@@ -49,14 +49,35 @@ foreach ($cuentas as $c) {
         if ($r === 'renovado') { $renovados++; wlog("$u ({$c['transporte']}): token RENOVADO."); }
         else                   { $vigentes++;  wlog("$u ({$c['transporte']}): token vigente, sin cambios."); }
     } catch (Throwable $e) {
-        $fallidos++;
-        $errores[] = "$u: " . $e->getMessage();
-        wlog("$u ({$c['transporte']}): FALLO — " . $e->getMessage());
+        $msg = $e->getMessage();
+        if (strpos($msg, 'login en espera') !== false) {
+            $enEspera++;
+            wlog("$u ({$c['transporte']}): en espera — $msg");
+        } else {
+            $fallidos++;
+            $errores[] = "$u: $msg";
+            wlog("$u ({$c['transporte']}): FALLO — $msg");
+        }
     }
 }
 
-$detalle = count($cuentas) . " cuentas: $renovados renovados, $vigentes vigentes, $fallidos fallidos"
-         . ($errores ? '. ' . mb_substr(implode(' | ', $errores), 0, 250) : '');
+// Red de seguridad: barrer perfiles de Chrome que quedaron de corridas anteriores
+$raizPerfiles = rtrim(sys_get_temp_dir(), '\\/') . DIRECTORY_SEPARATOR . 'ts-chrome-profile';
+$barridos = 0;
+foreach ((glob($raizPerfiles . DIRECTORY_SEPARATOR . 'run-*') ?: []) as $dir) {
+    if (!is_dir($dir) || @filemtime($dir) > time() - 3600) continue;
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($it as $f) { $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname()); }
+    if (@rmdir($dir)) $barridos++;
+}
+if ($barridos) wlog("Perfiles de Chrome huérfanos borrados: $barridos");
+
+$detalle = count($cuentas) . " cuentas: $renovados renovados, $vigentes vigentes, $enEspera en espera, $fallidos fallidos"
+         . ($barridos ? ", $barridos perfiles barridos" : '')
+         . ($errores ? '. ' . mb_substr(implode(' | ', $errores), 0, 200) : '');
 try {
     $desp->registrarHeartbeat('tracksolid_tokens', $fallidos ? ($renovados + $vigentes ? 'parcial' : 'error') : 'ok', $detalle);
 } catch (Throwable $e) { wlog('Heartbeat no registrado: ' . $e->getMessage()); }

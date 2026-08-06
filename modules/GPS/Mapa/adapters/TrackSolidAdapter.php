@@ -66,6 +66,12 @@ class TrackSolidAdapter implements GpsAdapterInterface
         if ($row && !empty($row['token']) && !empty($row['query_body']) && (int)$row['edad'] < $maxEdadSeg) {
             return 'vigente';
         }
+        // Cuenta que viene fallando: esperar antes de reintentar. Cada intento
+        // fallido cuesta minutos de Chrome y deja basura en disco.
+        $espera = $this->store->esperaReintento($this->usuario);
+        if ($espera > 0) {
+            throw new RuntimeException("TrackSolid: login en espera por fallos previos (reintenta en {$espera} min). Revisa la contraseña de la cuenta.");
+        }
         $this->login();
         return 'renovado';
     }
@@ -85,13 +91,19 @@ class TrackSolidAdapter implements GpsAdapterInterface
 
     private function login(): void
     {
-        $r = $this->loginHeadless();
-        if (empty($r['token']) || empty($r['queryBody'])) {
-            throw new RuntimeException('TrackSolid: el login headless no devolvió token/queryBody (revisa usuario/clave).');
+        try {
+            $r = $this->loginHeadless();
+            if (empty($r['token']) || empty($r['queryBody'])) {
+                throw new RuntimeException('TrackSolid: el login headless no devolvió token/queryBody (revisa usuario/clave).');
+            }
+        } catch (Throwable $e) {
+            $this->store->registrarFallo($this->usuario, $e->getMessage());
+            throw $e;
         }
         $this->token     = $r['token'];
         $this->queryBody = $r['queryBody'];
         $this->store->guardar($this->usuario, $r['token'], $r['queryBody'], $r['accountId'] ?? null);
+        $this->store->registrarExito($this->usuario);
     }
 
     /** Ejecuta el helper Node (Chrome headless) con las credenciales por entorno. */
@@ -102,7 +114,14 @@ class TrackSolidAdapter implements GpsAdapterInterface
         $node = (string) env('NODE_BIN', 'node');
         $timeout = max(30, (int) env('TRACKSOLID_LOGIN_TIMEOUT', 150));
 
-        $env = array_merge(getenv(), ['TS_USER' => $this->usuario, 'TS_PWD' => $this->pwd]);
+        // Carpeta de perfil propia de esta corrida: si hay que matar el proceso,
+        // PHP la borra aquí mismo (Node ya no alcanza a limpiarla y llenaría el disco).
+        $perfil = rtrim(sys_get_temp_dir(), '\\/') . DIRECTORY_SEPARATOR . 'ts-chrome-profile';
+        $env = array_merge(getenv(), [
+            'TS_USER' => $this->usuario,
+            'TS_PWD'  => $this->pwd,
+            'CHROME_USER_DATA' => $perfil,
+        ]);
         $desc = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
         $proc = proc_open([$node, $script], $desc, $pipes, dirname($script), $env);
         if (!is_resource($proc)) throw new RuntimeException('No se pudo iniciar Node para el login de TrackSolid.');
@@ -121,6 +140,8 @@ class TrackSolidAdapter implements GpsAdapterInterface
                 proc_terminate($proc);
                 fclose($pipes[1]); fclose($pipes[2]);
                 proc_close($proc);
+                // Node murio sin limpiar: borrar sus perfiles para no llenar el disco
+                $this->limpiarPerfiles($perfil, 0);
                 throw new RuntimeException("TrackSolid: login headless excedio {$timeout}s. Revisa Chrome/TrackSolid o captcha/2FA.");
             }
             usleep(100000);
@@ -130,11 +151,39 @@ class TrackSolidAdapter implements GpsAdapterInterface
         fclose($pipes[1]); fclose($pipes[2]);
         proc_close($proc);
 
+        $this->limpiarPerfiles($perfil, 30);
+
         $data = json_decode(trim($out), true);
         if (!is_array($data) || empty($data['token'])) {
             throw new RuntimeException('TrackSolid: login headless falló. ' . trim($err ?: $out));
         }
         return $data;
+    }
+
+    /**
+     * Borra los perfiles de Chrome que dejó el helper Node.
+     * $maxEdadMin = 0 borra todos; >0 respeta los recién creados (pueden estar en uso).
+     */
+    private function limpiarPerfiles(string $raiz, int $maxEdadMin): void
+    {
+        if (!is_dir($raiz)) return;
+        $limite = time() - ($maxEdadMin * 60);
+        foreach ((glob($raiz . DIRECTORY_SEPARATOR . 'run-*') ?: []) as $dir) {
+            if (!is_dir($dir)) continue;
+            if ($maxEdadMin > 0 && @filemtime($dir) > $limite) continue;
+            $this->borrarRecursivo($dir);
+        }
+    }
+
+    private function borrarRecursivo(string $ruta): void
+    {
+        if (!is_dir($ruta)) { @unlink($ruta); return; }
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($ruta, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($it as $f) { $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname()); }
+        @rmdir($ruta);
     }
 
     // ── Consulta de equipos+posición (con reintento por token vencido) ──
