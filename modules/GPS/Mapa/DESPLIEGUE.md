@@ -32,12 +32,32 @@ Llevar al webroot de producción (mismo layout que local):
 
 ---
 
-## 2. Base de datos (RDS) — YA HECHO
-Las 3 migraciones **ya se corrieron en producción** (RDS `ElectronicasDB`) y las 10 plataformas
-quedaron marcadas. **No hay que volver a correrlas.**
+## 2. Base de datos (RDS)
 
-Si algún día montas una base limpia, corre en orden (son idempotentes):
-`migration_mapa_gps.sql` → `migration_despachos.sql` → `migration_tracksolid_tokens.sql`.
+**Primero averigua qué falta.** Corre en SSMS contra la base de producción:
+
+```
+BD/BaseGPS/verificar_estado.sql
+```
+
+Es de solo lectura y lista cada tabla/columna con `OK` o `>>> FALTA`, indicando qué
+migración la crea. Corre únicamente las que aparezcan como faltantes.
+
+Orden recomendado si montas una base limpia (todas son idempotentes):
+
+| # | Migración | Para qué |
+|---|-----------|----------|
+| 1 | `migration_mapa_gps.sql` | Plataformas, posiciones |
+| 2 | `migration_despachos.sql` | Despachos y sus vehículos |
+| 3 | `migration_recorridos_despacho.sql` | Puntos de recorrido |
+| 4 | `migration_tramos_despacho.sql` | Tramos (iniciar/finalizar ruta) |
+| 5 | `migration_incidencias_despacho.sql` | Incidencias manuales |
+| 6 | `migration_worker_heartbeats.sql` | Latidos de los workers |
+| 7 | `migration_tracksolid_tokens.sql` | Caché de tokens TrackSolid |
+| 8 | `migration_motivo_remocion.sql` | Descartar vehículo agregado por error |
+| 9 | `migration_alertas_despacho.sql` | Alertas guardadas (detenido / sin reportar) |
+| 10 | `migration_tokens_backoff.sql` | Espera creciente entre logins fallidos |
+| 11 | `migration_tokens_bloqueo.sql` | Bloqueo de cuentas con clave inválida |
 
 Verificación rápida (debe listar 10 plataformas con motor):
 ```sql
@@ -85,6 +105,57 @@ Optimus transmite posiciones por WebSocket → necesita un oyente siempre encend
 
 > El worker solo escucha carros de Optimus que estén en **despachos activos**.
 > Requiere que el EC2 tenga **salida a internet** (HTTPS 443 y el broker CloudAMQP).
+
+---
+
+## 4b. Worker de tokens de TrackSolid (cada 30 min) — OBLIGATORIO
+
+Bajo IIS el login headless de TrackSolid falla o agota el tiempo de la petición web.
+Este worker lo hace **fuera de IIS** y deja los tokens frescos en `gps.CuentaTokens`;
+la web solo lee caché y nunca lanza Chrome.
+
+1. Prueba manual primero:
+   ```
+   C:\inetpub\wwwroot\electronicasINV\modules\GPS\Mapa\worker\start_tracksolid_tokens.bat
+   ```
+   Debe imprimir `token RENOVADO` para varias cuentas.
+
+2. Regístralo en el **Programador de tareas** (Task Scheduler):
+   - **General**: nombre `Worker Tokens TrackSolid`, "Ejecutar aunque el usuario no
+     haya iniciado sesión" + "Ejecutar con privilegios más altos".
+   - **Desencadenador**: una vez, y en avanzado **repetir cada 30 minutos**,
+     duración **indefinidamente**.
+   - **Acción**: iniciar `...\worker\start_tracksolid_tokens.bat`.
+   - **Configuración**: detener si dura más de **1 hora**;
+     "Si la tarea ya se está ejecutando" → **No iniciar una nueva instancia**.
+
+> Si con la cuenta SYSTEM fallan todos los logins, cambia la tarea a un usuario
+> administrador con contraseña guardada: Chrome headless a veces no arranca en Sesión 0.
+
+### Cuentas con contraseña vencida
+El worker distingue el motivo del fallo:
+
+- **Credenciales inválidas** → tras 4 intentos la cuenta se **bloquea** y deja de
+  abrir Chrome. Al corregir la clave en **GPS → Cuentas GPS** el bloqueo se
+  levanta solo (se borra el token y el historial de fallos).
+- **Fallo técnico** (Chrome, red, timeout) → nunca bloquea; reintenta con espera
+  creciente hasta 12 h.
+
+Para ver cuáles necesitan clave nueva:
+```sql
+SELECT usuario, intentos_fallidos, ultimo_error, fecha_error
+FROM gps.CuentaTokens
+WHERE tipo_error = 'credenciales' AND intentos_fallidos >= 4;
+```
+
+### Perfiles temporales de Chrome
+Cada login crea un perfil en `%TEMP%\ts-chrome-profile\run-*` y lo borra al terminar.
+Si un proceso muere de golpe, el barrido automático del siguiente arranque limpia
+todo lo de más de 1 hora. Para vaciar a mano (con la tarea detenida):
+
+```powershell
+Remove-Item -Recurse -Force "C:\Windows\Temp\ts-chrome-profile","$env:TEMP\ts-chrome-profile" -ErrorAction SilentlyContinue
+```
 
 ---
 
