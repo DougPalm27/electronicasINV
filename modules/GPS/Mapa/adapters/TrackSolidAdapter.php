@@ -66,12 +66,6 @@ class TrackSolidAdapter implements GpsAdapterInterface
         if ($row && !empty($row['token']) && !empty($row['query_body']) && (int)$row['edad'] < $maxEdadSeg) {
             return 'vigente';
         }
-        // Cuenta que viene fallando: esperar antes de reintentar. Cada intento
-        // fallido cuesta minutos de Chrome y deja basura en disco.
-        $espera = $this->store->esperaReintento($this->usuario);
-        if ($espera > 0) {
-            throw new RuntimeException("TrackSolid: login en espera por fallos previos (reintenta en {$espera} min). Revisa la contraseña de la cuenta.");
-        }
         $this->login();
         return 'renovado';
     }
@@ -89,8 +83,30 @@ class TrackSolidAdapter implements GpsAdapterInterface
         $this->login();
     }
 
+    /**
+     * Corta antes de abrir Chrome si la cuenta está bloqueada por credenciales
+     * o en espera por fallos técnicos. Un login que se sabe que va a fallar
+     * cuesta minutos de CPU y llena el disco de perfiles temporales.
+     */
+    private function verificarPuedeIntentar(): void
+    {
+        $st = $this->store->estadoLogin($this->usuario);
+        if ($st['bloqueada']) {
+            throw new RuntimeException(
+                "TrackSolid: cuenta \"{$this->usuario}\" bloqueada tras {$st['fallos']} intentos con credenciales inválidas. " .
+                "Actualiza la contraseña en Cuentas GPS y se reactiva sola."
+            );
+        }
+        if ($st['espera'] > 0) {
+            throw new RuntimeException(
+                "TrackSolid: login en espera por fallos previos (reintenta en {$st['espera']} min)."
+            );
+        }
+    }
+
     private function login(): void
     {
+        $this->verificarPuedeIntentar();   // no abrir Chrome si se sabe que va a fallar
         try {
             $r = $this->loginHeadless();
             if (empty($r['token']) || empty($r['queryBody'])) {

@@ -60,6 +60,11 @@ class mdlCuentasGPS
 
     public function editar(array $d): void
     {
+        // Credenciales anteriores: si cambian hay que soltar el token/bloqueo viejo
+        $previo = $this->conn->prepare("SELECT usuario, contrasena FROM gps.CuentasGPS WHERE id_cuenta = ?");
+        $previo->execute([$d['id_cuenta']]);
+        $antes = $previo->fetch(PDO::FETCH_ASSOC) ?: null;
+
         $stmt = $this->conn->prepare(
             "UPDATE gps.CuentasGPS
              SET id_transporte = ?, id_plataforma = ?,
@@ -72,6 +77,23 @@ class mdlCuentasGPS
             $d['usuario'], $d['contrasena'],
             $d['actualizado_por'], $d['id_cuenta'],
         ]);
+
+        if ($antes && ($antes['usuario'] !== $d['usuario'] || $antes['contrasena'] !== $d['contrasena'])) {
+            $this->reiniciarLogin($antes['usuario'], $d['usuario']);
+        }
+    }
+
+    /**
+     * Al corregir usuario/contraseña se borra el token cacheado y el historial de
+     * fallos, para que la cuenta vuelva a intentar de inmediato en vez de seguir
+     * bloqueada. Cubre el usuario viejo y el nuevo por si el login también cambió.
+     */
+    private function reiniciarLogin(string $usuarioAnterior, string $usuarioNuevo): void
+    {
+        try {
+            $stmt = $this->conn->prepare("DELETE FROM gps.CuentaTokens WHERE usuario IN (?, ?)");
+            $stmt->execute([$usuarioAnterior, $usuarioNuevo]);
+        } catch (Throwable $e) { /* tabla ausente: no bloquea la edición */ }
     }
 
     public function toggleActivo(int $id, int $uid): void

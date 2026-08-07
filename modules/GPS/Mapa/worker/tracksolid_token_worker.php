@@ -39,7 +39,7 @@ $stmt->execute();
 $cuentas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 wlog('Cuentas TrackSolid activas: ' . count($cuentas));
-$renovados = 0; $vigentes = 0; $fallidos = 0; $enEspera = 0; $errores = [];
+$renovados = 0; $vigentes = 0; $fallidos = 0; $enEspera = 0; $bloqueadas = 0; $errores = [];
 
 foreach ($cuentas as $c) {
     $u = $c['usuario'];
@@ -50,7 +50,10 @@ foreach ($cuentas as $c) {
         else                   { $vigentes++;  wlog("$u ({$c['transporte']}): token vigente, sin cambios."); }
     } catch (Throwable $e) {
         $msg = $e->getMessage();
-        if (strpos($msg, 'login en espera') !== false) {
+        if (strpos($msg, 'bloqueada') !== false) {
+            $bloqueadas++;
+            wlog("$u ({$c['transporte']}): BLOQUEADA — contraseña inválida, no se intenta.");
+        } elseif (strpos($msg, 'login en espera') !== false) {
             $enEspera++;
             wlog("$u ({$c['transporte']}): en espera — $msg");
         } else {
@@ -75,7 +78,16 @@ foreach ((glob($raizPerfiles . DIRECTORY_SEPARATOR . 'run-*') ?: []) as $dir) {
 }
 if ($barridos) wlog("Perfiles de Chrome huérfanos borrados: $barridos");
 
-$detalle = count($cuentas) . " cuentas: $renovados renovados, $vigentes vigentes, $enEspera en espera, $fallidos fallidos"
+// Recordatorio visible: estas cuentas no volverán solas hasta corregir la clave
+$store = new TrackSolidTokenStore();
+$listaBloqueadas = $store->bloqueadas();
+if ($listaBloqueadas) {
+    wlog('--- Cuentas que necesitan contraseña nueva (no se seguirán intentando) ---');
+    foreach ($listaBloqueadas as $b) wlog("    {$b['usuario']} — {$b['intentos_fallidos']} intentos, último {$b['fecha_error']}");
+}
+
+$detalle = count($cuentas) . " cuentas: $renovados renovados, $vigentes vigentes, $enEspera en espera, "
+         . "$bloqueadas bloqueadas, $fallidos fallidos"
          . ($barridos ? ", $barridos perfiles barridos" : '')
          . ($errores ? '. ' . mb_substr(implode(' | ', $errores), 0, 200) : '');
 try {
