@@ -394,22 +394,19 @@ function abrirModalNueva() {
     $MODAL_COMPRA.modal('show');
 }
 
-/* Adapta el pie del modal según el estado que se está editando:
-   en Pendiente ya no se "envía", solo se guardan cambios y se avisa. */
+/* Adapta el pie del modal según el estado que se está editando.
+   En Pendiente ya no se "envía": se guarda en silencio o se guarda
+   y se avisa a los admins (ahí el aviso es opcional, no automático). */
 function ajustarPieModalCompra(estado) {
     _estadoEditando = estado;
 
     if (estado === 'Pendiente') {
-        $('#btnGuardarEnviar').addClass('d-none');
-        $('#btnGuardarBorrador')
-            .removeClass('btn-outline-primary').addClass('btn-primary')
-            .html('<i class="bi bi-send-check me-1"></i> Guardar cambios y avisar');
+        $('#btnGuardarBorrador').html('<i class="bi bi-floppy me-1"></i> Guardar cambios');
+        $('#btnGuardarEnviar').html('<i class="bi bi-envelope me-1"></i> Guardar y avisar');
         $('#avisoEditarPendiente').removeClass('d-none');
     } else {
-        $('#btnGuardarEnviar').removeClass('d-none');
-        $('#btnGuardarBorrador')
-            .removeClass('btn-primary').addClass('btn-outline-primary')
-            .html('<i class="bi bi-floppy me-1"></i> Guardar borrador');
+        $('#btnGuardarBorrador').html('<i class="bi bi-floppy me-1"></i> Guardar borrador');
+        $('#btnGuardarEnviar').html('<i class="bi bi-send me-1"></i> Enviar solicitud');
         $('#avisoEditarPendiente').addClass('d-none');
     }
 }
@@ -543,8 +540,15 @@ function guardarCompra(accion) {
         $MODAL_COMPRA.modal('hide');
         _tabla.ajax.reload(null, false);
 
-        // Edición de una solicitud ya enviada: el aviso a los admins importa,
-        // así que se confirma sin temporizador y se avisa si el correo falló
+        // Edición de una Pendiente sin aviso: confirmación breve
+        if (r.data?.estado === 'Pendiente' && !r.data.notificado) {
+            Swal.fire({ icon: 'success', title: 'Cambios guardados', text: r.mensaje,
+                        timer: 2000, showConfirmButton: false });
+            return;
+        }
+
+        // Edición de una Pendiente con aviso: se confirma sin temporizador
+        // y se muestra si el correo falló
         if (r.data?.estado === 'Pendiente') {
             if (r.data.mail_error) console.warn('[MAIL] Error al notificar:', r.data.mail_error);
             Swal.fire({

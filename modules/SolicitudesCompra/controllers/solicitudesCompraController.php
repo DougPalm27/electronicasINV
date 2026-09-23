@@ -131,13 +131,13 @@ try {
             $estadoPrevio = null;
             $id = $model->guardarBorrador($payload, $idExistente, $estadoPrevio);
 
-            // Si ya estaba enviada, sigue Pendiente: avisar a los admins que cambió
+            // Si ya estaba enviada, sigue Pendiente. Aquí se guarda sin avisar;
+            // el aviso a los admins es opt-in vía 'guardarEnviar'
             if ($estadoPrevio === 'Pendiente') {
                 resp(
-                    ['id_solicitud_compra' => $id, 'estado' => 'Pendiente',
-                     'mail_error' => notificarEdicionPendiente($model, $mailer, $id)],
+                    ['id_solicitud_compra' => $id, 'estado' => 'Pendiente', 'notificado' => false],
                     false,
-                    'Cambios guardados. Se notificó a los administradores para que la revisen de nuevo.'
+                    'Cambios guardados. La solicitud sigue pendiente.'
                 );
             }
 
@@ -160,7 +160,7 @@ try {
             // Ya estaba enviada: no se re-envía, solo se avisa que fue editada
             if ($estadoPrevio === 'Pendiente') {
                 resp(
-                    ['id_solicitud_compra' => $id, 'estado' => 'Pendiente',
+                    ['id_solicitud_compra' => $id, 'estado' => 'Pendiente', 'notificado' => true,
                      'mail_error' => notificarEdicionPendiente($model, $mailer, $id)],
                     false,
                     'Cambios guardados. Se notificó a los administradores para que la revisen de nuevo.'

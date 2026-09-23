@@ -73,8 +73,8 @@
                 <div class="alert alert-warning py-2 small d-none" id="avisoEditarPendiente">
                     <i class="bi bi-exclamation-triangle me-1"></i>
                     Esta solicitud ya fue enviada y sigue <strong>pendiente de aprobación</strong>.
-                    Al guardar seguirá pendiente y se avisará a los administradores
-                    para que la revisen de nuevo.
+                    <strong>Guardar cambios</strong> no envía correo;
+                    <strong>Guardar y avisar</strong> pide a los administradores que la revisen de nuevo.
                 </div>
 
                 <!-- Datos generales -->
