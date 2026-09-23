@@ -23,6 +23,10 @@ GO
 
 -- Único cuando tiene valor; SQL Server permite varios NULL bajo un índice
 -- filtrado (a diferencia de un UNIQUE normal, que solo admite uno).
+-- Los índices filtrados requieren QUOTED_IDENTIFIER ON en la sesión.
+SET QUOTED_IDENTIFIER ON;
+GO
+
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
     WHERE object_id = OBJECT_ID('electronicas.Usuarios') AND name = 'UQ_Usuarios_pin_bloqueo'
