@@ -75,6 +75,16 @@ foreach ($parametrizacion as $p) {
       </li>
       <?php endif; ?>
 
+      <!-- Turnos de Operarios -->
+      <?php if (puedeVer('turnos')): ?>
+      <li class="nav-item">
+        <a class="<?= navLink('turnos', $mod) ?>" href="?module=turnos">
+          <i class="bi bi-person-badge"></i>
+          <span>Turnos de Operarios</span>
+        </a>
+      </li>
+      <?php endif; ?>
+
       <!-- Máquinas -->
       <?php if (puedeVer('maquinas')): ?>
       <li class="nav-item">

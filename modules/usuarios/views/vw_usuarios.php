@@ -24,6 +24,7 @@
                     <th>Email</th>
                     <th>Rol</th>
                     <th class="text-center">Estado</th>
+                    <th class="text-center">PIN</th>
                     <th>Registro</th>
                     <th class="text-center">Acciones</th>
                 </tr>
@@ -101,6 +102,44 @@
                 <button class="btn btn-primary"   id="btnGuardarUsuario">
                     <i class="bi bi-save me-1"></i> Guardar
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Modal Código de bloqueo (PIN del kiosco de planta) ── -->
+<div class="modal fade" id="modalPin" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Código de bloqueo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Usuario: <strong id="pinNombreUsuario"></strong>
+                </p>
+                <input type="hidden" id="pin_id">
+                <div class="mb-3">
+                    <label class="form-label">Código (4 a 6 dígitos) <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="pin_valor" inputmode="numeric"
+                           maxlength="6" placeholder="Ej. 4821">
+                    <div class="form-text text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Es el código que el operario marca en el candado de la máquina. No es su contraseña.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <button class="btn btn-outline-danger" id="btnQuitarPin">
+                    <i class="bi bi-x-circle me-1"></i> Quitar código
+                </button>
+                <div>
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button class="btn btn-primary" id="btnGuardarPin">
+                        <i class="bi bi-save me-1"></i> Guardar
+                    </button>
+                </div>
             </div>
         </div>
     </div>

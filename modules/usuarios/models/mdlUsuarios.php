@@ -15,7 +15,8 @@ class mdlUsuarios
     {
         $sql = "SELECT u.id_usuario, u.username, u.nombre, u.email, u.activo,
                        FORMAT(u.fecha_registro,'dd/MM/yyyy') AS fecha_registro,
-                       u.id_rol, r.nombre AS nombre_rol
+                       u.id_rol, r.nombre AS nombre_rol,
+                       CASE WHEN u.pin_bloqueo IS NOT NULL THEN 1 ELSE 0 END AS tiene_pin
                 FROM electronicas.Usuarios u
                 LEFT JOIN electronicas.Roles r ON r.id_rol = u.id_rol
                 ORDER BY u.nombre";
@@ -107,6 +108,31 @@ class mdlUsuarios
             "UPDATE electronicas.Usuarios SET foto = ? WHERE id_usuario = ?"
         );
         $stmt->execute([$ruta, $id]);
+    }
+
+    // ── Código de bloqueo (PIN del kiosco de planta) ───────
+    public function asignarPin(int $id, string $pin): void
+    {
+        $chk = $this->conn->prepare(
+            "SELECT COUNT(*) FROM electronicas.Usuarios WHERE pin_bloqueo = ? AND id_usuario <> ?"
+        );
+        $chk->execute([$pin, $id]);
+        if ((int)$chk->fetchColumn() > 0) {
+            throw new RuntimeException('Ese código ya está asignado a otro usuario.');
+        }
+
+        $stmt = $this->conn->prepare(
+            "UPDATE electronicas.Usuarios SET pin_bloqueo = ? WHERE id_usuario = ?"
+        );
+        $stmt->execute([$pin, $id]);
+    }
+
+    public function quitarPin(int $id): void
+    {
+        $stmt = $this->conn->prepare(
+            "UPDATE electronicas.Usuarios SET pin_bloqueo = NULL WHERE id_usuario = ?"
+        );
+        $stmt->execute([$id]);
     }
 
     // ── Cambiar propia contraseña ──────────────────────────

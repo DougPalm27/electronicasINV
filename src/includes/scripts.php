@@ -165,6 +165,7 @@ if (!empty($_GET['module'])) {
         'solicitudes'     => './modules/Solicitudes/js/solicitudes.js',
         'compras'         => './modules/SolicitudesCompra/js/solicitudesCompra.js',
         'satake'          => './modules/Mantenimiento/Satake/js/satake.js',
+        'turnos'          => './modules/Turnos/js/turnos.js',
         // ── GPS ──────────────────────────────────────────────
         'gpsMapa'         => './modules/GPS/Mapa/js/mapa.js',
         'gpsCredenciales' => './modules/GPS/GPS/js/gps.js',

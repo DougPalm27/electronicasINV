@@ -46,6 +46,13 @@ $(document).ready(function () {
                     ? '<span class="badge bg-success">Activo</span>'
                     : '<span class="badge bg-secondary">Inactivo</span>'
             },
+            {
+                data: 'tiene_pin',
+                className: 'text-center',
+                render: v => v == 1
+                    ? '<span class="badge bg-primary-subtle text-primary-emphasis">Asignado</span>'
+                    : '<span class="text-muted small">—</span>'
+            },
             { data: 'fecha_registro' },
             {
                 data: null,
@@ -71,6 +78,12 @@ $(document).ready(function () {
                                 <button class="dropdown-item btn-reset" type="button"
                                         data-id="${r.id_usuario}" data-nombre="${r.nombre}">
                                     <i class="bi bi-key me-2 text-secondary"></i>Restablecer contraseña
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dropdown-item btn-pin" type="button"
+                                        data-id="${r.id_usuario}" data-nombre="${r.nombre}">
+                                    <i class="bi bi-grid-3x3-gap me-2 text-secondary"></i>Código de bloqueo
                                 </button>
                             </li>
                             <li><hr class="dropdown-divider"></li>
@@ -205,6 +218,60 @@ $(document).ready(function () {
             if (!res.isConfirmed) return;
             $.post(CTRL_USR, { accion: 'resetPassword', id_usuario: id, password: pwd }, function (resp) {
                 cerrarModal('#modalReset');
+                Swal.fire({
+                    icon: resp.ok ? 'success' : 'error',
+                    title: resp.ok ? 'Listo' : 'Error',
+                    text: resp.mensaje,
+                    timer: resp.ok ? 1800 : undefined,
+                    showConfirmButton: !resp.ok
+                });
+            }, 'json');
+        });
+    });
+
+    // ── Código de bloqueo (PIN) ────────────────────────────
+    $('#tblUsuarios').on('click', '.btn-pin', function () {
+        $('#pin_id').val($(this).data('id'));
+        $('#pinNombreUsuario').text($(this).data('nombre'));
+        $('#pin_valor').val('').removeClass('is-invalid');
+        abrirModal('#modalPin');
+    });
+
+    $('#btnGuardarPin').on('click', function () {
+        const id  = $('#pin_id').val();
+        const pin = $('#pin_valor').val().trim();
+
+        if (!/^\d{4,6}$/.test(pin)) {
+            $('#pin_valor').addClass('is-invalid');
+            return;
+        }
+
+        $.post(CTRL_USR, { accion: 'asignarPin', id_usuario: id, pin: pin }, function (resp) {
+            if (!resp.ok) {
+                Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje, confirmButtonColor: '#156b45' });
+                return;
+            }
+            cerrarModal('#modalPin');
+            tabla.ajax.reload(null, false);
+            Swal.fire({ icon: 'success', title: 'Listo', text: resp.mensaje, timer: 1800, showConfirmButton: false });
+        }, 'json');
+    });
+
+    $('#btnQuitarPin').on('click', function () {
+        const id = $('#pin_id').val();
+        Swal.fire({
+            title: '¿Quitar el código de bloqueo?',
+            text: 'El usuario ya no podrá identificarse en el candado de planta hasta que se le asigne uno nuevo.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, quitar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#dc3545'
+        }).then(res => {
+            if (!res.isConfirmed) return;
+            $.post(CTRL_USR, { accion: 'quitarPin', id_usuario: id }, function (resp) {
+                cerrarModal('#modalPin');
+                tabla.ajax.reload(null, false);
                 Swal.fire({
                     icon: resp.ok ? 'success' : 'error',
                     title: resp.ok ? 'Listo' : 'Error',

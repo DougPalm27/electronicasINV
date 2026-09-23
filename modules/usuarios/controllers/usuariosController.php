@@ -85,6 +85,26 @@ try {
             resp([], false, 'Contraseña restablecida.');
             break;
 
+        case 'asignarPin':
+            $id  = (int)($_POST['id_usuario'] ?? 0);
+            $pin = trim($_POST['pin'] ?? '');
+
+            if (!$id) resp([], true, 'ID inválido.');
+            if (!preg_match('/^\d{4,6}$/', $pin)) {
+                resp([], true, 'El código debe tener entre 4 y 6 dígitos.');
+            }
+
+            $model->asignarPin($id, $pin);
+            resp([], false, 'Código de bloqueo asignado.');
+            break;
+
+        case 'quitarPin':
+            $id = (int)($_POST['id_usuario'] ?? 0);
+            if (!$id) resp([], true, 'ID inválido.');
+            $model->quitarPin($id);
+            resp([], false, 'Código de bloqueo eliminado.');
+            break;
+
         case 'toggleActivo':
             $id = (int)($_POST['id_usuario'] ?? 0);
             if (!$id) resp([], true, 'ID inválido.');
