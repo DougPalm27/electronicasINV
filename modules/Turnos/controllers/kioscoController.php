@@ -20,9 +20,55 @@ function resp($data = [], bool $error = false, string $msg = ''): void
 if (!$estacion) {
     resp([], true, 'Falta identificar la estación (parámetro "estacion").');
 }
+// El nombre se muestra luego en el panel: solo letras, números, espacio, punto, guion y guion bajo
+if (!preg_match('/^[\p{L}\p{N} _.\-]{1,100}$/u', $estacion)) {
+    resp([], true, 'Nombre de estación no válido.');
+}
+
+// sync y subirTurnos exponen/aceptan datos de toda la planta: solo con el
+// token compartido que se instala en cada PC (KIOSCO_TOKEN en .env).
+function exigirToken(): void
+{
+    $esperado = (string)env('KIOSCO_TOKEN', '');
+    $recibido = (string)($_POST['token'] ?? '');
+    if (strlen($esperado) < 16 || !hash_equals($esperado, $recibido)) {
+        resp([], true, 'Token inválido.');
+    }
+}
 
 try {
     switch ($accion) {
+
+        case 'sync':
+            exigirToken();
+            $usuarios = [];
+            foreach ($model->operariosParaSync() as $op) {
+                $salt = bin2hex(random_bytes(8));
+                $usuarios[] = [
+                    'id_usuario' => (int)$op['id_usuario'],
+                    'nombre'     => $op['nombre'],
+                    'salt'       => $salt,
+                    'hash'       => hash('sha256', $salt . $op['pin_bloqueo']),
+                ];
+            }
+            resp(['usuarios' => $usuarios]);
+            break;
+
+        case 'subirTurnos':
+            exigirToken();
+            $turnos = json_decode($_POST['turnos'] ?? '[]', true);
+            if (!is_array($turnos)) resp([], true, 'Formato inválido.');
+            $r = $model->subirTurnos($turnos);
+
+            // Eventos de Delvis del turno: van después, porque necesitan que el turno ya exista
+            $eventos = json_decode($_POST['eventos'] ?? '[]', true);
+            if (is_array($eventos) && $eventos) {
+                $re = $model->subirEventos($eventos);
+                $r['eventos_procesados'] = $re['procesados'];
+                $r['eventos_rechazados'] = $re['rechazados'];
+            }
+            resp($r);
+            break;
 
         case 'estado':
             $activa = $model->sesionActivaEn($estacion);

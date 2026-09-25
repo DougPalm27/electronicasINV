@@ -25,6 +25,12 @@ try {
             resp($model->activos());
             break;
 
+        case 'eventos':
+            $id = (int)($_POST['id_sesion'] ?? 0);
+            if (!$id) resp([], true, 'ID inválido.');
+            resp($model->eventosDeSesion($id));
+            break;
+
         default:
             resp([], true, 'Acción no válida.');
     }
