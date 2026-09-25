@@ -4,3 +4,8 @@
 logs/
 outputs/
 node_modules/
+
+# Candado de operario: config con token y binarios generados
+kiosco/CandadoOperario/candado.config
+kiosco/CandadoOperario/*.exe
+kiosco/CandadoOperario/Output/

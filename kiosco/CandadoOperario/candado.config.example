@@ -1,0 +1,8 @@
+# Candado de operario - configuracion de ESTA PC (plantilla)
+# Copiar como candado.config y completar. El instalador lo genera solo.
+Servidor=192.168.1.10
+Estacion=Evolution-Linea1
+Token=
+AutoBloqueoMinutos=15
+PermitirSalir=false# Carpeta donde Delvis guarda sus bitacoras y configuracion
+DelvisDir=C:\Satake\Delvis\Gui
