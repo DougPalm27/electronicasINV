@@ -21,14 +21,14 @@ $estacion = trim($_GET['estacion'] ?? '');
 <link href="./assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
 <style>
   :root {
-    --hc-verde:       #156b45;
-    --hc-verde-hover: #0f5434;
-    --hc-verde-tinte: #e9f3ee;
-    --hc-texto:       #1c2128;
-    --hc-texto-2:     #57606a;
-    --hc-texto-3:     #8a919c;
-    --hc-borde:       #e4e7ec;
-    --hc-fondo:       #f6f7f9;
+    --hc-marca:       #620e0f;
+    --hc-marca-hover: #460909;
+    --hc-marca-tinte: #f6ecec;
+    --hc-texto:       #261a1b;
+    --hc-texto-2:     #695a5b;
+    --hc-texto-3:     #9a8b8c;
+    --hc-borde:       #e7dcdd;
+    --hc-fondo:       #ffffff;
   }
   html, body {
     height: 100%;
@@ -58,12 +58,12 @@ $estacion = trim($_GET['estacion'] ?? '');
     padding: 1rem 1.5rem;
   }
   .kiosk-brand { display: flex; align-items: center; gap: .5rem; color: var(--hc-texto-2); font-weight: 600; font-size: .85rem; }
-  .kiosk-brand .bi { color: var(--hc-verde); }
+  .kiosk-brand .bi { color: var(--hc-marca); }
   .kiosk-estacion {
     font-size: .75rem;
     font-weight: 600;
-    color: var(--hc-verde);
-    background: var(--hc-verde-tinte);
+    color: var(--hc-marca);
+    background: var(--hc-marca-tinte);
     padding: .3rem .7rem;
     border-radius: 20px;
   }
@@ -81,13 +81,14 @@ $estacion = trim($_GET['estacion'] ?? '');
   }
   .keypad-card .bi-lock-fill {
     font-size: 2.2rem;
-    color: var(--hc-verde);
-    background: var(--hc-verde-tinte);
+    color: var(--hc-marca);
+    background: var(--hc-marca-tinte);
     width: 76px; height: 76px;
     border-radius: 50%;
     display: inline-flex; align-items: center; justify-content: center;
     margin-bottom: 1.1rem;
   }
+  .keypad-card .logo { height: 130px; max-width: 100%; margin-bottom: 1rem; }
   .keypad-card h1 { font-size: 1.15rem; font-weight: 600; margin: 0 0 .25rem; }
   .keypad-card .subt { font-size: .82rem; color: var(--hc-texto-3); margin: 0 0 1.4rem; }
 
@@ -97,7 +98,7 @@ $estacion = trim($_GET['estacion'] ?? '');
     border: 2px solid var(--hc-borde);
     transition: background .1s, border-color .1s;
   }
-  .pin-dots .dot.filled { background: var(--hc-verde); border-color: var(--hc-verde); }
+  .pin-dots .dot.filled { background: var(--hc-marca); border-color: var(--hc-marca); }
   .pin-dots.shake { animation: shake .35s; }
   @keyframes shake {
     0%, 100% { transform: translateX(0); }
@@ -121,9 +122,9 @@ $estacion = trim($_GET['estacion'] ?? '');
     cursor: pointer;
     transition: background .1s, transform .05s;
   }
-  .keypad-grid button:active { transform: scale(.94); background: var(--hc-verde-tinte); }
-  .keypad-grid button.tecla-entrar { background: var(--hc-verde); color: #fff; border-color: var(--hc-verde); font-size: 1.6rem; }
-  .keypad-grid button.tecla-entrar:active { background: var(--hc-verde-hover); }
+  .keypad-grid button:active { transform: scale(.94); background: var(--hc-marca-tinte); }
+  .keypad-grid button.tecla-entrar { background: var(--hc-marca); color: #fff; border-color: var(--hc-marca); font-size: 1.6rem; }
+  .keypad-grid button.tecla-entrar:active { background: var(--hc-marca-hover); }
   .keypad-grid button.tecla-borrar { font-size: 1.2rem; color: var(--hc-texto-2); }
 
   #errorPin {
@@ -140,7 +141,7 @@ $estacion = trim($_GET['estacion'] ?? '');
     width: 96px; height: 96px; border-radius: 50%;
     margin: 0 auto 1.2rem;
     display: flex; align-items: center; justify-content: center;
-    background: var(--hc-verde-tinte); color: var(--hc-verde);
+    background: var(--hc-marca-tinte); color: var(--hc-marca);
     font-size: 2.1rem; font-weight: 700;
     object-fit: cover;
   }
@@ -189,7 +190,7 @@ $estacion = trim($_GET['estacion'] ?? '');
 <?php else: ?>
 
   <div class="kiosk-top">
-    <div class="kiosk-brand"><i class="bi bi-box-seam"></i> Honducafe</div>
+    <div></div>
     <div style="display:flex;align-items:center">
       <span id="relojKiosk"></span>
       <span class="kiosk-estacion"><i class="bi bi-cpu me-1"></i><?= htmlspecialchars($estacion) ?></span>
@@ -201,7 +202,7 @@ $estacion = trim($_GET['estacion'] ?? '');
 
     <!-- ── Bloqueada: teclado numérico ── -->
     <div id="vistaBloqueada" class="keypad-card">
-      <div><i class="bi bi-lock-fill"></i></div>
+      <img class="logo" src="./assets/img/logo-honducafe.png" alt="Honducafe">
       <h1>Estación bloqueada</h1>
       <p class="subt">Ingresa tu código para comenzar tu turno</p>
 
