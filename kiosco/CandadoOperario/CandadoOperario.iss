@@ -5,7 +5,7 @@
 ;   Setup-CandadoOperario.exe /VERYSILENT /SERVIDOR=192.168.1.10 /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
 
 #define AppName "Candado de Operario"
-#define AppVer "1.2.0"
+#define AppVer "1.2.1"
 
 [Setup]
 AppId={{B7C2E1A4-5D3F-4E8A-9C61-2F0A7D9E4B13}
@@ -13,7 +13,7 @@ AppName={#AppName}
 AppVersion={#AppVer}
 AppPublisher=Honducafe · Desarrollado por Douglas Palma
 AppCopyright=Desarrollado por Douglas Palma · © 2026
-VersionInfoVersion=1.2.0.0
+VersionInfoVersion=1.2.1.0
 VersionInfoCompany=Honducafe
 VersionInfoCopyright=Desarrollado por Douglas Palma · © 2026
 VersionInfoDescription=Instalador de Candado de Operario
@@ -45,7 +45,8 @@ FinishedLabel=Se instaló [name] en su equipo.%n%nDesarrollado por Douglas Palma
 Source: "CandadoOperario.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{commonprograms}\Candado de Operario"; Filename: "{app}\CandadoOperario.exe"; Comment: "Abre el candado de operario"
+Name: "{commonprograms}\Candado de Operario"; Filename: "{app}\CandadoOperario.exe"; Comment: "Abre el candado de operario"; Tasks: iconoinicio
+Name: "{commondesktop}\Candado de Operario"; Filename: "{app}\CandadoOperario.exe"; Comment: "Abre el candado de operario"; Tasks: iconoescritorio
 
 [Dirs]
 ; Copia local de operarios y cola de turnos: la escribe el candado, sea cual sea el usuario de Windows
@@ -55,7 +56,9 @@ Name: "{commonappdata}\CandadoOperario"; Permissions: users-modify
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "CandadoOperario"; ValueData: """{app}\CandadoOperario.exe"""; Flags: uninsdeletevalue
 
 [Tasks]
-Name: "modoprueba"; Description: "Modo prueba: permitir cerrar el candado con Ctrl+Alt+Shift+Q (NO usar en produccion)"; Flags: unchecked
+Name: "iconoinicio"; Description: "Crear un acceso directo en el menú Inicio"; GroupDescription: "Accesos directos:"
+Name: "iconoescritorio"; Description: "Crear un acceso directo en el escritorio"; GroupDescription: "Accesos directos:"
+Name: "modoprueba"; Description: "Modo prueba: permitir cerrar el candado con Ctrl+Alt+Shift+Q (NO usar en produccion)"; GroupDescription: "Pruebas:"; Flags: unchecked
 
 [Run]
 Filename: "{app}\CandadoOperario.exe"; Description: "Iniciar el candado ahora"; Flags: nowait postinstall skipifsilent
