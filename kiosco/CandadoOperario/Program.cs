@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
@@ -20,8 +21,8 @@ using System.Xml.Linq;
 [assembly: AssemblyProduct("Candado de Operario")]
 [assembly: AssemblyCompany("Honducafe")]
 [assembly: AssemblyCopyright("Desarrollado por Douglas Palma · © 2026")]
-[assembly: AssemblyVersion("1.1.1.0")]
-[assembly: AssemblyFileVersion("1.1.1.0")]
+[assembly: AssemblyVersion("1.2.0.0")]
+[assembly: AssemblyFileVersion("1.2.0.0")]
 
 namespace CandadoOperario
 {
@@ -118,9 +119,14 @@ namespace CandadoOperario
         public static List<Evento> Eventos = new List<Evento>();
         static JavaScriptSerializer js = new JavaScriptSerializer();
 
+        public static string DirDatos
+        {
+            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "CandadoOperario"); }
+        }
+
         public static void Init()
         {
-            Dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "CandadoOperario");
+            Dir = DirDatos;
             Directory.CreateDirectory(Dir);
             Cache = Read<CacheData>("cache.json") ?? new CacheData();
             Cola = Read<List<Turno>>("cola.json") ?? new List<Turno>();
@@ -1077,7 +1083,7 @@ namespace CandadoOperario
             widget = new WidgetForm();
             cover.PinSubmitted += OnPin;
             cover.SyncRequested += delegate { SyncAsync(true, true); };
-            cover.ExitRequested += delegate { ExitThread(); };
+            cover.ExitRequested += delegate { Program.Pausar(60); ExitThread(); };
             widget.LockClicked += DoLock;
             widget.SyncClicked += delegate { SyncAsync(true, true); };
             vsActual = SystemInformation.VirtualScreen;
@@ -1321,18 +1327,122 @@ namespace CandadoOperario
             }
         }
 
+        // Reapertura automática: si falla, deja el error en errores.log y se vuelve a abrir.
+        // null = no reabrir (pruebas). El vigilante (tarea de Windows) cubre el resto.
+        public static string ArgsReinicio = "";
+
+        static string RutaPausa { get { return Path.Combine(Store.DirDatos, "pausa.txt"); } }
+
+        // Salida a propósito (modo prueba): el vigilante no lo reabre durante ese tiempo
+        public static void Pausar(int minutos)
+        {
+            try
+            {
+                Directory.CreateDirectory(Store.DirDatos);
+                File.WriteAllText(RutaPausa, DateTime.Now.AddMinutes(minutos).ToString("o"));
+            }
+            catch (Exception) { }
+        }
+
+        static bool EnPausa()
+        {
+            try
+            {
+                if (!File.Exists(RutaPausa)) return false;
+                DateTime h;
+                return DateTime.TryParse(File.ReadAllText(RutaPausa), null, DateTimeStyles.RoundtripKind, out h) && DateTime.Now < h;
+            }
+            catch (Exception) { return false; }
+        }
+
+        static void BorrarPausa()
+        {
+            try { if (File.Exists(RutaPausa)) File.Delete(RutaPausa); } catch (Exception) { }
+        }
+
+        static void Fallo(Exception ex)
+        {
+            try
+            {
+                Directory.CreateDirectory(Store.DirDatos);
+                string log = Path.Combine(Store.DirDatos, "errores.log");
+                if (File.Exists(log) && new FileInfo(log).Length > 500000) File.Delete(log);
+                File.AppendAllText(log, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " +
+                                        (ex != null ? ex.ToString() : "error desconocido") + "\r\n\r\n");
+            }
+            catch (Exception) { }
+
+            // No reabre si ya había caído hace menos de 30 s (evita un ciclo de fallas); ahí lo hará el vigilante.
+            bool reabrir = ArgsReinicio != null;
+            try
+            {
+                string marca = Path.Combine(Store.DirDatos, "ultimo_fallo.txt");
+                DateTime u;
+                if (File.Exists(marca) && DateTime.TryParse(File.ReadAllText(marca), null, DateTimeStyles.RoundtripKind, out u)
+                    && (DateTime.Now - u).TotalSeconds < 30) reabrir = false;
+                File.WriteAllText(marca, DateTime.Now.ToString("o"));
+            }
+            catch (Exception) { }
+
+            if (reabrir)
+            {
+                try
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo("cmd.exe",
+                        "/c ping -n 4 127.0.0.1 >nul & start \"\" \"" + Application.ExecutablePath + "\" " + ArgsReinicio);
+                    psi.CreateNoWindow = true;
+                    psi.UseShellExecute = false;
+                    Process.Start(psi);
+                }
+                catch (Exception) { }
+            }
+            Environment.Exit(1);
+        }
+
+        // El instalador registra una tarea de Windows que abre el programa cada 5 minutos con --vigilante.
+        // Si ya hay una copia corriendo, esta sale enseguida sin leer nada.
         [STAThread]
         static void Main(string[] args)
         {
-            Cfg.Load();
-            Store.Init();
-            if (args.Length > 1 && args[0] == "--preview") { Preview(args[1], args.Length > 2 && args[2] == "100"); return; }
-            if (args.Length > 0 && args[0] == "--selftest") { SelfTest(args.Length > 1 ? args[1] : "1234"); return; }
+            string modo = args.Length > 0 ? args[0] : "";
+
+            if (modo == "--preview" || modo == "--selftest")
+            {
+                Cfg.Load();
+                Store.Init();
+                if (modo == "--preview" && args.Length > 1) Preview(args[1], args.Length > 2 && args[2] == "100");
+                else if (modo == "--selftest") SelfTest(args.Length > 1 ? args[1] : "1234");
+                return;
+            }
 
             bool nuevo;
             using (Mutex m = new Mutex(true, "Honducafe.CandadoOperario", out nuevo))
             {
                 if (!nuevo) return;
+
+                bool vigilante = modo == "--vigilante";
+                if (vigilante && EnPausa()) return;
+                if (!vigilante) BorrarPausa();
+
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+                Application.ThreadException += delegate(object s, ThreadExceptionEventArgs e) { Fallo(e.Exception); };
+                AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e) { Fallo(e.ExceptionObject as Exception); };
+
+                Cfg.Load();
+                Store.Init();
+
+                // Prueba de la captura de errores: provoca una falla a propósito (no abre el candado)
+                if (modo == "--crashtest")
+                {
+                    ArgsReinicio = args.Length > 1 ? args[1] : null;
+                    System.Windows.Forms.Timer t = new System.Windows.Forms.Timer();
+                    t.Interval = 800;
+                    t.Tick += delegate { throw new InvalidOperationException("falla de prueba"); };
+                    t.Start();
+                    Application.Run(new ApplicationContext());
+                    return;
+                }
+
                 Native.SetProcessDPIAware();
                 using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) Ui.Scale = g.DpiX / 96f;
                 Application.EnableVisualStyles();

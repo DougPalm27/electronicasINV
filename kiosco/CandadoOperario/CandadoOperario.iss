@@ -5,7 +5,7 @@
 ;   Setup-CandadoOperario.exe /VERYSILENT /SERVIDOR=192.168.1.10 /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
 
 #define AppName "Candado de Operario"
-#define AppVer "1.1.1"
+#define AppVer "1.2.0"
 
 [Setup]
 AppId={{B7C2E1A4-5D3F-4E8A-9C61-2F0A7D9E4B13}
@@ -13,7 +13,7 @@ AppName={#AppName}
 AppVersion={#AppVer}
 AppPublisher=Honducafe · Desarrollado por Douglas Palma
 AppCopyright=Desarrollado por Douglas Palma · © 2026
-VersionInfoVersion=1.1.1.0
+VersionInfoVersion=1.2.0.0
 VersionInfoCompany=Honducafe
 VersionInfoCopyright=Desarrollado por Douglas Palma · © 2026
 VersionInfoDescription=Instalador de Candado de Operario
@@ -44,6 +44,9 @@ FinishedLabel=Se instaló [name] en su equipo.%n%nDesarrollado por Douglas Palma
 [Files]
 Source: "CandadoOperario.exe"; DestDir: "{app}"; Flags: ignoreversion
 
+[Icons]
+Name: "{commonprograms}\Candado de Operario"; Filename: "{app}\CandadoOperario.exe"; Comment: "Abre el candado de operario"
+
 [Dirs]
 ; Copia local de operarios y cola de turnos: la escribe el candado, sea cual sea el usuario de Windows
 Name: "{commonappdata}\CandadoOperario"; Permissions: users-modify
@@ -58,6 +61,7 @@ Name: "modoprueba"; Description: "Modo prueba: permitir cerrar el candado con Ct
 Filename: "{app}\CandadoOperario.exe"; Description: "Iniciar el candado ahora"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
+Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""Honducafe\Candado de Operario Vigilante"" /F"; Flags: runhidden; RunOnceId: "QuitarVigilante"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM CandadoOperario.exe"; Flags: runhidden; RunOnceId: "CerrarCandado"
 
 [Code]
@@ -156,6 +160,35 @@ begin
   Result := '';
 end;
 
+// Tarea de Windows que cada 5 minutos intenta abrir el candado (si ya esta abierto, no hace nada).
+// Corre con el grupo Usuarios para que use la sesion del operario que este conectado.
+procedure CrearTareaVigilante;
+var
+  Ps, Ruta: String;
+  Codigo: Integer;
+begin
+  Ps :=
+    '$ErrorActionPreference = ''Stop''' + #13#10 +
+    '$exe = ''' + ExpandConstant('{app}\CandadoOperario.exe') + '''' + #13#10 +
+    '$a = New-ScheduledTaskAction -Execute $exe -Argument ''--vigilante''' + #13#10 +
+    '$t = New-ScheduledTaskTrigger -Once -At (Get-Date ''2026-01-01'') -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 3650)' + #13#10 +
+    '$p = New-ScheduledTaskPrincipal -GroupId ''S-1-5-32-545'' -RunLevel Limited' + #13#10 +
+    '$s = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Seconds 0)' + #13#10 +
+    'Register-ScheduledTask -TaskName ''Candado de Operario Vigilante'' -TaskPath ''\Honducafe\'' -Action $a -Trigger $t -Principal $p -Settings $s -Description ''Reabre el Candado de Operario si se cierra. Honducafe.'' -Force | Out-Null' + #13#10;
+  Ruta := ExpandConstant('{tmp}\vigilante.ps1');
+  SaveStringToFile(Ruta, Ps, False);
+
+  if (not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+        '-NoProfile -ExecutionPolicy Bypass -File "' + Ruta + '"', '', SW_HIDE, ewWaitUntilTerminated, Codigo))
+     or (Codigo <> 0) then
+  begin
+    Log('No se pudo crear la tarea vigilante. Codigo: ' + IntToStr(Codigo));
+    if not WizardSilent then
+      MsgBox('No se pudo crear la tarea que reabre el candado si se cierra (codigo ' + IntToStr(Codigo) + ').' + #13#10 +
+             'El candado funciona, pero no se volvera a abrir solo hasta el proximo inicio de sesion.', mbInformation, MB_OK);
+  end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Salir, Cfg: String;
@@ -171,5 +204,6 @@ begin
            'DelvisDir=' + Trim(Pagina.Edits[4].Text) + #13#10 +
            'PermitirSalir=' + Salir + #13#10;
     SaveStringToFile(ExpandConstant('{app}\candado.config'), Cfg, False);
+    CrearTareaVigilante;
   end;
 end;
