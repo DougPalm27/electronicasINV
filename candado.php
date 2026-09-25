@@ -3,8 +3,17 @@
 // Pública dentro de la red a propósito: las PCs de máquina no tienen login,
 // y el instalador no contiene secretos (el token se escribe al instalar).
 
-$archivo  = __DIR__ . '/descargas/Setup-CandadoOperario.exe';
-$existe   = is_file($archivo);
+// El instalador lleva la version en el nombre (Setup-CandadoOperario-1.2.1.exe): se ofrece la mas nueva
+$archivos = glob(__DIR__ . '/descargas/Setup-CandadoOperario-*.exe') ?: [];
+usort($archivos, function ($a, $b) {
+    $va = preg_replace('/^.*Setup-CandadoOperario-(.+)\.exe$/', '$1', $a);
+    $vb = preg_replace('/^.*Setup-CandadoOperario-(.+)\.exe$/', '$1', $b);
+    return version_compare($vb, $va);
+});
+$archivo  = $archivos[0] ?? '';
+$existe   = $archivo !== '';
+$nombre   = $existe ? basename($archivo) : '';
+$version  = $existe ? preg_replace('/^Setup-CandadoOperario-(.+)\.exe$/', '$1', $nombre) : '';
 $tamano   = $existe ? round(filesize($archivo) / 1048576, 1) : 0;
 $fecha    = $existe ? date('d/m/Y H:i', filemtime($archivo)) : '';
 $sha      = $existe ? hash_file('sha256', $archivo) : '';
@@ -63,11 +72,11 @@ $servidor = $_SERVER['HTTP_HOST'] ?? 'servidor';
     <p class="sub">Bloquea la pantalla de Delvis y registra qué operario trabaja en cada máquina.</p>
 
     <?php if ($existe): ?>
-      <a class="btn-desc" href="./descargas/Setup-CandadoOperario.exe" download>
-        <i class="bi bi-download"></i> Descargar Setup-CandadoOperario.exe
+      <a class="btn-desc" href="./descargas/<?= rawurlencode($nombre) ?>" download>
+        <i class="bi bi-download"></i> Descargar <?= htmlspecialchars($nombre) ?>
       </a>
       <div class="meta">
-        <?= $tamano ?> MB · generado el <?= htmlspecialchars($fecha) ?><br>
+        Versión <?= htmlspecialchars($version) ?> · <?= $tamano ?> MB · generado el <?= htmlspecialchars($fecha) ?><br>
         SHA-256: <code><?= htmlspecialchars($sha) ?></code>
       </div>
     <?php else: ?>

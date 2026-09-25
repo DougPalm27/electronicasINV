@@ -1,8 +1,8 @@
 ﻿; Instalador del Candado de Operario (Honducafe)
-; Compilar: compilar-instalador.bat  ->  Output\Setup-CandadoOperario.exe
+; Compilar: compilar-instalador.bat  ->  Output\Setup-CandadoOperario-<version>.exe
 ;
 ; Instalacion silenciosa (despliegue en varias PCs):
-;   Setup-CandadoOperario.exe /VERYSILENT /SERVIDOR=192.168.1.10 /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
+;   Setup-CandadoOperario-1.2.1.exe /VERYSILENT /SERVIDOR=192.168.1.10 /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
 
 #define AppName "Candado de Operario"
 #define AppVer "1.2.1"
@@ -23,7 +23,7 @@ DisableDirPage=yes
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 OutputDir=Output
-OutputBaseFilename=Setup-CandadoOperario
+OutputBaseFilename=Setup-CandadoOperario-{#AppVer}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
