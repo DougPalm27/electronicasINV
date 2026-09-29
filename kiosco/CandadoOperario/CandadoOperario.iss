@@ -2,10 +2,10 @@
 ; Compilar: compilar-instalador.bat  ->  Output\Setup-CandadoOperario-<version>.exe
 ;
 ; Instalacion silenciosa (despliegue en varias PCs):
-;   Setup-CandadoOperario-1.2.2.exe /VERYSILENT /SERVIDOR=electronicas.simfcoh.com /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
+;   Setup-CandadoOperario-1.2.3.exe /VERYSILENT /SERVIDOR=electronicas.simfcoh.com /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
 
 #define AppName "Candado de Operario"
-#define AppVer "1.2.2"
+#define AppVer "1.2.3"
 
 [Setup]
 AppId={{B7C2E1A4-5D3F-4E8A-9C61-2F0A7D9E4B13}
@@ -13,7 +13,7 @@ AppName={#AppName}
 AppVersion={#AppVer}
 AppPublisher=Honducafe · Desarrollado por Douglas Palma
 AppCopyright=Desarrollado por Douglas Palma · © 2026
-VersionInfoVersion=1.2.2.0
+VersionInfoVersion=1.2.3.0
 VersionInfoCompany=Honducafe
 VersionInfoCopyright=Desarrollado por Douglas Palma · © 2026
 VersionInfoDescription=Instalador de Candado de Operario

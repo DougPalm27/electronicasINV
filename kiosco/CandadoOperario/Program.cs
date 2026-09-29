@@ -21,8 +21,8 @@ using System.Xml.Linq;
 [assembly: AssemblyProduct("Candado de Operario")]
 [assembly: AssemblyCompany("Honducafe")]
 [assembly: AssemblyCopyright("Desarrollado por Douglas Palma · © 2026")]
-[assembly: AssemblyVersion("1.2.2.0")]
-[assembly: AssemblyFileVersion("1.2.2.0")]
+[assembly: AssemblyVersion("1.2.3.0")]
+[assembly: AssemblyFileVersion("1.2.3.0")]
 
 namespace CandadoOperario
 {
@@ -600,12 +600,16 @@ namespace CandadoOperario
         [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
         [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
         [DllImport("user32.dll")] static extern bool GetLastInputInfo(ref LASTINPUTINFO p);
+        [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern IntPtr FindWindow(string clase, string nombre);
+        [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern IntPtr FindWindowEx(IntPtr padre, IntPtr despuesDe, string clase, string nombre);
+        [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int modo);
 
         [StructLayout(LayoutKind.Sequential)]
         struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
 
         static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
         const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
+        const int SW_HIDE = 0, SW_SHOW = 5;
 
         public static void KeepOnTop(Form f)
         {
@@ -618,6 +622,30 @@ namespace CandadoOperario
             li.cbSize = (uint)Marshal.SizeOf(li);
             GetLastInputInfo(ref li);
             return (uint)Environment.TickCount - li.dwTime;
+        }
+
+        // El candado cubre la pantalla, pero por sí solo eso no impide usar la barra de
+        // tareas (Windows la mantiene encima incluso de una ventana "TopMost"). Se oculta
+        // aparte mientras está bloqueado, y se restaura al desbloquear o si el programa falla.
+        // Nunca debe quedar oculta por error: si algo sale mal aquí, no se bloquea nada más.
+        public static void OcultarBarraTareas(bool ocultar)
+        {
+            try
+            {
+                int modo = ocultar ? SW_HIDE : SW_SHOW;
+                IntPtr principal = FindWindow("Shell_TrayWnd", null);
+                if (principal != IntPtr.Zero) ShowWindow(principal, modo);
+
+                // Una barra adicional por cada monitor, si Windows está configurado para mostrarla en todos
+                IntPtr sec = IntPtr.Zero;
+                for (int i = 0; i < 8; i++)
+                {
+                    sec = FindWindowEx(IntPtr.Zero, sec, "Shell_SecondaryTrayWnd", null);
+                    if (sec == IntPtr.Zero) break;
+                    ShowWindow(sec, modo);
+                }
+            }
+            catch (Exception) { }
         }
     }
 
@@ -891,6 +919,7 @@ namespace CandadoOperario
         public void ShowLocked()
         {
             Bounds = SystemInformation.VirtualScreen;
+            Native.OcultarBarraTareas(true);
             Show();
             Native.KeepOnTop(this);
             Activate();
@@ -1097,7 +1126,7 @@ namespace CandadoOperario
             widget = new WidgetForm();
             cover.PinSubmitted += OnPin;
             cover.SyncRequested += delegate { SyncAsync(true, true); };
-            cover.ExitRequested += delegate { Program.Pausar(60); ExitThread(); };
+            cover.ExitRequested += delegate { Native.OcultarBarraTareas(false); Program.Pausar(60); ExitThread(); };
             widget.LockClicked += DoLock;
             widget.SyncClicked += delegate { SyncAsync(true, true); };
             vsActual = SystemInformation.VirtualScreen;
@@ -1201,6 +1230,7 @@ namespace CandadoOperario
 
             cover.SetInfo("", false);
             cover.Hide();
+            Native.OcultarBarraTareas(false);
             widget.SetName(op.nombre);
             widget.Show();
             Native.KeepOnTop(widget);
@@ -1376,6 +1406,9 @@ namespace CandadoOperario
 
         static void Fallo(Exception ex)
         {
+            // Si el programa se cae estando bloqueado, que al menos quede la barra de
+            // tareas disponible en vez de perderla hasta que el vigilante lo reabra.
+            Native.OcultarBarraTareas(false);
             try
             {
                 Directory.CreateDirectory(Store.DirDatos);
