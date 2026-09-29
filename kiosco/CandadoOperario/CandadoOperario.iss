@@ -2,10 +2,10 @@
 ; Compilar: compilar-instalador.bat  ->  Output\Setup-CandadoOperario-<version>.exe
 ;
 ; Instalacion silenciosa (despliegue en varias PCs):
-;   Setup-CandadoOperario-1.2.1.exe /VERYSILENT /SERVIDOR=192.168.1.10 /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
+;   Setup-CandadoOperario-1.2.2.exe /VERYSILENT /SERVIDOR=electronicas.simfcoh.com /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
 
 #define AppName "Candado de Operario"
-#define AppVer "1.2.1"
+#define AppVer "1.2.2"
 
 [Setup]
 AppId={{B7C2E1A4-5D3F-4E8A-9C61-2F0A7D9E4B13}
@@ -13,7 +13,7 @@ AppName={#AppName}
 AppVersion={#AppVer}
 AppPublisher=Honducafe · Desarrollado por Douglas Palma
 AppCopyright=Desarrollado por Douglas Palma · © 2026
-VersionInfoVersion=1.2.1.0
+VersionInfoVersion=1.2.2.0
 VersionInfoCompany=Honducafe
 VersionInfoCopyright=Desarrollado por Douglas Palma · © 2026
 VersionInfoDescription=Instalador de Candado de Operario
@@ -97,7 +97,7 @@ begin
   Pagina := CreateInputQueryPage(wpWelcome, 'Configuración de esta PC',
     'Datos de conexión con el servidor de Honducafe',
     'Estos datos los da quien administra el servidor. La estación es el nombre único de esta máquina.');
-  Pagina.Add('Servidor (IP o nombre de la PC con XAMPP):', False);
+  Pagina.Add('Servidor (dominio o IP; si el sitio no está en la raíz, agrega la carpeta):', False);
   Pagina.Add('Estación (ej. Evolution-Linea1):', False);
   Pagina.Add('Token del servidor (KIOSCO_TOKEN del .env):', False);
   Pagina.Add('Minutos sin actividad para bloquear solo:', False);
@@ -110,6 +110,19 @@ begin
   Pagina.Edits[4].Text := ExpandConstant('{param:DELVIS|' + LeerConfig('DelvisDir', 'C:\Satake\Delvis\Gui') + '}');
 end;
 
+// El servidor puede ser una IP de LAN sin TLS ("192.168.1.10") o un dominio real
+// ("electronicas.simfcoh.com" o "https://electronicas.simfcoh.com"). Si no trae
+// esquema se asume http:// (uso en LAN); para usar https hay que escribirlo explícito.
+function UrlBase(const Servidor: String): String;
+begin
+  if (Pos('http://', Lowercase(Servidor)) = 1) or (Pos('https://', Lowercase(Servidor)) = 1) then
+    Result := Servidor
+  else
+    Result := 'http://' + Servidor;
+  while (Length(Result) > 0) and (Result[Length(Result)] = '/') do
+    Delete(Result, Length(Result), 1);
+end;
+
 function ServidorResponde(const Servidor, Token: String): Boolean;
 var
   Http: Variant;
@@ -118,7 +131,7 @@ begin
   try
     Http := CreateOleObject('WinHttp.WinHttpRequest.5.1');
     Http.SetTimeouts(3000, 3000, 5000, 5000);
-    Http.Open('POST', 'http://' + Servidor + '/electronicasINV/modules/Turnos/controllers/kioscoController.php', False);
+    Http.Open('POST', UrlBase(Servidor) + '/modules/Turnos/controllers/kioscoController.php', False);
     Http.SetRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     Http.Send('accion=sync&estacion=instalador&token=' + Token);
     Result := Pos('"ok":true', String(Http.ResponseText)) > 0;

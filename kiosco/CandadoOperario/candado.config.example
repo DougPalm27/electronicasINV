@@ -1,8 +1,13 @@
 # Candado de operario - configuracion de ESTA PC (plantilla)
 # Copiar como candado.config y completar. El instalador lo genera solo.
+#
+# Servidor: dominio o IP del servidor. Si no lleva esquema se asume http://
+# (uso en LAN); para producir por internet escribe el dominio o https://dominio.
+# Si el sitio no esta en la raiz del servidor, agrega la carpeta (ej. localhost/electronicasINV).
 Servidor=192.168.1.10
 Estacion=Evolution-Linea1
 Token=
 AutoBloqueoMinutos=15
-PermitirSalir=false# Carpeta donde Delvis guarda sus bitacoras y configuracion
+PermitirSalir=false
+# Carpeta donde Delvis guarda sus bitacoras y configuracion
 DelvisDir=C:\Satake\Delvis\Gui

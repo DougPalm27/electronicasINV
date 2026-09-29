@@ -21,8 +21,8 @@ using System.Xml.Linq;
 [assembly: AssemblyProduct("Candado de Operario")]
 [assembly: AssemblyCompany("Honducafe")]
 [assembly: AssemblyCopyright("Desarrollado por Douglas Palma · © 2026")]
-[assembly: AssemblyVersion("1.2.1.0")]
-[assembly: AssemblyFileVersion("1.2.1.0")]
+[assembly: AssemblyVersion("1.2.2.0")]
+[assembly: AssemblyFileVersion("1.2.2.0")]
 
 namespace CandadoOperario
 {
@@ -68,7 +68,21 @@ namespace CandadoOperario
         public static void SetServidor(string s)
         {
             Servidor = s;
-            Url = "http://" + s + "/electronicasINV/modules/Turnos/controllers/kioscoController.php";
+            Url = UrlBase(s) + "/modules/Turnos/controllers/kioscoController.php";
+        }
+
+        // El servidor puede ser una IP de LAN sin TLS ("192.168.1.10") o un dominio real
+        // ("electronicas.simfcoh.com" o "https://electronicas.simfcoh.com"). Si no trae
+        // esquema se asume http:// (uso en LAN); para usar https hay que escribirlo explícito.
+        static string UrlBase(string s)
+        {
+            string b = (s ?? "").Trim();
+            if (!b.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !b.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                b = "http://" + b;
+            }
+            return b.TrimEnd('/');
         }
     }
 
@@ -1404,6 +1418,11 @@ namespace CandadoOperario
         [STAThread]
         static void Main(string[] args)
         {
+            // Por si el servidor se configura con https://: en .NET 4.0 el valor por
+            // defecto no siempre incluye TLS 1.2. 3072 = SecurityProtocolType.Tls12
+            // (numérico porque ese miembro del enum no existe en este framework).
+            try { ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072; } catch (Exception) { }
+
             string modo = args.Length > 0 ? args[0] : "";
 
             if (modo == "--preview" || modo == "--selftest")
