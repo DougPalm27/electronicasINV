@@ -21,8 +21,8 @@ using System.Xml.Linq;
 [assembly: AssemblyProduct("Candado de Operario")]
 [assembly: AssemblyCompany("Honducafe")]
 [assembly: AssemblyCopyright("Desarrollado por Douglas Palma · © 2026")]
-[assembly: AssemblyVersion("1.2.3.0")]
-[assembly: AssemblyFileVersion("1.2.3.0")]
+[assembly: AssemblyVersion("1.2.4.0")]
+[assembly: AssemblyFileVersion("1.2.4.0")]
 
 namespace CandadoOperario
 {
@@ -603,6 +603,11 @@ namespace CandadoOperario
         [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern IntPtr FindWindow(string clase, string nombre);
         [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern IntPtr FindWindowEx(IntPtr padre, IntPtr despuesDe, string clase, string nombre);
         [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int modo);
+        [DllImport("user32.dll", SetLastError = true)] static extern IntPtr SetWindowsHookEx(int idHook, GanchoTeclado proc, IntPtr hMod, uint hilo);
+        [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr h);
+        [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr h, int codigo, IntPtr wParam, IntPtr lParam);
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto)] static extern IntPtr GetModuleHandle(string modulo);
+        [DllImport("user32.dll")] static extern short GetKeyState(int tecla);
 
         [StructLayout(LayoutKind.Sequential)]
         struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
@@ -643,6 +648,48 @@ namespace CandadoOperario
                     sec = FindWindowEx(IntPtr.Zero, sec, "Shell_SecondaryTrayWnd", null);
                     if (sec == IntPtr.Zero) break;
                     ShowWindow(sec, modo);
+                }
+            }
+            catch (Exception) { }
+        }
+
+        // Ocultar la barra de tareas no evita abrir Inicio: la tecla Windows (o el gesto
+        // de deslizar desde el borde en pantallas tactiles, que el sistema traduce a esa
+        // misma tecla) y Ctrl+Esc lo siguen haciendo. Se interceptan con un gancho de
+        // teclado mientras el candado esta bloqueado, y se retira al desbloquear.
+        // Ctrl+Alt+Supr no se puede bloquear desde una aplicacion: lo filtra Windows antes
+        // de que llegue aqui (es la "secuencia seria de atencion", a proposito).
+        delegate IntPtr GanchoTeclado(int codigo, IntPtr wParam, IntPtr lParam);
+        const int WH_KEYBOARD_LL = 13, WM_KEYDOWN = 0x100, WM_SYSKEYDOWN = 0x104;
+        const int VK_LWIN = 0x5B, VK_RWIN = 0x5C, VK_CONTROL = 0x11, VK_ESCAPE = 0x1B;
+        static IntPtr gancho = IntPtr.Zero;
+        static readonly GanchoTeclado ganchoProc = GanchoCallback; // referencia viva: si el GC la recoge, el hook crashea
+
+        static IntPtr GanchoCallback(int codigo, IntPtr wParam, IntPtr lParam)
+        {
+            if (codigo >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
+            {
+                int vk = Marshal.ReadInt32(lParam);
+                bool esWin = vk == VK_LWIN || vk == VK_RWIN;
+                bool esCtrlEsc = vk == VK_ESCAPE && (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+                if (esWin || esCtrlEsc) return (IntPtr)1; // se traga la tecla: no abre Inicio
+            }
+            return CallNextHookEx(gancho, codigo, wParam, lParam);
+        }
+
+        public static void BloquearTeclaWindows(bool bloquear)
+        {
+            try
+            {
+                if (bloquear)
+                {
+                    if (gancho == IntPtr.Zero)
+                        gancho = SetWindowsHookEx(WH_KEYBOARD_LL, ganchoProc, GetModuleHandle(null), 0);
+                }
+                else if (gancho != IntPtr.Zero)
+                {
+                    UnhookWindowsHookEx(gancho);
+                    gancho = IntPtr.Zero;
                 }
             }
             catch (Exception) { }
@@ -920,6 +967,7 @@ namespace CandadoOperario
         {
             Bounds = SystemInformation.VirtualScreen;
             Native.OcultarBarraTareas(true);
+            Native.BloquearTeclaWindows(true);
             Show();
             Native.KeepOnTop(this);
             Activate();
@@ -1126,7 +1174,7 @@ namespace CandadoOperario
             widget = new WidgetForm();
             cover.PinSubmitted += OnPin;
             cover.SyncRequested += delegate { SyncAsync(true, true); };
-            cover.ExitRequested += delegate { Native.OcultarBarraTareas(false); Program.Pausar(60); ExitThread(); };
+            cover.ExitRequested += delegate { Native.OcultarBarraTareas(false); Native.BloquearTeclaWindows(false); Program.Pausar(60); ExitThread(); };
             widget.LockClicked += DoLock;
             widget.SyncClicked += delegate { SyncAsync(true, true); };
             vsActual = SystemInformation.VirtualScreen;
@@ -1231,6 +1279,7 @@ namespace CandadoOperario
             cover.SetInfo("", false);
             cover.Hide();
             Native.OcultarBarraTareas(false);
+            Native.BloquearTeclaWindows(false);
             widget.SetName(op.nombre);
             widget.Show();
             Native.KeepOnTop(widget);
@@ -1407,8 +1456,10 @@ namespace CandadoOperario
         static void Fallo(Exception ex)
         {
             // Si el programa se cae estando bloqueado, que al menos quede la barra de
-            // tareas disponible en vez de perderla hasta que el vigilante lo reabra.
+            // tareas disponible y la tecla Windows libre, en vez de perderlas hasta que
+            // el vigilante lo reabra.
             Native.OcultarBarraTareas(false);
+            Native.BloquearTeclaWindows(false);
             try
             {
                 Directory.CreateDirectory(Store.DirDatos);
