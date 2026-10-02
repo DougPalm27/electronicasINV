@@ -3,6 +3,8 @@
 // Traduce los códigos numéricos que Delvis escribe en sus bitácoras.
 // Fuente: enums FaultCode y FaultGroupType de SPS2 (Delvis 1.14). El orden
 // es el del enum: el número del log es la posición en la lista.
+// Delvis 1.14.149.388 agregó un último miembro a cada enum: ManualClean
+// (falla 64, grupo 24). El resto conserva el mismo orden.
 class CatalogoDelvis
 {
     private const FALLAS = [
@@ -34,6 +36,7 @@ class CatalogoDelvis
         58 => 'Enfriador de electrónica frontal poco confiable', 59 => 'Enfriador del visor trasero poco confiable',
         60 => 'Enfriador de electrónica trasera poco confiable', 61 => 'Presión de enfriamiento',
         62 => 'Falló la prueba de memoria', 63 => 'Alimentación del enfriamiento',
+        64 => 'Limpieza manual (operación en pausa)',
     ];
 
     private const GRUPOS = [
@@ -44,6 +47,7 @@ class CatalogoDelvis
         15 => 'LED individual', 16 => 'Visor abierto', 17 => 'Interbloqueo externo',
         18 => 'Advertencia de inicialización', 19 => 'Disco USB', 20 => 'Energía principal',
         21 => 'Sobredisparo de eyector', 22 => 'Fuga de corriente', 23 => 'Fuente de enfriamiento',
+        24 => 'Limpieza manual',
     ];
 
     public static function descripcion(string $tipo, ?string $codigo, ?string $detalle): string
