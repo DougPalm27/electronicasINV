@@ -473,6 +473,25 @@ begin
   end;
 end;
 
+// Última comprobación antes de continuar: ¿otra PC tomó esa máquina mientras tanto? Sin respuesta del
+// servidor no se bloquea (el registro final lo vuelve a validar).
+function EstacionLibre(const E: String): Boolean;
+var
+  Resp: String;
+begin
+  Result := True;
+  if PostServidor(Trim(Pagina.Edits[0].Text),
+       'accion=estacionDisponible&estacion=' + UrlCodificar(E) +
+       '&token=' + UrlCodificar(Trim(Pagina.Edits[1].Text)) +
+       '&equipo_id=' + UrlCodificar(EquipoId), Resp) then
+    if Copy(Resp, 1, 6) = 'ERROR|' then
+    begin
+      MsgBox(Trim(Copy(Resp, 7, Length(Resp))) + #13#10#13#10 +
+        'Regrese a la pantalla anterior y vuelva a continuar para actualizar la lista.', mbError, MB_OK);
+      Result := False;
+    end;
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
   Min, I: Integer;
@@ -522,6 +541,7 @@ begin
         Result := False;
         Exit;
       end;
+      if not EstacionLibre(E) then begin Result := False; Exit; end;
       EstacionElegida := E;
       MaquinaNombre := '';
       MaquinaSerie := '';
@@ -530,6 +550,7 @@ begin
     begin
       I := CmbMaq.ItemIndex;
       if I <= 0 then begin MsgBox('Elige la máquina de esta PC.', mbError, MB_OK); Result := False; Exit; end;
+      if not EstacionLibre(Estaciones[I]) then begin Result := False; Exit; end;
       EstacionElegida := Estaciones[I];
       MaquinaNombre := Nombres[I];
       MaquinaSerie := Series[I];

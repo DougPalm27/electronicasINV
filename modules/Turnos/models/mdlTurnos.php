@@ -57,6 +57,27 @@ class mdlTurnos
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // ── Instalador: ¿se puede usar esta estación desde esta PC? ─
+    // No si la máquina de esa estación ya tiene su candado en OTRA PC. Una estación que no está en el
+    // inventario (modo manual) no se bloquea. Devuelve ['ok' => bool, 'mensaje' => string].
+    public function estacionDisponible(string $estacion, string $equipoId): array
+    {
+        $q = $this->conn->prepare(
+            "SELECT m.nombre, c.equipo_id, c.equipo_nombre
+             FROM electronicas.Maquinas m
+             LEFT JOIN electronicas.MaquinaCandado c ON c.id_maquina = m.id_maquina
+             WHERE m.estacion_candado = ?"
+        );
+        $q->execute([$estacion]);
+        $f = $q->fetch(PDO::FETCH_ASSOC);
+        if ($f && $f['equipo_id'] !== null && $f['equipo_id'] !== $equipoId) {
+            $otra = (string)$f['equipo_nombre'];
+            return ['ok' => false, 'mensaje' => 'La máquina ' . $f['nombre'] . ' ya tiene el candado instalado en otra PC'
+                . ($otra !== '' ? ' (' . $otra . ')' : '') . '. Elige otra, o pide al administrador que la libere.'];
+        }
+        return ['ok' => true, 'mensaje' => ''];
+    }
+
     // ── Instalador: deja anotado qué PC tiene el candado de la máquina ─
     // Devuelve ['ok' => bool, 'mensaje' => string, 'maquina' => nombre].
     // Una PC solo corre un candado: si antes estaba ligada a otra máquina, esa se suelta.

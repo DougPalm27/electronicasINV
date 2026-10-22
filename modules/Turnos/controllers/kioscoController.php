@@ -107,6 +107,13 @@ try {
             respTexto('OK', $filas);
             break;
 
+        // Instalador: antes de continuar, ¿esta estación sigue libre para esta PC?
+        case 'estacionDisponible':
+            exigirToken();
+            $r = $model->estacionDisponible($estacion, equipoValido());
+            respTexto($r['ok'] ? 'OK' : 'ERROR|' . $r['mensaje']);
+            break;
+
         // Instalador: anota que esta PC quedó con el candado de la máquina de esa estación
         case 'registrarInstalacion':
             exigirToken();
