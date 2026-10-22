@@ -8,8 +8,11 @@ using System.IO;
 using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -21,8 +24,8 @@ using System.Xml.Linq;
 [assembly: AssemblyProduct("Candado de Operario")]
 [assembly: AssemblyCompany("Honducafe")]
 [assembly: AssemblyCopyright("Desarrollado por Douglas Palma · © 2026")]
-[assembly: AssemblyVersion("1.2.6.0")]
-[assembly: AssemblyFileVersion("1.2.6.0")]
+[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyFileVersion("1.3.0.0")]
 
 namespace CandadoOperario
 {
@@ -36,6 +39,7 @@ namespace CandadoOperario
         public static int AutoMin = 15;
         public static bool PermitirSalir = false;
         public static string Url;
+        public static string Base;   // direccion del sitio, sin la ruta del endpoint (de aqui se baja el instalador)
 
         public static void Load()
         {
@@ -68,7 +72,8 @@ namespace CandadoOperario
         public static void SetServidor(string s)
         {
             Servidor = s;
-            Url = UrlBase(s) + "/modules/Turnos/controllers/kioscoController.php";
+            Base = UrlBase(s);
+            Url = Base + "/modules/Turnos/controllers/kioscoController.php";
         }
 
         // El servidor puede ser una IP de LAN sin TLS ("192.168.1.10") o un dominio real
@@ -167,6 +172,14 @@ namespace CandadoOperario
                 File.WriteAllText(t, js.Serialize(o), Encoding.UTF8);
                 if (File.Exists(p)) File.Replace(t, p, null); else File.Move(t, p);
             }
+            catch (Exception) { }
+        }
+
+        // Lo lee el actualizador: solo instala una version nueva si el candado esta bloqueado
+        // (nunca con un turno abierto). Se refresca cada 10 s; si deja de refrescarse no se considera valido.
+        public static void Estado(string estado)
+        {
+            try { File.WriteAllText(Path.Combine(Dir, "estado.txt"), estado + "|" + DateTime.UtcNow.Ticks); }
             catch (Exception) { }
         }
 
@@ -1161,7 +1174,7 @@ namespace CandadoOperario
             idle.Start();
 
             poll.Interval = 10000;
-            poll.Tick += delegate { if (cur != null) Vigia.Sondear(); };
+            poll.Tick += delegate { if (cur != null) Vigia.Sondear(); Store.Estado(cur != null ? "turno" : "bloqueado"); };
             poll.Start();
 
             sync.Interval = 60000;
@@ -1174,6 +1187,7 @@ namespace CandadoOperario
 
             cover.SetStatus(StatusText());
             cover.ShowLocked();
+            Store.Estado("bloqueado");
             SyncAsync(false, true);
         }
 
@@ -1283,6 +1297,7 @@ namespace CandadoOperario
             lock (Store.Lock) { Store.Cola.Add(t); }
             Store.SaveCola();
             cur = t;
+            Store.Estado("turno");
             Vigia.Iniciar(t);
 
             cover.SetInfo("", false);
@@ -1312,7 +1327,217 @@ namespace CandadoOperario
             cover.SetInfo("", false);
             cover.SetStatus(StatusText());
             cover.ShowLocked();
+            Store.Estado("bloqueado");
             SyncAsync(false, false);
+        }
+    }
+
+    // ───────────────────────── Actualización automática ─────────────────────────
+    // Una tarea de Windows (SYSTEM, cada 30 min) corre "CandadoOperario.exe --actualizar":
+    //   1. pide al servidor la última versión publicada con firma;
+    //   2. comprueba la FIRMA (llave pública incluida aquí) antes de bajar nada;
+    //   3. espera a que el candado esté bloqueado: nunca actualiza con un turno abierto;
+    //   4. descarga el instalador a una carpeta que solo SYSTEM y los administradores pueden escribir,
+    //      comprueba su SHA-256 y arranca la tarea "Instalar", que lo corre aparte de esta.
+    // Confiar solo en el servidor (y menos con http://) dejaría que quien lo alterara instalara cualquier
+    // programa, con permisos de administrador, en todas las PCs. Con la firma solo se instala lo que firmó
+    // el desarrollador con su llave privada, que no está en el servidor.
+    static class Actualizador
+    {
+        // Llave PÚBLICA (firma-publica.xml). La privada vive solo en la PC del desarrollador.
+        const string ClavePublica = "<RSAKeyValue><Modulus>uhkmYo7xbEObz8R8T7WmFkWQKgWnweU8MopR3eo+Nw2Go2sW4eAAkI/3Dn/a8uWLbksXVBvR6i04TWsMumErFxicqWqSKrcBd82Fs5Knup4kmYZeFoy2SgQyz3w14WDJKl/M1kKFLCjPDL/bzVWVf+MK2CmWTGvdG0alJdKOC1XIIpWBM/tmoZEyVJS8wf6Fe8arMV/agTTTJJi2oKB27M74P4HIIbw4EwXEdf5E9ilaBRa1LZzT7DOrmlyoB16AgYEl8DC4Ssrp9io0oXzMHYbPg3ib0SMUPuj5kXBRAjAP53IeSVwzAyL6VGdUzKUs9/grcG1r12IF2KnlDeqLIQ==</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
+        const string TareaInstalar = "\\Honducafe\\Candado de Operario Instalar";
+        const string NombreDescarga = "Setup-actual.exe";
+        static string dirLog;
+
+        class DescargaClient : WebClient
+        {
+            protected override WebRequest GetWebRequest(Uri address)
+            {
+                WebRequest r = base.GetWebRequest(address);
+                r.Timeout = 120000;
+                return r;
+            }
+        }
+
+        // El log va en la carpeta protegida: una carpeta donde cualquier usuario pueda escribir
+        // permitiría que un enlace simbólico hiciera escribir a SYSTEM en otro archivo.
+        static void Log(string m)
+        {
+            try
+            {
+                if (dirLog == null) return;
+                string p = Path.Combine(dirLog, "actualizador.log");
+                if (File.Exists(p) && new FileInfo(p).Length > 200000) File.Delete(p);
+                File.AppendAllText(p, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + m + "\r\n");
+            }
+            catch (Exception) { }
+        }
+
+        static Version Norm(Version v)
+        {
+            return new Version(v.Major, Math.Max(v.Minor, 0), Math.Max(v.Build, 0), Math.Max(v.Revision, 0));
+        }
+
+        public static Version Actual()
+        {
+            return Norm(Assembly.GetExecutingAssembly().GetName().Version);
+        }
+
+        static bool TryVersion(string s, out Version v)
+        {
+            v = null;
+            if (s == null || !Regex.IsMatch(s, @"^\d+(\.\d+){1,3}$")) return false;
+            try { v = Norm(new Version(s)); return true; }
+            catch (Exception) { return false; }
+        }
+
+        static string Txt(Dictionary<string, object> d, string k)
+        {
+            object o;
+            return d.TryGetValue(k, out o) && o != null ? o.ToString() : "";
+        }
+
+        // Lo firmado es "CANDADO|versión|sha256": así la versión también queda autenticada
+        // y nadie puede hacer pasar un instalador viejo (con fallas conocidas) por uno nuevo.
+        public static bool FirmaValida(string version, string sha256, string firmaBase64)
+        {
+            try
+            {
+                using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
+                {
+                    rsa.PersistKeyInCsp = false;
+                    rsa.FromXmlString(ClavePublica);
+                    byte[] datos = Encoding.UTF8.GetBytes("CANDADO|" + version + "|" + sha256.ToLowerInvariant());
+                    return rsa.VerifyData(datos, "SHA256", Convert.FromBase64String(firmaBase64));
+                }
+            }
+            catch (Exception) { return false; }
+        }
+
+        static string Sha256(string ruta)
+        {
+            using (FileStream fs = File.OpenRead(ruta))
+            using (SHA256 h = SHA256.Create())
+            {
+                StringBuilder sb = new StringBuilder();
+                foreach (byte b in h.ComputeHash(fs)) sb.Append(b.ToString("x2"));
+                return sb.ToString();
+            }
+        }
+
+        static bool EsSistema()
+        {
+            try { return WindowsIdentity.GetCurrent().IsSystem; }
+            catch (Exception) { return false; }
+        }
+
+        // Carpeta de trabajo: el perfil de SYSTEM (nadie más entra). En una prueba sin SYSTEM, una carpeta temporal.
+        static string DirTrabajo(bool simular)
+        {
+            if (simular && !EsSistema()) return Path.Combine(Path.GetTempPath(), "CandadoActualizadorPrueba");
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Honducafe", "upd");
+        }
+
+        // Solo SYSTEM y administradores, sin heredar permisos: así nadie puede cambiar el instalador
+        // entre que se verifica y que se ejecuta.
+        static void Proteger(string dir)
+        {
+            Directory.CreateDirectory(dir);
+            DirectorySecurity ds = new DirectorySecurity();
+            ds.SetAccessRuleProtection(true, false);
+            InheritanceFlags herencia = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+            ds.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                FileSystemRights.FullControl, herencia, PropagationFlags.None, AccessControlType.Allow));
+            ds.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                FileSystemRights.FullControl, herencia, PropagationFlags.None, AccessControlType.Allow));
+            Directory.SetAccessControl(dir, ds);
+        }
+
+        // Es buen momento si el candado no está corriendo, o si avisó hace menos de 2 min que está bloqueado
+        static bool BuenMomento()
+        {
+            int yo = Process.GetCurrentProcess().Id;
+            bool corriendo = false;
+            foreach (Process p in Process.GetProcessesByName("CandadoOperario"))
+                if (p.Id != yo) corriendo = true;
+            if (!corriendo) return true;
+            try
+            {
+                string ruta = Path.Combine(Store.DirDatos, "estado.txt");
+                if (!File.Exists(ruta)) return false;
+                string[] f = File.ReadAllText(ruta).Trim().Split('|');
+                long ticks;
+                if (f.Length < 2 || f[0] != "bloqueado" || !long.TryParse(f[1], out ticks)) return false;
+                return (DateTime.UtcNow - new DateTime(ticks, DateTimeKind.Utc)).TotalSeconds < 120;
+            }
+            catch (Exception) { return false; }
+        }
+
+        // 0 = nada que hacer o todo bien | 1 = error | 2 = firma o archivo no válidos | 3 = sin permisos | 4 = no se pudo iniciar la instalación
+        public static int Ejecutar(bool simular)
+        {
+            bool sistema = EsSistema();
+            string dir = DirTrabajo(simular);
+            try
+            {
+                if (sistema) Proteger(dir); else Directory.CreateDirectory(dir);
+                dirLog = dir;
+
+                Cfg.Load();
+                if (Cfg.Estacion.Length == 0 || Cfg.Token.Length == 0) { Log("Falta Estacion o Token en candado.config."); return 0; }
+                if (!sistema && !simular) { Log("Solo se instala desde la tarea del sistema."); return 3; }
+
+                Version actual = Actual();
+                Res r = Api.Post(new Dictionary<string, string> { { "accion", "actualizacion" }, { "version", actual.ToString() } });
+                if (r.Offline) return 0;                       // sin red: se reintenta en 30 min, sin llenar el log
+                if (!r.Ok) { Log("El servidor no entregó la información de versión: " + r.Msg); return 0; }
+                if (r.Data == null || !r.Data.ContainsKey("version")) return 0;   // no hay ninguna versión firmada publicada
+
+                string vTxt = Txt(r.Data, "version"), archivo = Txt(r.Data, "archivo"), sha = Txt(r.Data, "sha256"), firma = Txt(r.Data, "firma");
+                Version remota;
+                if (!TryVersion(vTxt, out remota)) { Log("Versión no válida en la respuesta del servidor."); return 2; }
+                if (remota <= actual) return 0;                // al día
+
+                Log("Hay una versión nueva: " + remota + " (instalada: " + actual + ").");
+                if (!Regex.IsMatch(archivo, @"^Setup-CandadoOperario-\d+(\.\d+){1,3}\.exe$") || !Regex.IsMatch(sha, "^[0-9a-fA-F]{64}$"))
+                { Log("Nombre de archivo o huella no válidos: se ignora."); return 2; }
+                if (!FirmaValida(vTxt, sha, firma)) { Log("LA FIRMA NO ES VÁLIDA: se ignora esta actualización."); return 2; }
+                if (!BuenMomento()) { Log("Hay un turno abierto: se reintenta más tarde."); return 0; }
+
+                string tmp = Path.Combine(dir, "descarga.tmp");
+                string destino = Path.Combine(dir, NombreDescarga);
+                if (File.Exists(tmp)) File.Delete(tmp);
+                using (DescargaClient wc = new DescargaClient()) wc.DownloadFile(Cfg.Base + "/descargas/" + archivo, tmp);
+                if (!string.Equals(Sha256(tmp), sha, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Delete(tmp);
+                    Log("El archivo descargado no coincide con la huella firmada: se descarta.");
+                    return 2;
+                }
+                if (File.Exists(destino)) File.Delete(destino);
+                File.Move(tmp, destino);
+                Log("Descargado y verificado: " + archivo);
+
+                if (simular) { Log("(simulación) no se instala."); return 0; }
+
+                // La instalación corre en otra tarea: el instalador cierra CandadoOperario.exe y no debe llevarse a esta
+                ProcessStartInfo psi = new ProcessStartInfo("schtasks.exe", "/Run /TN \"" + TareaInstalar + "\"");
+                psi.CreateNoWindow = true;
+                psi.UseShellExecute = false;
+                using (Process p = Process.Start(psi))
+                {
+                    p.WaitForExit(30000);
+                    if (!p.HasExited || p.ExitCode != 0) { Log("No se pudo iniciar la tarea de instalación."); return 4; }
+                }
+                Log("Instalación iniciada: " + actual + " -> " + remota);
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Log("Error: " + ex.Message);
+                return 1;
+            }
         }
     }
 
@@ -1524,6 +1749,14 @@ namespace CandadoOperario
                 Store.Init();
                 if (modo == "--preview" && args.Length > 1) Preview(args[1], args.Length > 2 && args[2] == "100");
                 else if (modo == "--selftest") SelfTest(args.Length > 1 ? args[1] : "1234");
+                return;
+            }
+
+            if (modo == "--actualizar")
+            {
+                // Lo corre la tarea de Windows (SYSTEM): sin ventanas y sin tomar el candado de la PC.
+                // "--actualizar --simular" hace todo menos instalar (para probar).
+                Environment.Exit(Actualizador.Ejecutar(args.Length > 1 && args[1] == "--simular"));
                 return;
             }
 

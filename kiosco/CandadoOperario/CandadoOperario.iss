@@ -2,10 +2,10 @@
 ; Compilar: compilar-instalador.bat  ->  Output\Setup-CandadoOperario-<version>.exe
 ;
 ; Instalacion silenciosa (despliegue en varias PCs):
-;   Setup-CandadoOperario-1.2.6.exe /VERYSILENT /SERVIDOR=electronicas.simfcoh.com /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
+;   Setup-CandadoOperario-1.3.0.exe /VERYSILENT /SERVIDOR=electronicas.simfcoh.com /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
 
 #define AppName "Candado de Operario"
-#define AppVer "1.2.6"
+#define AppVer "1.3.0"
 
 [Setup]
 AppId={{B7C2E1A4-5D3F-4E8A-9C61-2F0A7D9E4B13}
@@ -13,7 +13,7 @@ AppName={#AppName}
 AppVersion={#AppVer}
 AppPublisher=Honducafe · Desarrollado por Douglas Palma
 AppCopyright=Desarrollado por Douglas Palma · © 2026
-VersionInfoVersion=1.2.6.0
+VersionInfoVersion=1.3.0.0
 VersionInfoCompany=Honducafe
 VersionInfoCopyright=Desarrollado por Douglas Palma · © 2026
 VersionInfoDescription=Instalador de Candado de Operario
@@ -62,8 +62,13 @@ Name: "modoprueba"; Description: "Modo prueba: permitir cerrar el candado con Ct
 
 [Run]
 Filename: "{app}\CandadoOperario.exe"; Description: "Iniciar el candado ahora"; Flags: nowait postinstall skipifsilent
+; En una actualizacion automatica el instalador corre como SYSTEM y no puede abrir el candado en la sesion del
+; operario: se le pide a la tarea vigilante (que corre en su sesion) que lo abra enseguida, sin esperar sus 5 minutos.
+Filename: "{sys}\schtasks.exe"; Parameters: "/Run /TN ""Honducafe\Candado de Operario Vigilante"""; Flags: runhidden; Check: WizardSilent
 
 [UninstallRun]
+Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""Honducafe\Candado de Operario Actualizador"" /F"; Flags: runhidden; RunOnceId: "QuitarActualizador"
+Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""Honducafe\Candado de Operario Instalar"" /F"; Flags: runhidden; RunOnceId: "QuitarInstalador"
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""Honducafe\Candado de Operario Vigilante"" /F"; Flags: runhidden; RunOnceId: "QuitarVigilante"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM CandadoOperario.exe"; Flags: runhidden; RunOnceId: "CerrarCandado"
 
@@ -585,6 +590,50 @@ begin
   end;
 end;
 
+// Dos tareas de Windows, ambas como SYSTEM (la instalacion necesita administrador y el operario no lo es):
+//  - "Actualizador": cada 30 min corre "CandadoOperario.exe --actualizar", que consulta al servidor, verifica
+//    la FIRMA y descarga el instalador a una carpeta que solo SYSTEM puede escribir.
+//  - "Instalar": corre ese instalador ya verificado, aparte de la anterior (porque el instalador cierra el candado).
+procedure CrearTareasActualizacion;
+var
+  Ps, Ruta, Sil: String;
+  Codigo: Integer;
+begin
+  if WizardSilent then Sil := 'true' else Sil := 'false';
+  Ps :=
+    '$ErrorActionPreference = ''Stop''' + #13#10 +
+    '$exe = ''' + ExpandConstant('{app}\CandadoOperario.exe') + '''' + #13#10 +
+    '$silencioso = $' + Sil + #13#10 +
+    '$upd = Join-Path $env:SystemRoot ''System32\config\systemprofile\AppData\Local\Honducafe\upd''' + #13#10 +
+    '$sys = New-ScheduledTaskPrincipal -UserId ''SYSTEM'' -LogonType ServiceAccount -RunLevel Highest' + #13#10 +
+    '# 1) Cada 30 min pregunta si hay una version nueva FIRMADA (solo descarga y verifica; no instala)' + #13#10 +
+    '$a1 = New-ScheduledTaskAction -Execute $exe -Argument ''--actualizar''' + #13#10 +
+    '$t1 = New-ScheduledTaskTrigger -Once -At (Get-Date ''2026-01-01'') -RepetitionInterval (New-TimeSpan -Minutes 30) -RepetitionDuration (New-TimeSpan -Days 3650)' + #13#10 +
+    '$s1 = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 20)' + #13#10 +
+    'Register-ScheduledTask -TaskName ''Candado de Operario Actualizador'' -TaskPath ''\Honducafe\'' -Action $a1 -Trigger $t1 -Principal $sys -Settings $s1 -Description ''Revisa si hay una version nueva firmada del Candado de Operario. Honducafe.'' -Force | Out-Null' + #13#10 +
+    '# 2) Instala el instalador ya verificado. Sin horario: solo la inicia el actualizador. Si es una actualizacion' + #13#10 +
+    '#    silenciosa no se reescribe, porque es esta misma tarea la que esta ejecutando la instalacion.' + #13#10 +
+    '$existe = [bool](Get-ScheduledTask -TaskName ''Candado de Operario Instalar'' -TaskPath ''\Honducafe\'' -ErrorAction SilentlyContinue)' + #13#10 +
+    'if ((-not $silencioso) -or (-not $existe)) {' + #13#10 +
+    '  $args2 = ''/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /MERGETASKS=!iconoinicio,!iconoescritorio /LOG='' + (Join-Path $upd ''instalacion.log'')' + #13#10 +
+    '  $a2 = New-ScheduledTaskAction -Execute (Join-Path $upd ''Setup-actual.exe'') -Argument $args2' + #13#10 +
+    '  $s2 = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 30)' + #13#10 +
+    '  Register-ScheduledTask -TaskName ''Candado de Operario Instalar'' -TaskPath ''\Honducafe\'' -Action $a2 -Principal $sys -Settings $s2 -Description ''Instala la version ya descargada y verificada del Candado de Operario. Honducafe.'' -Force | Out-Null' + #13#10 +
+    '}' + #13#10;
+  Ruta := ExpandConstant('{tmp}\actualizacion.ps1');
+  SaveStringToFile(Ruta, Ps, False);
+
+  if (not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+        '-NoProfile -ExecutionPolicy Bypass -File "' + Ruta + '"', '', SW_HIDE, ewWaitUntilTerminated, Codigo))
+     or (Codigo <> 0) then
+  begin
+    Log('No se pudieron crear las tareas de actualizacion. Codigo: ' + IntToStr(Codigo));
+    if not WizardSilent then
+      MsgBox('No se pudieron crear las tareas de la actualizacion automatica (codigo ' + IntToStr(Codigo) + ').' + #13#10 +
+             'El candado funciona, pero no se actualizara solo: habra que instalar cada version a mano.', mbInformation, MB_OK);
+  end;
+end;
+
 // Anota en el servidor que esta PC tiene el candado de esa máquina; así no se ofrece a otra PC.
 // Si falla, el candado queda instalado igual (solo se avisa).
 procedure RegistrarInstalacion;
@@ -628,7 +677,10 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
-    if WizardIsTaskSelected('modoprueba') then Salir := 'true' else Salir := 'false';
+    // En una actualizacion silenciosa no hay casilla que marcar: se conserva lo que ya tenia esta PC
+    if WizardIsTaskSelected('modoprueba') then Salir := 'true'
+    else if WizardSilent then Salir := LeerConfig('PermitirSalir', 'false')
+    else Salir := 'false';
     Cfg := '# Candado de operario - configuracion de ESTA PC (generado por el instalador)' + #13#10 +
            'Servidor=' + Trim(Pagina.Edits[0].Text) + #13#10 +
            'Estacion=' + EstacionFinal + #13#10 +
@@ -638,6 +690,7 @@ begin
            'PermitirSalir=' + Salir + #13#10;
     SaveStringToFile(ExpandConstant('{app}\candado.config'), Cfg, False);
     CrearTareaVigilante;
+    CrearTareasActualizacion;
     RegistrarInstalacion;
   end;
 end;

@@ -9,3 +9,8 @@ node_modules/
 kiosco/CandadoOperario/candado.config
 kiosco/CandadoOperario/*.exe
 kiosco/CandadoOperario/Output/
+
+# Llave PRIVADA con la que se firman las actualizaciones: vive fuera del repo (%USERPROFILE%\.honducafe);
+# estas reglas son por si alguna vez se copia dentro. Quien la tenga puede instalar programas en las PCs de planta.
+.honducafe/
+*firma-privada*
