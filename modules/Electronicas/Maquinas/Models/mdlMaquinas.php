@@ -243,10 +243,15 @@ class mdlMaquinas extends Connection
                 mq.costo,
                 mq.anio,
                 mq.ubicacion,
-                mq.estacion_candado
+                mq.estacion_candado,
+                cd.equipo_nombre AS candado_equipo,
+                cd.version AS candado_version,
+                FORMAT(cd.fecha_instalacion, 'dd/MM/yyyy HH:mm') AS candado_fecha
             FROM electronicas.Maquinas mq
             INNER JOIN electronicas.Modelos mo
                 ON mq.id_modelo = mo.id_modelo
+            LEFT JOIN electronicas.MaquinaCandado cd
+                ON cd.id_maquina = mq.id_maquina
             WHERE mq.id_maquina = :id_maquina";
 
         $stmt = $this->conn->prepare($sql);
@@ -261,6 +266,30 @@ class mdlMaquinas extends Connection
             exit;
         }
     }
+    // Suelta la máquina del candado instalado en una PC, para poder elegirla desde otra
+    // (por ejemplo al cambiar la PC de la máquina). No toca la PC vieja: su candado sigue
+    // funcionando con su configuración hasta que se desinstale.
+    public function liberarCandado($id_maquina)
+    {
+        header('Content-Type: application/json');
+
+        $stmt = $this->conn->prepare(
+            "DELETE FROM electronicas.MaquinaCandado WHERE id_maquina = :id_maquina"
+        );
+        $stmt->bindParam(":id_maquina", $id_maquina);
+
+        try {
+            $stmt->execute();
+            echo json_encode([
+                ["status" => "200", "mensaje" => "Máquina liberada. Ya se puede elegir en el instalador de otra PC."]
+            ]);
+            exit;
+        } catch (PDOException $e) {
+            echo json_encode(["error" => $e->getMessage()]);
+            exit;
+        }
+    }
+
     public function cambiarEstadoMaquina($id_maquina, $id_estado)
     {
         header('Content-Type: application/json');

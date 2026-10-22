@@ -432,6 +432,7 @@ function cargarEditar(id) {
       $("#anio").val(d.anio);
       $("#ubicacion").val(d.ubicacion);
       $("#estacion_candado").val(d.estacion_candado || "");
+      mostrarCandadoInstalado(d);
 
       $("#id_marca").val(d.id_marca);
       listarModelos(d.id_marca, d.id_modelo);
@@ -444,6 +445,54 @@ function cargarEditar(id) {
     error: manejarErrorAjax,
   });
 }
+// Muestra en qué PC está instalado el candado de la máquina (si lo está) y,
+// solo a administradores, el botón para liberarla.
+function mostrarCandadoInstalado(d) {
+  const bloque = $("#bloqueCandadoInstalado");
+  if (!d.candado_equipo && !d.candado_fecha) {
+    bloque.addClass("d-none");
+    return;
+  }
+  $("#candadoEquipo").text(d.candado_equipo || "una PC");
+  $("#candadoDetalle").text(
+    [d.candado_fecha ? "desde " + d.candado_fecha : "", d.candado_version ? "versión " + d.candado_version : ""]
+      .filter(Boolean)
+      .join(" · ")
+  );
+  $("#btnLiberarCandado").toggleClass("d-none", window.USUARIO_ROL !== "Administrador");
+  bloque.removeClass("d-none");
+}
+
+$(document).on("click", "#btnLiberarCandado", function () {
+  const id = $("#id_maquina").val();
+  if (!id) return;
+  Swal.fire({
+    title: "¿Liberar la máquina?",
+    text: "Se podrá elegir en el instalador de otra PC. El candado de la PC actual sigue funcionando hasta que se desinstale.",
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonText: "Sí, liberar",
+    cancelButtonText: "Cancelar",
+  }).then((r) => {
+    if (!r.isConfirmed) return;
+    $.ajax({
+      url: "./modules/Electronicas/Maquinas/Controllers/liberarCandado.php",
+      type: "POST",
+      dataType: "json",
+      data: { id_maquina: id },
+      success: function (resp) {
+        if (resp[0] && resp[0].status == "200") {
+          $("#bloqueCandadoInstalado").addClass("d-none");
+          Swal.fire("Listo", resp[0].mensaje, "success");
+        } else {
+          Swal.fire("Error", (resp[0] && resp[0].mensaje) || "No se pudo liberar", "error");
+        }
+      },
+      error: manejarErrorAjax,
+    });
+  });
+});
+
 function editarMaquina() {
   let datos = obtenerDatosFormulario();
 
@@ -555,6 +604,7 @@ function limpiarModalMaquina() {
   $("#anio").val("");
   $("#ubicacion").val("-1");
   $("#estacion_candado").val("");
+  $("#bloqueCandadoInstalado").addClass("d-none");
 
   $("#btnGuardarMaquina").show();
   $("#btnEditarMaquina").hide();

@@ -151,6 +151,21 @@
                         <div class="form-text">
                             Nombre que se escribe al instalar el candado en la PC de esta máquina (ej. EVO1-A).
                             Debe ser idéntico y no puede repetirse en otra máquina.
+                            Si la dejas, aparece en la lista del instalador del candado.
+                        </div>
+                    </div>
+
+                    <!-- Se muestra solo al editar una máquina que ya tiene el candado instalado en una PC -->
+                    <div class="col-md-12 d-none" id="bloqueCandadoInstalado">
+                        <div class="alert alert-secondary d-flex justify-content-between align-items-center mb-0 py-2">
+                            <div>
+                                <i class="bi bi-pc-display me-2"></i>Candado instalado en
+                                <strong id="candadoEquipo"></strong>
+                                <small class="text-muted d-block" id="candadoDetalle"></small>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger d-none" id="btnLiberarCandado">
+                                <i class="bi bi-unlock me-1"></i>Liberar
+                            </button>
                         </div>
                     </div>
 
