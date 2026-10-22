@@ -36,8 +36,56 @@ function exigirToken(): void
     }
 }
 
+// El instalador (Inno Setup) no tiene JSON: sus dos acciones contestan en texto plano.
+// Primera línea "OK" (o "ERROR|mensaje"); luego, si aplica, una fila por línea con campos separados por "|".
+function respTexto(string $primera, array $filas = []): void
+{
+    header('Content-Type: text/plain; charset=utf-8');
+    echo $primera . "\n";
+    foreach ($filas as $f) echo $f . "\n";
+    exit;
+}
+
+function limpiarCampo($v): string
+{
+    return trim(preg_replace('/[|\r\n]+/u', ' ', (string)$v));
+}
+
+// Identificador de la PC (MachineGuid de Windows o, a falta de él, su nombre)
+function equipoValido(): string
+{
+    $id = trim((string)($_POST['equipo_id'] ?? ''));
+    if (!preg_match('/^[0-9A-Za-z\-{}]{8,64}$/', $id)) respTexto('ERROR|Identificador de equipo no válido.');
+    return $id;
+}
+
 try {
     switch ($accion) {
+
+        // Instalador: máquinas que esta PC puede elegir (las habilitadas y aún sin candado en otra PC)
+        case 'maquinas':
+            exigirToken();
+            $filas = [];
+            foreach ($model->maquinasParaInstalar(equipoValido()) as $m) {
+                $filas[] = implode('|', [
+                    (int)$m['id_maquina'], limpiarCampo($m['nombre']), limpiarCampo($m['modelo']),
+                    limpiarCampo($m['ubicacion']), limpiarCampo($m['serie']), limpiarCampo($m['estacion']),
+                    (int)$m['mia'],
+                ]);
+            }
+            respTexto('OK', $filas);
+            break;
+
+        // Instalador: anota que esta PC quedó con el candado de la máquina de esa estación
+        case 'registrarInstalacion':
+            exigirToken();
+            $equipo   = equipoValido();
+            $nombrePc = mb_substr((string)preg_replace('/[^\p{L}\p{N} _.\-]/u', '', (string)($_POST['equipo_nombre'] ?? '')), 0, 100);
+            $version  = (string)($_POST['version'] ?? '');
+            if (!preg_match('/^[0-9.]{1,20}$/', $version)) $version = '';
+            $r = $model->registrarCandado($estacion, $equipo, $nombrePc, $version);
+            respTexto($r['ok'] ? 'OK' : 'ERROR|' . $r['mensaje']);
+            break;
 
         case 'sync':
             exigirToken();

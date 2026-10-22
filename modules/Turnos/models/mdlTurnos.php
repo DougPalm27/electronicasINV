@@ -36,6 +36,80 @@ class mdlTurnos
         return $id === false ? null : (int)$id;
     }
 
+    // ── Instalador: máquinas que se pueden elegir para esta PC ─
+    // Solo las que un administrador habilitó (tienen estacion_candado) y que
+    // todavía no tienen su candado en otra PC. Si esta misma PC ya tiene una
+    // (reinstalación o actualización), esa aparece marcada con mia = 1.
+    public function maquinasParaInstalar(string $equipoId): array
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT m.id_maquina, m.nombre, mo.nombre AS modelo, m.ubicacion, m.serie,
+                    m.estacion_candado AS estacion,
+                    CASE WHEN c.equipo_id = ? THEN 1 ELSE 0 END AS mia
+             FROM electronicas.Maquinas m
+             INNER JOIN electronicas.Modelos mo ON mo.id_modelo = m.id_modelo
+             LEFT JOIN electronicas.MaquinaCandado c ON c.id_maquina = m.id_maquina
+             WHERE m.estacion_candado IS NOT NULL
+               AND (c.id_maquina IS NULL OR c.equipo_id = ?)
+             ORDER BY m.ubicacion, m.nombre"
+        );
+        $stmt->execute([$equipoId, $equipoId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ── Instalador: deja anotado qué PC tiene el candado de la máquina ─
+    // Devuelve ['ok' => bool, 'mensaje' => string, 'maquina' => nombre].
+    // Una PC solo corre un candado: si antes estaba ligada a otra máquina, esa se suelta.
+    public function registrarCandado(string $estacion, string $equipoId, string $equipoNombre, string $version): array
+    {
+        $q = $this->conn->prepare(
+            "SELECT id_maquina, nombre FROM electronicas.Maquinas WHERE estacion_candado = ?"
+        );
+        $q->execute([$estacion]);
+        $m = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$m) {
+            return ['ok' => false, 'mensaje' => 'La estación no está asignada a ninguna máquina del inventario.'];
+        }
+        $id = (int)$m['id_maquina'];
+
+        $this->conn->beginTransaction();
+        try {
+            $this->conn->prepare(
+                "DELETE FROM electronicas.MaquinaCandado WHERE equipo_id = ? AND id_maquina <> ?"
+            )->execute([$equipoId, $id]);
+
+            $u = $this->conn->prepare(
+                "UPDATE electronicas.MaquinaCandado
+                    SET equipo_nombre = ?, version = ?, fecha_instalacion = GETDATE()
+                  WHERE id_maquina = ? AND equipo_id = ?"
+            );
+            $u->execute([$equipoNombre, $version, $id, $equipoId]);
+
+            if ($u->rowCount() === 0) {
+                $this->conn->prepare(
+                    "INSERT INTO electronicas.MaquinaCandado (id_maquina, equipo_id, equipo_nombre, version)
+                     VALUES (?, ?, ?, ?)"
+                )->execute([$id, $equipoId, $equipoNombre, $version]);
+            }
+            $this->conn->commit();
+            return ['ok' => true, 'mensaje' => '', 'maquina' => $m['nombre']];
+        } catch (PDOException $e) {
+            $this->conn->rollBack();
+            $codigo = (int)($e->errorInfo[1] ?? 0);
+            // 2627 / 2601: la máquina ya la tomó otra PC (por ejemplo, dos instalaciones a la vez)
+            if ($codigo === 2627 || $codigo === 2601) {
+                $o = $this->conn->prepare(
+                    "SELECT equipo_nombre FROM electronicas.MaquinaCandado WHERE id_maquina = ?"
+                );
+                $o->execute([$id]);
+                $otra = (string)$o->fetchColumn();
+                return ['ok' => false, 'mensaje' => 'La máquina ' . $m['nombre'] . ' ya tiene el candado instalado en otra PC'
+                    . ($otra !== '' ? ' (' . $otra . ')' : '') . '.'];
+            }
+            throw $e;
+        }
+    }
+
     // ── Kiosco: sesión abierta actualmente en una estación ─
     public function sesionActivaEn(string $estacion): ?array
     {
