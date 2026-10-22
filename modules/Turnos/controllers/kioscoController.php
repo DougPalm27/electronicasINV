@@ -125,6 +125,18 @@ try {
             respTexto($r['ok'] ? 'OK' : 'ERROR|' . $r['mensaje']);
             break;
 
+        // El candado avisa que alguien entró con el código de emergencia (queda en logs/emergencias.log)
+        case 'emergencia':
+            exigirToken();
+            $fecha = preg_replace('/[^0-9\-: ]/', '', (string)($_POST['fecha'] ?? ''));
+            $dir = dirname(__DIR__, 3) . '/logs';
+            if (!is_dir($dir)) @mkdir($dir, 0775, true);
+            $ok = @file_put_contents($dir . '/emergencias.log',
+                date('Y-m-d H:i:s') . ' | estación: ' . $estacion . ' | momento en la PC: ' . $fecha . PHP_EOL,
+                FILE_APPEND | LOCK_EX);
+            resp([], $ok === false, $ok === false ? 'No se pudo registrar.' : '');
+            break;
+
         case 'sync':
             exigirToken();
             $usuarios = [];
@@ -137,7 +149,14 @@ try {
                     'hash'       => hash('sha256', $salt . $op['pin_bloqueo']),
                 ];
             }
-            resp(['usuarios' => $usuarios]);
+            // Código de emergencia de la planta (KIOSCO_EMERGENCIA en .env): viaja solo su huella.
+            $res = ['usuarios' => $usuarios];
+            $emer = (string)env('KIOSCO_EMERGENCIA', '');
+            if (preg_match('/^\d{6}$/', $emer)) {
+                $salt = bin2hex(random_bytes(8));
+                $res['emergencia'] = ['salt' => $salt, 'hash' => hash('sha256', $salt . $emer)];
+            }
+            resp($res);
             break;
 
         case 'subirTurnos':

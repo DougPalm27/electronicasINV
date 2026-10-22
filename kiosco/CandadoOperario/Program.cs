@@ -127,6 +127,8 @@ namespace CandadoOperario
     {
         public List<Operario> usuarios = new List<Operario>();
         public string sync;
+        public string emerg_salt;   // huella del código de emergencia de la planta (viene en la sincronización)
+        public string emerg_hash;
     }
 
     static class Store
@@ -136,6 +138,7 @@ namespace CandadoOperario
         public static CacheData Cache = new CacheData();
         public static List<Turno> Cola = new List<Turno>();
         public static List<Evento> Eventos = new List<Evento>();
+        public static List<string> Emergencias = new List<string>();   // usos del código de emergencia aún sin avisar al servidor
         static JavaScriptSerializer js = new JavaScriptSerializer();
 
         public static string DirDatos
@@ -150,6 +153,7 @@ namespace CandadoOperario
             Cache = Read<CacheData>("cache.json") ?? new CacheData();
             Cola = Read<List<Turno>>("cola.json") ?? new List<Turno>();
             Eventos = Read<List<Evento>>("eventos.json") ?? new List<Evento>();
+            Emergencias = Read<List<string>>("emergencias.json") ?? new List<string>();
         }
 
         static T Read<T>(string f) where T : class
@@ -186,6 +190,7 @@ namespace CandadoOperario
         public static void SaveCache() { lock (Lock) { Write("cache.json", Cache); } }
         public static void SaveCola() { lock (Lock) { Write("cola.json", Cola); } }
         public static void SaveEventos() { lock (Lock) { Write("eventos.json", Eventos); } }
+        public static void SaveEmergencias() { lock (Lock) { Write("emergencias.json", Emergencias); } }
     }
 
     // ───────────────────────── Servidor ─────────────────────────
@@ -268,6 +273,29 @@ namespace CandadoOperario
             return null;
         }
 
+        public static bool EsEmergencia(string pin)
+        {
+            lock (Store.Lock)
+            {
+                string s = Store.Cache.emerg_salt, h = Store.Cache.emerg_hash;
+                return !string.IsNullOrEmpty(s) && !string.IsNullOrEmpty(h) && Sha(s + pin) == h;
+            }
+        }
+
+        // Avisa al servidor de los usos del código de emergencia; lo que no llega se reintenta en la próxima sincronización.
+        static void PushEmergencias()
+        {
+            List<string> fechas;
+            lock (Store.Lock) { fechas = new List<string>(Store.Emergencias); }
+            foreach (string f in fechas)
+            {
+                Res r = Api.Post(new Dictionary<string, string> { { "accion", "emergencia" }, { "fecha", f } });
+                if (!r.Ok) { if (r.Offline) return; continue; }
+                lock (Store.Lock) { Store.Emergencias.Remove(f); }
+                Store.SaveEmergencias();
+            }
+        }
+
         public static int Pendientes()
         {
             lock (Store.Lock) { return Store.Cola.Count; }
@@ -300,6 +328,9 @@ namespace CandadoOperario
             lock (Store.Lock)
             {
                 Store.Cache.usuarios = lista;
+                Dictionary<string, object> em = (r.Data.ContainsKey("emergencia") ? r.Data["emergencia"] : null) as Dictionary<string, object>;
+                Store.Cache.emerg_salt = em != null ? Convert.ToString(em["salt"]) : null;
+                Store.Cache.emerg_hash = em != null ? Convert.ToString(em["hash"]) : null;
                 Store.Cache.sync = Now();
             }
             Store.SaveCache();
@@ -310,6 +341,7 @@ namespace CandadoOperario
         // Sube al servidor los turnos pendientes (abiertos aún no enviados y cerrados).
         public static bool Push(out string msg)
         {
+            PushEmergencias();
             List<Dictionary<string, object>> payload = new List<Dictionary<string, object>>();
             Dictionary<string, bool> conFin = new Dictionary<string, bool>();
             lock (Store.Lock)
@@ -1272,6 +1304,8 @@ namespace CandadoOperario
             Operario op = Sincro.Buscar(pin);
             if (op != null) { fails = 0; Unlock(op); return; }
 
+            if (Sincro.EsEmergencia(pin)) { fails = 0; UnlockEmergencia(); return; }
+
             bool vacia;
             lock (Store.Lock) { vacia = Store.Cache.usuarios.Count == 0; }
             if (vacia) { cover.SetInfo("No hay operarios cargados. Presiona Sincronizar.", true); return; }
@@ -1305,6 +1339,30 @@ namespace CandadoOperario
             Native.OcultarBarraTareas(false);
             Native.BloquearTeclaWindows(false);
             widget.SetName(op.nombre);
+            widget.Show();
+            Native.KeepOnTop(widget);
+            SyncAsync(false, false);
+        }
+
+        // Seguro por si el candado no deja entrar a nadie (sin lista de operarios, PIN olvidado, falla del servidor).
+        // Abre la PC sin turno de operario (no se suben turnos ni eventos de Delvis) y deja aviso al servidor.
+        void UnlockEmergencia()
+        {
+            lock (Store.Lock) { Store.Emergencias.Add(Sincro.Now()); }
+            Store.SaveEmergencias();
+            Turno t = new Turno();   // solo para que el candado sepa que está abierto; no entra en la cola de turnos
+            t.uid = Guid.NewGuid().ToString();
+            t.nombre = "EMERGENCIA";
+            t.estacion = Cfg.Estacion;
+            t.inicio = Sincro.Now();
+            cur = t;
+            Store.Estado("turno");
+
+            cover.SetInfo("", false);
+            cover.Hide();
+            Native.OcultarBarraTareas(false);
+            Native.BloquearTeclaWindows(false);
+            widget.SetName("EMERGENCIA");
             widget.Show();
             Native.KeepOnTop(widget);
             SyncAsync(false, false);

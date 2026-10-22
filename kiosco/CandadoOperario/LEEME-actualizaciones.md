@@ -47,3 +47,12 @@ Un instalador sin `.firma` se puede descargar a mano desde `candado.php`, pero *
   se ve en el Programador de tareas de Windows, carpeta `Honducafe`.
 - Si el instalador de una versión nueva cambia cómo se crean las tareas, esas tareas se actualizan solo en una
   instalación manual (la silenciosa no reescribe la tarea que la está ejecutando).
+
+## Código de emergencia (seguro si el candado no deja entrar)
+
+- Se define en el `.env` del servidor: `KIOSCO_EMERGENCIA=` con **6 dígitos**, igual para toda la planta. Vacío = desactivado.
+- Cada PC recibe solo su huella en la siguiente sincronización y la guarda; después funciona **sin red**.
+- Se teclea en el candado como si fuera un PIN. Abre la PC con el nombre «EMERGENCIA»: no crea turno de operario
+  ni sube eventos de Delvis, pero el bloqueo por inactividad sigue funcionando.
+- Cada uso queda en `logs/emergencias.log` del servidor (estación y hora); si no hay red, se avisa al reconectar.
+- Límite: una PC que nunca haya sincronizado no conoce el código. Quitar o cambiar el código en `.env` se aplica a cada PC al sincronizar.
