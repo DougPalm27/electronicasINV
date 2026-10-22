@@ -59,8 +59,39 @@ function equipoValido(): string
     return $id;
 }
 
+// Última versión del candado publicada CON FIRMA: descargas/Setup-CandadoOperario-X.exe y su
+// Setup-CandadoOperario-X.exe.firma (lo genera firmar-instalador.ps1 al publicar). El servidor
+// solo repite lo que dice el archivo .firma; quien decide si es auténtico es el candado, que
+// comprueba la firma con su llave pública. Un instalador sin .firma no se ofrece como actualización.
+function ultimaActualizacionFirmada(): array
+{
+    $dir   = dirname(__DIR__, 3) . '/descargas';
+    $mejor = [];
+    foreach (glob($dir . '/Setup-CandadoOperario-*.exe.firma') ?: [] as $f) {
+        $m = json_decode((string)@file_get_contents($f), true);
+        if (!is_array($m)) continue;
+        $archivo = (string)($m['archivo'] ?? '');
+        $version = (string)($m['version'] ?? '');
+        $sha     = (string)($m['sha256'] ?? '');
+        $firma   = (string)($m['firma'] ?? '');
+        if (!preg_match('/^Setup-CandadoOperario-(\d+(?:\.\d+){1,3})\.exe$/', $archivo, $mm) || $mm[1] !== $version) continue;
+        if (!preg_match('/^[0-9a-f]{64}$/', $sha) || !preg_match('#^[A-Za-z0-9+/=]{100,1000}$#', $firma)) continue;
+        if (!is_file($dir . '/' . $archivo)) continue;
+        if (!$mejor || version_compare($version, $mejor['version'], '>')) {
+            $mejor = ['version' => $version, 'archivo' => $archivo, 'sha256' => $sha, 'firma' => $firma];
+        }
+    }
+    return $mejor;
+}
+
 try {
     switch ($accion) {
+
+        // PCs de planta: ¿hay una versión nueva firmada? (la pide la tarea de actualización)
+        case 'actualizacion':
+            exigirToken();
+            resp(ultimaActualizacionFirmada());
+            break;
 
         // Instalador: máquinas que esta PC puede elegir (las habilitadas y aún sin candado en otra PC)
         case 'maquinas':
