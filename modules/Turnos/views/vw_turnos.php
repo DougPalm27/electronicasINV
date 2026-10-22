@@ -25,6 +25,7 @@
             <thead>
                 <tr>
                     <th>Estación</th>
+                    <th>Máquina</th>
                     <th>Operario</th>
                     <th>Inicio</th>
                     <th>Fin</th>

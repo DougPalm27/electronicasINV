@@ -28,7 +28,7 @@ $(document).ready(function () {
             cont.html(r.data.map(a => `
                 <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle py-2 px-3">
                     <i class="bi bi-circle-fill me-1" style="font-size:.5rem"></i>
-                    <strong>${esc(a.estacion)}</strong> — ${esc(a.nombre)}
+                    <strong>${esc(a.estacion)}</strong>${a.maquina ? ' · ' + esc(a.maquina) : ''} — ${esc(a.nombre)}
                 </span>
             `).join(''));
         }, 'json');
@@ -50,6 +50,20 @@ $(document).ready(function () {
         },
         columns: [
             { data: 'estacion', render: $.fn.dataTable.render.text() },
+            {
+                // Máquina del inventario ligada a la estación (Máquinas → Estación del candado)
+                data: 'maquina',
+                render: (v, t, r) => {
+                    const detalle = [r.modelo, r.ubicacion].filter(Boolean).join(' · ');
+                    if (t !== 'display') return v ? `${v} ${detalle}` : '';
+                    if (!v) {
+                        return '<span class="badge bg-warning text-dark" '
+                            + 'title="Esta estación no está ligada a una máquina del inventario. '
+                            + 'Asigna su nombre en Máquinas, al editar la máquina, en Estación del candado.">Sin asignar</span>';
+                    }
+                    return `<strong>${esc(v)}</strong>` + (detalle ? `<br><small class="text-muted">${esc(detalle)}</small>` : '');
+                }
+            },
             { data: 'nombre',   render: $.fn.dataTable.render.text() },
             { data: 'inicio' },
             {
@@ -90,14 +104,15 @@ $(document).ready(function () {
             }
         ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-        order: [[2, 'desc']],
+        order: [[3, 'desc']],   // Inicio
         pageLength: 10
     });
 
     // ── Detalle del turno ───────────────────────────────────
     $('#tblTurnos').on('click', '.btn-detalle', function () {
         const fila = tabla.row($(this).closest('tr')).data();
-        $('#eventosResumen').text(`${fila.estacion} · ${fila.nombre} · ${fila.inicio}`);
+        const maquina = fila.maquina ? ` (${fila.maquina})` : '';
+        $('#eventosResumen').text(`${fila.estacion}${maquina} · ${fila.nombre} · ${fila.inicio}`);
         $('#eventosCuerpo').empty();
         $('#eventosVacio').addClass('d-none');
 

@@ -23,6 +23,19 @@ class mdlTurnos
         return $row ?: null;
     }
 
+    // ── Máquina del inventario que tiene declarada esta estación ─
+    // Maquinas.estacion_candado la asigna un administrador (módulo Máquinas).
+    // Devuelve null si la estación aún no está ligada: el turno se registra igual.
+    public function maquinaPorEstacion(string $estacion): ?int
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT id_maquina FROM electronicas.Maquinas WHERE estacion_candado = ?"
+        );
+        $stmt->execute([$estacion]);
+        $id = $stmt->fetchColumn();
+        return $id === false ? null : (int)$id;
+    }
+
     // ── Kiosco: sesión abierta actualmente en una estación ─
     public function sesionActivaEn(string $estacion): ?array
     {
@@ -48,11 +61,11 @@ class mdlTurnos
         )->execute([$estacion]);
 
         $stmt = $this->conn->prepare(
-            "INSERT INTO electronicas.TurnoSesiones (id_usuario, estacion)
+            "INSERT INTO electronicas.TurnoSesiones (id_usuario, estacion, id_maquina)
              OUTPUT INSERTED.id_sesion
-             VALUES (?, ?)"
+             VALUES (?, ?, ?)"
         );
-        $stmt->execute([$id_usuario, $estacion]);
+        $stmt->execute([$id_usuario, $estacion, $this->maquinaPorEstacion($estacion)]);
         return (int)$stmt->fetchColumn();
     }
 
@@ -119,9 +132,9 @@ class mdlTurnos
                         )->execute([$inicio, $estacion, $inicio]);
                     }
                     $this->conn->prepare(
-                        "INSERT INTO electronicas.TurnoSesiones (id_usuario, estacion, inicio, fin, uid_cliente)
-                         VALUES (?, ?, ?, ?, ?)"
-                    )->execute([$idUsuario, $estacion, $inicio, $fin, $uid]);
+                        "INSERT INTO electronicas.TurnoSesiones (id_usuario, estacion, inicio, fin, uid_cliente, id_maquina)
+                         VALUES (?, ?, ?, ?, ?, ?)"
+                    )->execute([$idUsuario, $estacion, $inicio, $fin, $uid, $this->maquinaPorEstacion($estacion)]);
                 }
                 $ok[] = $uid;
             } catch (Throwable $e) {
@@ -214,9 +227,12 @@ class mdlTurnos
     // ── Admin: estaciones con turno abierto ahora mismo ────
     public function activos(): array
     {
-        $sql = "SELECT ts.id_sesion, ts.estacion, ts.inicio, u.nombre
+        $sql = "SELECT ts.id_sesion, ts.estacion, ts.inicio, u.nombre,
+                       mq.nombre AS maquina, mo.nombre AS modelo, mq.ubicacion
                 FROM electronicas.TurnoSesiones ts
                 INNER JOIN electronicas.Usuarios u ON u.id_usuario = ts.id_usuario
+                LEFT JOIN electronicas.Maquinas mq ON mq.id_maquina = ts.id_maquina
+                LEFT JOIN electronicas.Modelos  mo ON mo.id_modelo  = mq.id_modelo
                 WHERE ts.fin IS NULL
                 ORDER BY ts.estacion";
         $stmt = $this->conn->prepare($sql);
@@ -228,6 +244,7 @@ class mdlTurnos
     public function historial(): array
     {
         $sql = "SELECT ts.id_sesion, ts.estacion, u.nombre,
+                       mq.nombre AS maquina, mo.nombre AS modelo, mq.ubicacion,
                        FORMAT(ts.inicio,'dd/MM/yyyy HH:mm') AS inicio,
                        FORMAT(ts.fin,   'dd/MM/yyyy HH:mm') AS fin,
                        CASE WHEN ts.fin IS NULL THEN NULL
@@ -240,6 +257,8 @@ class mdlTurnos
                          WHERE e.id_sesion = ts.id_sesion AND e.tipo = 'crash')  AS n_crashes
                 FROM electronicas.TurnoSesiones ts
                 INNER JOIN electronicas.Usuarios u ON u.id_usuario = ts.id_usuario
+                LEFT JOIN electronicas.Maquinas mq ON mq.id_maquina = ts.id_maquina
+                LEFT JOIN electronicas.Modelos  mo ON mo.id_modelo  = mq.id_modelo
                 ORDER BY ts.inicio DESC";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
