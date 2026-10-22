@@ -11,7 +11,15 @@ class mdlMaquinas extends Connection
         $this->conn = $database->dbConnect();
     }
 
-    // Valida costo y año; devuelve un mensaje de error o null si todo está bien.
+    // Nombre de la estación del candado (la PC de esta máquina). Vacío = sin estación (NULL),
+    // porque el índice único filtrado solo ignora NULL, no cadenas vacías.
+    private function normalizarEstacion($losDatos)
+    {
+        $v = trim((string) ($losDatos->estacion_candado ?? ''));
+        return $v === '' ? null : $v;
+    }
+
+    // Valida costo, año y estación del candado; devuelve un mensaje de error o null si todo está bien.
     private function validarDatos($losDatos)
     {
         if ((float) ($losDatos->costo ?? 0) < 0) {
@@ -27,7 +35,45 @@ class mdlMaquinas extends Connection
             }
         }
 
+        // Mismo formato que acepta el endpoint del candado (kioscoController.php)
+        $estacion = $this->normalizarEstacion($losDatos);
+        if ($estacion !== null) {
+            if (!preg_match('/^[\p{L}\p{N} _.\-]{1,100}$/u', $estacion)) {
+                return "La estación del candado solo admite letras, números, espacios, punto, guion y guion bajo (máximo 100).";
+            }
+            $stmt = $this->conn->prepare(
+                "SELECT nombre FROM electronicas.Maquinas
+                 WHERE estacion_candado = ? AND id_maquina <> ?"
+            );
+            $stmt->execute([$estacion, (int) ($losDatos->id_maquina ?? 0)]);
+            $otra = $stmt->fetchColumn();
+            if ($otra !== false) {
+                // Llaves obligatorias: PHP toma los caracteres no ASCII (como ») como parte del nombre de la variable
+                return "La estación «{$estacion}» ya está asignada a la máquina «{$otra}».";
+            }
+        }
+
         return null;
+    }
+
+    // Al asignar una estación a una máquina, liga los turnos que esa estación ya tenía
+    // registrados sin máquina. Es un extra: si falla, la máquina ya quedó guardada.
+    private function ligarTurnosPrevios($estacion)
+    {
+        if ($estacion === null) {
+            return;
+        }
+        try {
+            $this->conn->prepare(
+                "UPDATE ts
+                    SET ts.id_maquina = m.id_maquina
+                   FROM electronicas.TurnoSesiones ts
+                  INNER JOIN electronicas.Maquinas m ON m.estacion_candado = ts.estacion
+                  WHERE ts.id_maquina IS NULL AND m.estacion_candado = ?"
+            )->execute([$estacion]);
+        } catch (PDOException $e) {
+            error_log('ligarTurnosPrevios: ' . $e->getMessage());
+        }
     }
 
     public function guardarMaquina($losDatos)
@@ -49,7 +95,8 @@ class mdlMaquinas extends Connection
                 id_estado,
                 costo,
                 anio,
-                ubicacion
+                ubicacion,
+                estacion_candado
             )
             VALUES
             (
@@ -60,8 +107,11 @@ class mdlMaquinas extends Connection
                 :id_estado,
                 :costo,
                 :anio,
-                :ubicacion
+                :ubicacion,
+                :estacion_candado
             )";
+
+        $estacion = $this->normalizarEstacion($losDatos);
 
         $stmt = $this->conn->prepare($sql);
         $stmt->bindParam(":nombre", $losDatos->nombre);
@@ -72,9 +122,11 @@ class mdlMaquinas extends Connection
         $stmt->bindParam(":costo", $losDatos->costo);
         $stmt->bindParam(":anio", $losDatos->anio);
         $stmt->bindParam(":ubicacion", $losDatos->ubicacion);
+        $stmt->bindValue(":estacion_candado", $estacion, $estacion === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
 
         try {
             $stmt->execute();
+            $this->ligarTurnosPrevios($estacion);
             echo json_encode([
                 ["status" => "200", "mensaje" => "Máquina registrada correctamente"]
             ]);
@@ -103,8 +155,11 @@ class mdlMaquinas extends Connection
                 id_estado = :id_estado,
                 costo = :costo,
                 anio = :anio,
-                ubicacion = :ubicacion
+                ubicacion = :ubicacion,
+                estacion_candado = :estacion_candado
             WHERE id_maquina = :id_maquina";
+
+        $estacion = $this->normalizarEstacion($losDatos);
 
         $stmt = $this->conn->prepare($sql);
         $stmt->bindParam(":id_maquina", $losDatos->id_maquina);
@@ -116,9 +171,11 @@ class mdlMaquinas extends Connection
         $stmt->bindParam(":costo", $losDatos->costo);
         $stmt->bindParam(":anio", $losDatos->anio);
         $stmt->bindParam(":ubicacion", $losDatos->ubicacion);
+        $stmt->bindValue(":estacion_candado", $estacion, $estacion === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
 
         try {
             $stmt->execute();
+            $this->ligarTurnosPrevios($estacion);
             echo json_encode([
                 ["status" => "200", "mensaje" => "Máquina actualizada correctamente"]
             ]);
@@ -185,7 +242,8 @@ class mdlMaquinas extends Connection
                 mq.id_estado,
                 mq.costo,
                 mq.anio,
-                mq.ubicacion
+                mq.ubicacion,
+                mq.estacion_candado
             FROM electronicas.Maquinas mq
             INNER JOIN electronicas.Modelos mo
                 ON mq.id_modelo = mo.id_modelo

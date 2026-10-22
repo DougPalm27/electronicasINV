@@ -431,6 +431,7 @@ function cargarEditar(id) {
       $("#costo").val(d.costo);
       $("#anio").val(d.anio);
       $("#ubicacion").val(d.ubicacion);
+      $("#estacion_candado").val(d.estacion_candado || "");
 
       $("#id_marca").val(d.id_marca);
       listarModelos(d.id_marca, d.id_modelo);
@@ -521,6 +522,7 @@ function obtenerDatosFormulario() {
     costo: $("#costo").val() === "" ? 0 : $("#costo").val(),
     anio: $("#anio").val().trim(),
     ubicacion: $("#ubicacion").val(),
+    estacion_candado: $("#estacion_candado").val().trim(),
   };
 }
 
@@ -537,6 +539,11 @@ function validarFormulario(d) {
     Swal.fire("Ups", "Seleccione estado", "warning");
     return false;
   }
+  // Mismo formato que acepta el candado: letras, números, espacio, punto, guion y guion bajo
+  if (d.estacion_candado !== "" && !/^[\p{L}\p{N} _.\-]{1,100}$/u.test(d.estacion_candado)) {
+    Swal.fire("Ups", "La estación del candado solo admite letras, números, espacios, punto, guion y guion bajo", "warning");
+    return false;
+  }
   return true;
 }
 
@@ -547,6 +554,7 @@ function limpiarModalMaquina() {
   $("#costo").val("");
   $("#anio").val("");
   $("#ubicacion").val("-1");
+  $("#estacion_candado").val("");
 
   $("#btnGuardarMaquina").show();
   $("#btnEditarMaquina").hide();

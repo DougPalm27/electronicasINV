@@ -144,6 +144,18 @@
 
                     <div class="col-md-12">
                         <div class="form-floating">
+                            <input type="text" class="form-control" id="estacion_candado" maxlength="100"
+                                   placeholder="Estación del candado" autocomplete="off">
+                            <label for="estacion_candado">Estación del candado (opcional)</label>
+                        </div>
+                        <div class="form-text">
+                            Nombre que se escribe al instalar el candado en la PC de esta máquina (ej. EVO1-A).
+                            Debe ser idéntico y no puede repetirse en otra máquina.
+                        </div>
+                    </div>
+
+                    <div class="col-md-12">
+                        <div class="form-floating">
                             <select class="form-select" id="id_estado">
                                 <option value="-1">Seleccione un estado</option>
                             </select>
