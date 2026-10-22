@@ -90,8 +90,10 @@ $servidor = $_SERVER['HTTP_HOST'] ?? 'servidor';
     <ol>
       <li>Descarga el archivo y ábrelo con doble clic. Acepta el permiso de administrador.</li>
       <li>Servidor: <span class="dato"><?= htmlspecialchars($servidor) ?></span></li>
-      <li>Estación: el nombre único de la máquina, por ejemplo <span class="dato">Evolution-Linea1</span>. No lo repitas en otra PC.</li>
       <li>Token: <strong>pídeselo al administrador</strong>. No aparece en esta página.</li>
+      <li>Máquina: elige en la lista la máquina donde está esta PC y confirma que la <strong>serie</strong> que se muestra
+          coincide con la placa de la máquina. Solo aparecen las que todavía no tienen su candado instalado.
+          Si la tuya no aparece, avisa al administrador: debe tener asignada su "Estación del candado" en Máquinas.</li>
       <li>Al terminar, el candado se abre solo y arranca con Windows en cada inicio.</li>
     </ol>
   </div>
