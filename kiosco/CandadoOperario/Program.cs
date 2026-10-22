@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -24,8 +24,8 @@ using System.Xml.Linq;
 [assembly: AssemblyProduct("Candado de Operario")]
 [assembly: AssemblyCompany("Honducafe")]
 [assembly: AssemblyCopyright("Desarrollado por Douglas Palma · © 2026")]
-[assembly: AssemblyVersion("1.3.0.0")]
-[assembly: AssemblyFileVersion("1.3.0.0")]
+[assembly: AssemblyVersion("1.3.1.0")]
+[assembly: AssemblyFileVersion("1.3.1.0")]
 
 namespace CandadoOperario
 {
