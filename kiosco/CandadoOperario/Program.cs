@@ -21,8 +21,8 @@ using System.Xml.Linq;
 [assembly: AssemblyProduct("Candado de Operario")]
 [assembly: AssemblyCompany("Honducafe")]
 [assembly: AssemblyCopyright("Desarrollado por Douglas Palma · © 2026")]
-[assembly: AssemblyVersion("1.2.5.0")]
-[assembly: AssemblyFileVersion("1.2.5.0")]
+[assembly: AssemblyVersion("1.2.6.0")]
+[assembly: AssemblyFileVersion("1.2.6.0")]
 
 namespace CandadoOperario
 {
@@ -603,6 +603,7 @@ namespace CandadoOperario
         [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern IntPtr FindWindow(string clase, string nombre);
         [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern IntPtr FindWindowEx(IntPtr padre, IntPtr despuesDe, string clase, string nombre);
         [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int modo);
+        [DllImport("user32.dll")] static extern bool EnableWindow(IntPtr h, bool activar);
         [DllImport("user32.dll", SetLastError = true)] static extern IntPtr SetWindowsHookEx(int idHook, GanchoTeclado proc, IntPtr hMod, uint hilo);
         [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr h);
         [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr h, int codigo, IntPtr wParam, IntPtr lParam);
@@ -633,13 +634,19 @@ namespace CandadoOperario
         // tareas (Windows la mantiene encima incluso de una ventana "TopMost"). Se oculta
         // aparte mientras está bloqueado, y se restaura al desbloquear o si el programa falla.
         // Nunca debe quedar oculta por error: si algo sale mal aquí, no se bloquea nada más.
+        //
+        // Ocultarla una sola vez no basta: al arrancar Windows el candado se abre a la vez que el
+        // Explorador y puede intentarlo antes de que la barra exista, y el Explorador también la
+        // vuelve a mostrar por su cuenta (se reinicia, un aviso, un toque en el borde). Por eso se
+        // repite mientras está bloqueado. Además se desactiva, para que aunque se vea un instante
+        // (incluida su casilla de búsqueda) no responda a clics ni toques.
         public static void OcultarBarraTareas(bool ocultar)
         {
             try
             {
                 int modo = ocultar ? SW_HIDE : SW_SHOW;
                 IntPtr principal = FindWindow("Shell_TrayWnd", null);
-                if (principal != IntPtr.Zero) ShowWindow(principal, modo);
+                if (principal != IntPtr.Zero) { EnableWindow(principal, !ocultar); ShowWindow(principal, modo); }
 
                 // Una barra adicional por cada monitor, si Windows está configurado para mostrarla en todos
                 IntPtr sec = IntPtr.Zero;
@@ -647,6 +654,7 @@ namespace CandadoOperario
                 {
                     sec = FindWindowEx(IntPtr.Zero, sec, "Shell_SecondaryTrayWnd", null);
                     if (sec == IntPtr.Zero) break;
+                    EnableWindow(sec, !ocultar);
                     ShowWindow(sec, modo);
                 }
             }
@@ -661,7 +669,7 @@ namespace CandadoOperario
         // de que llegue aqui (es la "secuencia seria de atencion", a proposito).
         delegate IntPtr GanchoTeclado(int codigo, IntPtr wParam, IntPtr lParam);
         const int WH_KEYBOARD_LL = 13, WM_KEYDOWN = 0x100, WM_SYSKEYDOWN = 0x104;
-        const int VK_LWIN = 0x5B, VK_RWIN = 0x5C, VK_CONTROL = 0x11, VK_ESCAPE = 0x1B;
+        const int VK_LWIN = 0x5B, VK_RWIN = 0x5C, VK_CONTROL = 0x11, VK_ESCAPE = 0x1B, VK_BROWSER_SEARCH = 0xAA;
         static IntPtr gancho = IntPtr.Zero;
         static readonly GanchoTeclado ganchoProc = GanchoCallback; // referencia viva: si el GC la recoge, el hook crashea
 
@@ -670,7 +678,7 @@ namespace CandadoOperario
             if (codigo >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
             {
                 int vk = Marshal.ReadInt32(lParam);
-                bool esWin = vk == VK_LWIN || vk == VK_RWIN;
+                bool esWin = vk == VK_LWIN || vk == VK_RWIN || vk == VK_BROWSER_SEARCH;   // incluye la tecla de búsqueda
                 bool esCtrlEsc = vk == VK_ESCAPE && (GetKeyState(VK_CONTROL) & 0x8000) != 0;
                 if (esWin || esCtrlEsc) return (IntPtr)1; // se traga la tecla: no abre Inicio
             }
@@ -901,6 +909,7 @@ namespace CandadoOperario
             {
                 if (IsDisposed) { keep.Stop(); return; }
                 if (!Visible) return;
+                Native.OcultarBarraTareas(true);   // Windows la puede volver a mostrar: se oculta de nuevo
                 Native.KeepOnTop(this);
                 if (Form.ActiveForm != this) Activate();
             };
