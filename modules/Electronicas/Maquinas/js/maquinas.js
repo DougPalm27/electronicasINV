@@ -134,6 +134,14 @@ function initTabla() {
                         <i class="bi bi-box-seam me-2 text-primary"></i>Ver repuestos
                     </button>
                 </li>
+                ${window.USUARIO_ROL === "Administrador" && row.remoto
+                  ? `<li>
+                    <a class="dropdown-item" href="./modules/Electronicas/Maquinas/Controllers/conectarRemoto.php?id=${row.id_maquina}"
+                       title="Baja un archivo .vnc para ${$("<i>").text(row.remoto).html()}">
+                        <i class="bi bi-display me-2 text-info"></i>Conectar (VNC)
+                    </a>
+                </li>`
+                  : ""}
                 ${modelosConEyectores.has(String(row.id_modelo)) || modelosConComponentes.has(String(row.id_modelo))
                   ? `<li>
                     <button class="dropdown-item btn-componentes" type="button"
@@ -432,6 +440,13 @@ function cargarEditar(id) {
       $("#anio").val(d.anio);
       $("#ubicacion").val(d.ubicacion);
       $("#estacion_candado").val(d.estacion_candado || "");
+      $("#remoto_host").val(d.remoto_host || "").attr("placeholder", d.candado_equipo || "Equipo remoto");
+      $("#remoto_puerto").val(d.remoto_puerto || "");
+      $("#remotoAyuda").text(
+        d.candado_equipo
+          ? "Para «Conectar» por VNC. Vacío = " + d.candado_equipo + " (la PC del candado)."
+          : "Para «Conectar» por VNC. Esta máquina aún no tiene candado instalado: escribe el nombre de su PC o su IP."
+      );
       mostrarCandadoInstalado(d);
 
       $("#id_marca").val(d.id_marca);
@@ -572,6 +587,8 @@ function obtenerDatosFormulario() {
     anio: $("#anio").val().trim(),
     ubicacion: $("#ubicacion").val(),
     estacion_candado: $("#estacion_candado").val().trim(),
+    remoto_host: $("#remoto_host").val().trim(),
+    remoto_puerto: $("#remoto_puerto").val().trim(),
   };
 }
 
@@ -593,6 +610,14 @@ function validarFormulario(d) {
     Swal.fire("Ups", "La estación del candado solo admite letras, números, espacios, punto, guion y guion bajo", "warning");
     return false;
   }
+  if (d.remoto_host !== "" && !/^[A-Za-z0-9][A-Za-z0-9.\-]{0,99}$/.test(d.remoto_host)) {
+    Swal.fire("Ups", "El equipo remoto debe ser un nombre de PC o una IP (letras, números, punto y guion)", "warning");
+    return false;
+  }
+  if (d.remoto_puerto !== "" && !(/^\d+$/.test(d.remoto_puerto) && +d.remoto_puerto >= 1 && +d.remoto_puerto <= 65535)) {
+    Swal.fire("Ups", "El puerto VNC debe ser un número entre 1 y 65535", "warning");
+    return false;
+  }
   return true;
 }
 
@@ -604,6 +629,9 @@ function limpiarModalMaquina() {
   $("#anio").val("");
   $("#ubicacion").val("-1");
   $("#estacion_candado").val("");
+  $("#remoto_host").val("").attr("placeholder", "Equipo remoto");
+  $("#remoto_puerto").val("");
+  $("#remotoAyuda").text("Para «Conectar» por VNC. Si lo dejas vacío se usa la PC donde se instaló el candado.");
   $("#bloqueCandadoInstalado").addClass("d-none");
 
   $("#btnGuardarMaquina").show();

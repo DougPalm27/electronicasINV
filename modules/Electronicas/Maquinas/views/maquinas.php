@@ -169,6 +169,24 @@
                         </div>
                     </div>
 
+                    <div class="col-md-8">
+                        <div class="form-floating">
+                            <input type="text" class="form-control" id="remoto_host" maxlength="100"
+                                   placeholder="Equipo remoto" autocomplete="off">
+                            <label for="remoto_host">Equipo remoto: nombre de PC o IP (opcional)</label>
+                        </div>
+                        <div class="form-text" id="remotoAyuda">
+                            Para «Conectar» por VNC. Si lo dejas vacío se usa la PC donde se instaló el candado.
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-floating">
+                            <input type="number" class="form-control" id="remoto_puerto" min="1" max="65535"
+                                   placeholder="5900">
+                            <label for="remoto_puerto">Puerto VNC</label>
+                        </div>
+                    </div>
+
                     <div class="col-md-12">
                         <div class="form-floating">
                             <select class="form-select" id="id_estado">

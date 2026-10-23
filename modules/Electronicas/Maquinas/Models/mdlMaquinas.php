@@ -19,7 +19,15 @@ class mdlMaquinas extends Connection
         return $v === '' ? null : $v;
     }
 
-    // Valida costo, año y estación del candado; devuelve un mensaje de error o null si todo está bien.
+    // Equipo para la conexión remota: nombre de PC o IP. Vacío = NULL (se usa la PC del candado).
+    private function normalizarRemoto($losDatos)
+    {
+        $host = trim((string) ($losDatos->remoto_host ?? ''));
+        $puerto = trim((string) ($losDatos->remoto_puerto ?? ''));
+        return [$host === '' ? null : $host, $puerto === '' ? null : (int) $puerto];
+    }
+
+    // Valida costo, año, estación del candado y equipo remoto; devuelve un mensaje de error o null si todo está bien.
     private function validarDatos($losDatos)
     {
         if ((float) ($losDatos->costo ?? 0) < 0) {
@@ -51,6 +59,15 @@ class mdlMaquinas extends Connection
                 // Llaves obligatorias: PHP toma los caracteres no ASCII (como ») como parte del nombre de la variable
                 return "La estación «{$estacion}» ya está asignada a la máquina «{$otra}».";
             }
+        }
+
+        [$host, $puerto] = $this->normalizarRemoto($losDatos);
+        if ($host !== null && !preg_match('/^[A-Za-z0-9][A-Za-z0-9.\-]{0,99}$/', $host)) {
+            return "El equipo remoto debe ser un nombre de PC o una IP (letras, números, punto y guion).";
+        }
+        $puertoTxt = trim((string) ($losDatos->remoto_puerto ?? ''));
+        if ($puertoTxt !== '' && (!ctype_digit($puertoTxt) || $puerto < 1 || $puerto > 65535)) {
+            return "El puerto VNC debe ser un número entre 1 y 65535.";
         }
 
         return null;
@@ -96,7 +113,9 @@ class mdlMaquinas extends Connection
                 costo,
                 anio,
                 ubicacion,
-                estacion_candado
+                estacion_candado,
+                remoto_host,
+                remoto_puerto
             )
             VALUES
             (
@@ -108,7 +127,9 @@ class mdlMaquinas extends Connection
                 :costo,
                 :anio,
                 :ubicacion,
-                :estacion_candado
+                :estacion_candado,
+                :remoto_host,
+                :remoto_puerto
             )";
 
         $estacion = $this->normalizarEstacion($losDatos);
@@ -123,6 +144,9 @@ class mdlMaquinas extends Connection
         $stmt->bindParam(":anio", $losDatos->anio);
         $stmt->bindParam(":ubicacion", $losDatos->ubicacion);
         $stmt->bindValue(":estacion_candado", $estacion, $estacion === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        [$host, $puerto] = $this->normalizarRemoto($losDatos);
+        $stmt->bindValue(":remoto_host", $host, $host === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        $stmt->bindValue(":remoto_puerto", $puerto, $puerto === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
 
         try {
             $stmt->execute();
@@ -156,7 +180,9 @@ class mdlMaquinas extends Connection
                 costo = :costo,
                 anio = :anio,
                 ubicacion = :ubicacion,
-                estacion_candado = :estacion_candado
+                estacion_candado = :estacion_candado,
+                remoto_host = :remoto_host,
+                remoto_puerto = :remoto_puerto
             WHERE id_maquina = :id_maquina";
 
         $estacion = $this->normalizarEstacion($losDatos);
@@ -172,6 +198,9 @@ class mdlMaquinas extends Connection
         $stmt->bindParam(":anio", $losDatos->anio);
         $stmt->bindParam(":ubicacion", $losDatos->ubicacion);
         $stmt->bindValue(":estacion_candado", $estacion, $estacion === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        [$host, $puerto] = $this->normalizarRemoto($losDatos);
+        $stmt->bindValue(":remoto_host", $host, $host === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        $stmt->bindValue(":remoto_puerto", $puerto, $puerto === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
 
         try {
             $stmt->execute();
@@ -204,7 +233,8 @@ class mdlMaquinas extends Connection
                 mo.imagen AS modelo_imagen,
                 tm.nombre AS tipo_modelo,
                 ma.nombre AS marca,
-                em.nombre AS estado
+                em.nombre AS estado,
+                COALESCE(mq.remoto_host, cd.equipo_nombre) AS remoto
             FROM electronicas.Maquinas mq
             INNER JOIN electronicas.Modelos mo
                 ON mq.id_modelo = mo.id_modelo
@@ -214,6 +244,8 @@ class mdlMaquinas extends Connection
                 ON mq.id_estado = em.id_estado
             LEFT JOIN electronicas.TiposModelo tm
                 ON mo.id_tipo_modelo = tm.id_tipo_modelo
+            LEFT JOIN electronicas.MaquinaCandado cd
+                ON cd.id_maquina = mq.id_maquina
             ORDER BY mq.id_maquina DESC";
 
         $stmt = $this->conn->prepare($sql);
@@ -244,6 +276,8 @@ class mdlMaquinas extends Connection
                 mq.anio,
                 mq.ubicacion,
                 mq.estacion_candado,
+                mq.remoto_host,
+                mq.remoto_puerto,
                 cd.equipo_nombre AS candado_equipo,
                 cd.version AS candado_version,
                 FORMAT(cd.fecha_instalacion, 'dd/MM/yyyy HH:mm') AS candado_fecha
@@ -266,6 +300,22 @@ class mdlMaquinas extends Connection
             exit;
         }
     }
+    // Equipo y puerto para conectarse por VNC a la PC de la máquina (o null si no hay a dónde)
+    public function datosRemoto($id_maquina)
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT mq.nombre,
+                    COALESCE(mq.remoto_host, cd.equipo_nombre) AS host,
+                    COALESCE(mq.remoto_puerto, 5900) AS puerto
+               FROM electronicas.Maquinas mq
+               LEFT JOIN electronicas.MaquinaCandado cd ON cd.id_maquina = mq.id_maquina
+              WHERE mq.id_maquina = ?"
+        );
+        $stmt->execute([(int) $id_maquina]);
+        $f = $stmt->fetch(PDO::FETCH_ASSOC);
+        return ($f && trim((string) $f['host']) !== '') ? $f : null;
+    }
+
     // Suelta la máquina del candado instalado en una PC, para poder elegirla desde otra
     // (por ejemplo al cambiar la PC de la máquina). No toca la PC vieja: su candado sigue
     // funcionando con su configuración hasta que se desinstale.
