@@ -6,12 +6,11 @@ Al volver, me pasas las notas y las fotos.
 ## A. Antes de ir (con internet)
 
 1. Servidor: `git pull origin main`.
-2. Servidor, SSMS: ejecutar `BD/migration_maquina_remoto.sql`.
-3. Servidor, `.env`: agregar `KIOSCO_EMERGENCIA=XXXXXX` (6 dígitos; anótalo en un lugar seguro).
-4. En una USB:
+2. Servidor, `.env`: agregar `KIOSCO_EMERGENCIA=XXXXXX` (6 dígitos; anótalo en un lugar seguro).
+3. En una USB:
    - `Setup-CandadoOperario-1.3.2.exe` (de `descargas/` o de `candado.php`).
    - Instalador de **TightVNC** (servidor + visor) o **UltraVNC**, bajado de su página oficial.
-5. Anota la IP o el nombre del servidor del sistema, y el token del candado.
+4. Anota la IP o el nombre del servidor del sistema, y el token del candado.
 
 ## B. Candado 1.3.2 en una PC de planta
 
@@ -35,8 +34,9 @@ Al volver, me pasas las notas y las fotos.
 3. Desde tu PC, abrir el visor y escribir la IP de la PC de planta (puerto 5900).
    ¿Conecta? ¿Ves la pantalla del operario? ¿Puedes mover el mouse?
 4. Probar lo mismo con el **nombre** de la PC en lugar de la IP.
-5. Si tu PC llega al sistema web: Máquinas > menú de la máquina > **Conectar (VNC)**.
-   ¿Baja el archivo .vnc? ¿Abre el visor y conecta?
+5. **Visor 3D del plano** (en tu PC, sin internet): en `Planos/salida/remoto.json` pon en la máquina
+   `"protocolo": "vnc"`, `"host": "IP o nombre de la PC"`, `"puerto": ""` (vacío = 5900).
+   Abre el visor > botón de la máquina. ¿Baja el archivo .vnc? ¿Abre el visor VNC y conecta?
 6. Probar desde wifi y desde cable, si puedes.
 
 ## D. Si algo falla, toma foto de
