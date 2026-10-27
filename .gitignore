@@ -14,3 +14,7 @@ kiosco/CandadoOperario/Output/
 # estas reglas son por si alguna vez se copia dentro. Quien la tenga puede instalar programas en las PCs de planta.
 .honducafe/
 *firma-privada*
+
+# Cuarto de control: binario generado y config local
+kiosco/CuartoControl/*.exe
+kiosco/CuartoControl/CuartoControl.config
