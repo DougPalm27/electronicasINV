@@ -56,3 +56,12 @@ Un instalador sin `.firma` se puede descargar a mano desde `candado.php`, pero *
   ni sube eventos de Delvis, pero el bloqueo por inactividad sigue funcionando.
 - Cada uso queda en `logs/emergencias.log` del servidor (estación y hora); si no hay red, se avisa al reconectar.
 - Límite: una PC que nunca haya sincronizado no conoce el código. Quitar o cambiar el código en `.env` se aplica a cada PC al sincronizar.
+
+## Un instalador, dos programas (desde 1.4.0)
+
+El mismo `Setup-CandadoOperario-X.exe` pregunta qué instalar:
+- **Candado de operario** (por defecto): PCs de las máquinas. Las actualizaciones automáticas lo siguen instalando igual.
+- **Cuarto de control**: PC del supervisor. Lista de máquinas por planta, si responden en la red y su pantalla por VNC.
+  Pide la carpeta Planos (la del visor 3D). Silencioso: `/VERYSILENT /TYPE=control /PLANOS=C:\xampp\htdocs\Planos`.
+
+`compilar-instalador.bat` compila también `..\CuartoControl\CuartoControl.exe`.

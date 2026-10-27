@@ -6,6 +6,9 @@ rem (compilar.bat). Para firmar hace falta la llave privada: ver LEEME-actualiza
 set ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe
 if not exist "%ISCC%" set ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe
 for /f "tokens=3" %%v in ('findstr /b "#define AppVer" "%~dp0CandadoOperario.iss"') do set VER=%%~v
+rem El mismo instalador trae el Cuarto de control: se compila antes
+call "%~dp0..\CuartoControl\compilar.bat"
+if not exist "%~dp0..\CuartoControl\CuartoControl.exe" exit /b 1
 "%ISCC%" "%~dp0CandadoOperario.iss"
 if errorlevel 1 exit /b 1
 if not exist "%~dp0..\..\descargas" mkdir "%~dp0..\..\descargas"

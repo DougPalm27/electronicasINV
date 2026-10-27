@@ -1,11 +1,17 @@
-﻿; Instalador del Candado de Operario (Honducafe)
-; Compilar: compilar-instalador.bat  ->  Output\Setup-CandadoOperario-<version>.exe
+﻿; Instalador de Honducafe: UN instalador, DOS opciones (se elige al instalar):
+;   - Candado de operario  (PCs de las máquinas)      -> {autopf}\Honducafe\CandadoOperario
+;   - Cuarto de control    (PC del supervisor)       -> {autopf}\Honducafe\CuartoControl
+; El candado es la opción por defecto: las actualizaciones automáticas (silenciosas) de las PCs de planta siguen igual.
+; El archivo conserva el nombre Setup-CandadoOperario-<version>.exe porque así lo buscan el servidor y el actualizador.
+; Silencioso: /TYPE=candado (por defecto) o /TYPE=control /PLANOS=C:\xampp\htdocs\Planos. Con /SUPPRESSMSGBOXES las
+; confirmaciones toman la respuesta por defecto (Sí) y los errores cancelan la instalación en vez de quedarse esperando.
+; Compilar: compilar-instalador.bat  ->  Output\Setup-CandadoOperario-<version>.exe (requiere ..\CuartoControl\CuartoControl.exe)
 ;
 ; Instalacion silenciosa (despliegue en varias PCs):
-;   Setup-CandadoOperario-1.3.2.exe /VERYSILENT /SERVIDOR=electronicas.simfcoh.com /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
+;   Setup-CandadoOperario-1.4.0.exe /VERYSILENT /SERVIDOR=electronicas.simfcoh.com /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
 
-#define AppName "Candado de Operario"
-#define AppVer "1.3.2"
+#define AppName "Honducafe: Candado y Cuarto de control"
+#define AppVer "1.4.0"
 
 [Setup]
 AppId={{B7C2E1A4-5D3F-4E8A-9C61-2F0A7D9E4B13}
@@ -13,11 +19,11 @@ AppName={#AppName}
 AppVersion={#AppVer}
 AppPublisher=Honducafe · Desarrollado por Douglas Palma
 AppCopyright=Desarrollado por Douglas Palma · © 2026
-VersionInfoVersion=1.3.2.0
+VersionInfoVersion=1.4.0.0
 VersionInfoCompany=Honducafe
 VersionInfoCopyright=Desarrollado por Douglas Palma · © 2026
-VersionInfoDescription=Instalador de Candado de Operario
-VersionInfoProductName=Candado de Operario
+VersionInfoDescription=Instalador de Honducafe (Candado de operario / Cuarto de control)
+VersionInfoProductName=Honducafe Candado y Cuarto de control
 DefaultDirName={autopf}\Honducafe\CandadoOperario
 DisableDirPage=yes
 DisableProgramGroupPage=yes
@@ -38,39 +44,56 @@ CloseApplications=no
 Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
 
 [Messages]
-WelcomeLabel2=Este asistente instalará [name/ver] en su equipo.%n%nControla qué operario trabaja en cada máquina y registra sus turnos, fallas y ajustes.%n%nDesarrollado por Douglas Palma para Honducafe.%n%nSe recomienda cerrar las demás aplicaciones antes de continuar.
+WelcomeLabel2=Este asistente instalará [name/ver] en su equipo.%n%nEn el siguiente paso elija qué instalar:%n•  Candado de operario: en la PC de cada máquina. Controla qué operario trabaja y registra turnos, fallas y ajustes.%n•  Cuarto de control: en la PC del supervisor. Muestra qué máquinas responden y abre su pantalla por VNC.%n%nDesarrollado por Douglas Palma para Honducafe.%n%nSe recomienda cerrar las demás aplicaciones antes de continuar.
 FinishedLabel=Se instaló [name] en su equipo.%n%nDesarrollado por Douglas Palma · Honducafe.
 
+[Types]
+Name: "candado"; Description: "Candado de operario (PC de una máquina)"
+Name: "control"; Description: "Cuarto de control (PC del supervisor)"
+
+[Components]
+Name: "candado"; Description: "Candado de operario: bloquea la PC de la máquina hasta que el operario entra con su PIN"; Types: candado; Flags: exclusive
+Name: "control"; Description: "Cuarto de control: lista de máquinas por planta, si responden en la red y su pantalla por VNC"; Types: control; Flags: exclusive
+
 [Files]
-Source: "CandadoOperario.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "CandadoOperario.exe"; DestDir: "{app}"; Flags: ignoreversion; Components: candado
+Source: "..\CuartoControl\CuartoControl.exe"; DestDir: "{autopf}\Honducafe\CuartoControl"; Flags: ignoreversion; Components: control
 
 [Icons]
-Name: "{commonprograms}\Candado de Operario"; Filename: "{app}\CandadoOperario.exe"; Comment: "Abre el candado de operario"; Tasks: iconoinicio
-Name: "{commondesktop}\Candado de Operario"; Filename: "{app}\CandadoOperario.exe"; Comment: "Abre el candado de operario"; Tasks: iconoescritorio
+Name: "{commonprograms}\Candado de Operario"; Filename: "{app}\CandadoOperario.exe"; Comment: "Abre el candado de operario"; Tasks: iconoinicio; Components: candado
+Name: "{commondesktop}\Candado de Operario"; Filename: "{app}\CandadoOperario.exe"; Comment: "Abre el candado de operario"; Tasks: iconoescritorio; Components: candado
+Name: "{commonprograms}\Cuarto de control"; Filename: "{autopf}\Honducafe\CuartoControl\CuartoControl.exe"; Comment: "Estado de las máquinas y su pantalla por VNC"; Tasks: iconoinicio; Components: control
+Name: "{commondesktop}\Cuarto de control"; Filename: "{autopf}\Honducafe\CuartoControl\CuartoControl.exe"; Comment: "Estado de las máquinas y su pantalla por VNC"; Tasks: iconoescritorio; Components: control
 
 [Dirs]
 ; Copia local de operarios y cola de turnos: la escribe el candado, sea cual sea el usuario de Windows
-Name: "{commonappdata}\CandadoOperario"; Permissions: users-modify
+Name: "{commonappdata}\CandadoOperario"; Permissions: users-modify; Components: candado
 
 [Registry]
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "CandadoOperario"; ValueData: """{app}\CandadoOperario.exe"""; Flags: uninsdeletevalue
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "CandadoOperario"; ValueData: """{app}\CandadoOperario.exe"""; Flags: uninsdeletevalue; Components: candado
 
 [Tasks]
 Name: "iconoinicio"; Description: "Crear un acceso directo en el menú Inicio"; GroupDescription: "Accesos directos:"
 Name: "iconoescritorio"; Description: "Crear un acceso directo en el escritorio"; GroupDescription: "Accesos directos:"
-Name: "modoprueba"; Description: "Modo prueba: permitir cerrar el candado con Ctrl+Alt+Shift+Q (NO usar en produccion)"; GroupDescription: "Pruebas:"; Flags: unchecked
+Name: "modoprueba"; Description: "Modo prueba: permitir cerrar el candado con Ctrl+Alt+Shift+Q (NO usar en produccion)"; GroupDescription: "Pruebas:"; Flags: unchecked; Components: candado
 
 [Run]
-Filename: "{app}\CandadoOperario.exe"; Description: "Iniciar el candado ahora"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\CandadoOperario.exe"; Description: "Iniciar el candado ahora"; Flags: nowait postinstall skipifsilent; Components: candado
+Filename: "{autopf}\Honducafe\CuartoControl\CuartoControl.exe"; Description: "Abrir el Cuarto de control"; Flags: nowait postinstall skipifsilent; Components: control
 ; En una actualizacion automatica el instalador corre como SYSTEM y no puede abrir el candado en la sesion del
 ; operario: se le pide a la tarea vigilante (que corre en su sesion) que lo abra enseguida, sin esperar sus 5 minutos.
-Filename: "{sys}\schtasks.exe"; Parameters: "/Run /TN ""Honducafe\Candado de Operario Vigilante"""; Flags: runhidden; Check: WizardSilent
+Filename: "{sys}\schtasks.exe"; Parameters: "/Run /TN ""Honducafe\Candado de Operario Vigilante"""; Flags: runhidden; Check: WizardSilent; Components: candado
 
 [UninstallRun]
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""Honducafe\Candado de Operario Actualizador"" /F"; Flags: runhidden; RunOnceId: "QuitarActualizador"
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""Honducafe\Candado de Operario Instalar"" /F"; Flags: runhidden; RunOnceId: "QuitarInstalador"
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""Honducafe\Candado de Operario Vigilante"" /F"; Flags: runhidden; RunOnceId: "QuitarVigilante"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM CandadoOperario.exe"; Flags: runhidden; RunOnceId: "CerrarCandado"
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM CuartoControl.exe"; Flags: runhidden; RunOnceId: "CerrarCuartoControl"
+
+[UninstallDelete]
+; El instalador escribe esta configuración (carpeta de los planos); se borra al desinstalar
+Type: files; Name: "{autopf}\Honducafe\CuartoControl\CuartoControl.config"
 
 [Code]
 var
@@ -86,6 +109,7 @@ var
   // Paralelos al combo; la posición 0 es el aviso "Seleccione la máquina"
   Estaciones, Nombres, Series, Detalles: TArrayOfString;
   EquipoId, EquipoNombre: String;     // identifican esta PC ante el servidor
+  PaginaPlanos: TInputDirWizardPage;  // Cuarto de control: carpeta Planos (la que tiene salida\remoto.json)
 
 function LeerConfig(const Clave, Defecto: String): String;
 var
@@ -368,7 +392,14 @@ begin
   EstacionParam := Trim(ExpandConstant('{param:ESTACION|}'));
   ModoManual := False;
 
-  Pagina := CreateInputQueryPage(wpWelcome, 'Conexión con el servidor',
+  PaginaPlanos := CreateInputDirPage(wpSelectComponents, 'Carpeta de los planos',
+    '¿Dónde están los planos de las plantas?',
+    'El Cuarto de control lee y guarda las conexiones de cada máquina en la carpeta Planos (la del visor 3D): ' +
+    'salida\remoto.json (planta 2) y salida\planta1\remoto.json (planta 1).', False, '');
+  PaginaPlanos.Add('Carpeta Planos:');
+  PaginaPlanos.Values[0] := ExpandConstant('{param:PLANOS|C:\xampp\htdocs\Planos}');
+
+  Pagina := CreateInputQueryPage(wpSelectComponents, 'Conexión con el servidor',
     'Datos para hablar con el servidor de Honducafe',
     'Estos datos los da quien administra el servidor. En el siguiente paso se elige la máquina donde se instala.');
   Pagina.Add('Servidor (dominio o IP; si el sitio no está en la raíz, agrega la carpeta):', False);
@@ -448,10 +479,15 @@ begin
 end;
 
 // Con /ESTACION= (instalación silenciosa en varias PCs) no se pregunta la máquina
+// Cada opción salta las páginas de la otra
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
   if (PaginaMaq <> nil) and (PageID = PaginaMaq.ID) and (EstacionParam <> '') then
+    Result := True;
+  if (PageID = Pagina.ID) or ((PaginaMaq <> nil) and (PageID = PaginaMaq.ID)) then
+    if not WizardIsComponentSelected('candado') then Result := True;
+  if (PaginaPlanos <> nil) and (PageID = PaginaPlanos.ID) and (not WizardIsComponentSelected('control')) then
     Result := True;
 end;
 
@@ -499,16 +535,29 @@ var
 begin
   Result := True;
 
+  if (PaginaPlanos <> nil) and (CurPageID = PaginaPlanos.ID) then
+  begin
+    E := RemoveBackslashUnlessRoot(Trim(PaginaPlanos.Values[0]));
+    if not FileExists(AddBackslash(E) + 'salida\remoto.json') then
+      if SuppressibleMsgBox('No encontré salida\remoto.json en:' + #13#10 + E + #13#10#13#10 +
+        'El Cuarto de control no mostrará máquinas hasta que exista (se crea al generar el visor 3D). ¿Continuar?',
+        mbConfirmation, MB_YESNO, IDYES) = IDNO then
+      begin
+        Result := False;
+        Exit;
+      end;
+  end;
+
   if CurPageID = Pagina.ID then
   begin
-    if Trim(Pagina.Edits[0].Text) = '' then begin MsgBox('Escribe el servidor.', mbError, MB_OK); Result := False; Exit; end;
-    if Length(Trim(Pagina.Edits[1].Text)) < 16 then begin MsgBox('El token debe tener al menos 16 caracteres.', mbError, MB_OK); Result := False; Exit; end;
+    if Trim(Pagina.Edits[0].Text) = '' then begin SuppressibleMsgBox('Escribe el servidor.', mbError, MB_OK, IDOK); Result := False; Exit; end;
+    if Length(Trim(Pagina.Edits[1].Text)) < 16 then begin SuppressibleMsgBox('El token debe tener al menos 16 caracteres.', mbError, MB_OK, IDOK); Result := False; Exit; end;
     Min := StrToIntDef(Trim(Pagina.Edits[2].Text), 0);
-    if Min < 1 then begin MsgBox('Los minutos deben ser un número mayor que 0.', mbError, MB_OK); Result := False; Exit; end;
+    if Min < 1 then begin SuppressibleMsgBox('Los minutos deben ser un número mayor que 0.', mbError, MB_OK, IDOK); Result := False; Exit; end;
 
     if (Trim(Pagina.Edits[3].Text) <> '') and (not DirExists(Trim(Pagina.Edits[3].Text))) then
-      if MsgBox('No se encontró la carpeta de Delvis:' + #13#10 + Trim(Pagina.Edits[3].Text) + #13#10#13#10 +
-        'Sin ella no se registrarán fallas ni ajustes del turno. ¿Continuar?', mbConfirmation, MB_YESNO) = IDNO then
+      if SuppressibleMsgBox('No se encontró la carpeta de Delvis:' + #13#10 + Trim(Pagina.Edits[3].Text) + #13#10#13#10 +
+        'Sin ella no se registrarán fallas ni ajustes del turno. ¿Continuar?', mbConfirmation, MB_YESNO, IDYES) = IDNO then
       begin
         Result := False;
         Exit;
@@ -518,9 +567,9 @@ begin
       CargarMaquinas(Trim(Pagina.Edits[0].Text), Trim(Pagina.Edits[1].Text))
     else
     begin
-      if MsgBox('No se pudo verificar el servidor o el token.' + #13#10 +
+      if SuppressibleMsgBox('No se pudo verificar el servidor o el token.' + #13#10 +
         'Puede que el servidor esté apagado, la IP sea otra o el token sea incorrecto.' + #13#10#13#10 +
-        '¿Instalar de todos modos?', mbConfirmation, MB_YESNO) = IDNO then
+        '¿Instalar de todos modos?', mbConfirmation, MB_YESNO, IDYES) = IDNO then
       begin
         Result := False;
         Exit;
@@ -561,7 +610,15 @@ end;
 // Resumen antes de instalar: lo último que se ve para confirmar la máquina y su serie
 function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
 begin
-  Result := 'Conexión:' + NewLine + Space + 'Servidor: ' + Trim(Pagina.Edits[0].Text) + NewLine + NewLine +
+  if not WizardIsComponentSelected('candado') then
+  begin
+    Result := 'Se instalará: Cuarto de control' + NewLine + Space + ExpandConstant('{autopf}\Honducafe\CuartoControl') + NewLine + NewLine +
+              'Carpeta de los planos:' + NewLine + Space + Trim(PaginaPlanos.Values[0]);
+    if MemoTasksInfo <> '' then
+      Result := Result + NewLine + NewLine + MemoTasksInfo;
+    Exit;
+  end;
+  Result := 'Se instalará: Candado de operario' + NewLine + NewLine + 'Conexión:' + NewLine + Space + 'Servidor: ' + Trim(Pagina.Edits[0].Text) + NewLine + NewLine +
             'Máquina de esta PC:' + NewLine + Space + 'Estación: ' + EstacionFinal;
   if MaquinaNombre <> '' then
   begin
@@ -578,7 +635,10 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Codigo: Integer;
 begin
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM CandadoOperario.exe', '', SW_HIDE, ewWaitUntilTerminated, Codigo);
+  if WizardIsComponentSelected('candado') then
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM CandadoOperario.exe', '', SW_HIDE, ewWaitUntilTerminated, Codigo)
+  else
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM CuartoControl.exe', '', SW_HIDE, ewWaitUntilTerminated, Codigo);
   Result := '';
 end;
 
@@ -696,7 +756,12 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   Salir, Cfg: String;
 begin
-  if CurStep = ssPostInstall then
+  if (CurStep = ssPostInstall) and WizardIsComponentSelected('control') then
+    SaveStringToFile(ExpandConstant('{autopf}\Honducafe\CuartoControl\CuartoControl.config'),
+      '# Cuarto de control - generado por el instalador' + #13#10 +
+      'Carpeta=' + RemoveBackslashUnlessRoot(Trim(PaginaPlanos.Values[0])) + #13#10, False);
+
+  if (CurStep = ssPostInstall) and WizardIsComponentSelected('candado') then
   begin
     // En una actualizacion silenciosa no hay casilla que marcar: se conserva lo que ya tenia esta PC
     if WizardIsTaskSelected('modoprueba') then Salir := 'true'
