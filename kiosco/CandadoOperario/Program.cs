@@ -1069,6 +1069,67 @@ namespace CandadoOperario
             catch (Exception) { }
         }
 
+        // Por qué no coincide: qué Config.xml hay (la carpeta configurada y la del Delvis.exe que corre),
+        // cómo es lo que guarda cada nivel y con qué forma de huella coincide la contraseña guardada.
+        // Nunca escribe contraseñas ni huellas en el reporte.
+        static string DiagnosticoHuellas(Dictionary<int, string> claves)
+        {
+            StringBuilder sb = new StringBuilder();
+            List<string> rutas = new List<string>();
+            rutas.Add(Path.Combine(Cfg.DelvisDir, "Config.xml"));
+            foreach (Process p in Process.GetProcessesByName("Delvis"))
+            {
+                try
+                {
+                    string exe = p.MainModule.FileName;
+                    sb.AppendLine("Delvis.exe corriendo desde: " + exe);
+                    string r = Path.Combine(Path.GetDirectoryName(exe), "Config.xml");
+                    if (!rutas.Exists(delegate(string x) { return string.Equals(x, r, StringComparison.OrdinalIgnoreCase); })) rutas.Add(r);
+                }
+                catch (Exception ex) { sb.AppendLine("Delvis.exe (pid " + p.Id + "): no se pudo leer la ruta (" + ex.GetType().Name + ")"); }
+                finally { p.Dispose(); }
+            }
+            foreach (string ruta in rutas)
+            {
+                sb.AppendLine("Config.xml: " + ruta);
+                if (!File.Exists(ruta)) { sb.AppendLine("   no existe"); continue; }
+                sb.AppendLine("   modificado " + File.GetLastWriteTime(ruta).ToString("yyyy-MM-dd HH:mm"));
+                string xml;
+                try
+                {
+                    using (FileStream fs = new FileStream(ruta, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                    using (StreamReader sr = new StreamReader(fs)) xml = sr.ReadToEnd();
+                }
+                catch (Exception ex) { sb.AppendLine("   no se pudo leer: " + ex.Message); continue; }
+                for (int n = 1; n <= 3; n++)
+                {
+                    Match m = Regex.Match(xml, "<_passwordLevel" + n + @">([^<]*)<");
+                    if (!m.Success) { sb.AppendLine("   nivel " + n + ": sin _passwordLevel" + n); continue; }
+                    string v = m.Groups[1].Value.Trim();
+                    string forma = Regex.IsMatch(v, "^[0-9a-fA-F]{32}$") ? "32 hex (MD5)" : Regex.IsMatch(v, "^[0-9a-fA-F]+$") ? v.Length + " hex"
+                        : Regex.IsMatch(v, "^[A-Za-z0-9+/=]+$") ? v.Length + " car. base64" : v.Length + " caracteres";
+                    string coincide = "sin contraseña guardada para comparar";
+                    if (claves.ContainsKey(n))
+                    {
+                        string k = claves[n];
+                        List<string> ok = new List<string>();
+                        Func<byte[], string> md5 = delegate(byte[] d) { using (MD5 h = MD5.Create()) { StringBuilder x = new StringBuilder(); foreach (byte y in h.ComputeHash(d)) x.Append(y.ToString("x2")); return x.ToString(); } };
+                        Func<byte[], string> sha1 = delegate(byte[] d) { using (SHA1 h = SHA1.Create()) { StringBuilder x = new StringBuilder(); foreach (byte y in h.ComputeHash(d)) x.Append(y.ToString("x2")); return x.ToString(); } };
+                        string vl = v.ToLowerInvariant();
+                        if (md5(Encoding.UTF8.GetBytes(k)) == vl) ok.Add("MD5 tal cual");
+                        if (md5(Encoding.UTF8.GetBytes(k.ToUpperInvariant())) == vl) ok.Add("MD5 en mayúsculas");
+                        if (md5(Encoding.UTF8.GetBytes(k.ToLowerInvariant())) == vl) ok.Add("MD5 en minúsculas");
+                        if (md5(Encoding.Unicode.GetBytes(k)) == vl) ok.Add("MD5 UTF-16");
+                        if (sha1(Encoding.UTF8.GetBytes(k)) == vl) ok.Add("SHA1");
+                        if (v == k) ok.Add("texto sin cifrar");
+                        coincide = ok.Count > 0 ? "COINCIDE (" + string.Join(", ", ok.ToArray()) + ")" : "no coincide con la contraseña guardada";
+                    }
+                    sb.AppendLine("   nivel " + n + ": " + forma + " · " + coincide);
+                }
+            }
+            return sb.ToString();
+        }
+
         // "--ver-delvis": espera unos segundos (para abrir la ventana de contraseña) y apunta lo que ve
         public static string Diagnostico()
         {
@@ -1077,6 +1138,7 @@ namespace CandadoOperario
             sb.AppendLine("Carpeta de Delvis: " + Cfg.DelvisDir);
             Dictionary<int, string> c = Todas(), h = Huellas(), sis = DelSistema();
             for (int n = 1; n <= 3; n++) sb.AppendLine("  Nivel " + n + ": " + Estado(n, c, h) + (sis.ContainsKey(n) ? " (del sistema)" : c.ContainsKey(n) ? " (de esta PC)" : ""));
+            sb.Append(DiagnosticoHuellas(c));
             List<Ventana> vs = Ventanas();
             sb.AppendLine("Ventanas visibles de Delvis: " + vs.Count);
             foreach (Ventana v in vs)
@@ -2569,6 +2631,7 @@ namespace CandadoOperario
                 // Diagnóstico: espera N s (para abrir la ventana de contraseña en Delvis) y deja en un .txt lo que ve.
                 // No escribe nada en Delvis.
                 Cfg.Load();
+                Store.Init();   // para leer las contraseñas que llegaron del sistema
                 int seg;
                 if (args.Length < 2 || !int.TryParse(args[1], out seg)) seg = 15;
                 Thread.Sleep(seg * 1000);
