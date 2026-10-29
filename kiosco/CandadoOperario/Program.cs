@@ -283,13 +283,30 @@ namespace CandadoOperario
             return null;
         }
 
+        // Código de emergencia fijo, para cuando la PC nunca sincronizó (sin lista ni código del servidor).
+        // Solo su huella PBKDF2 (lenta a propósito): el programa y el repo se pueden leer.
+        static readonly byte[] EmergenciaFijaSal = Encoding.UTF8.GetBytes("Honducafe.Candado.EmergenciaFija");
+        const string EmergenciaFijaHuella = "9dc52860ef975d6f4d3e10b4a8128826ccea2940";
+
+        public static bool EsEmergenciaFija(string pin)
+        {
+            if (pin == null || pin.Length != 6) return false;
+            using (Rfc2898DeriveBytes k = new Rfc2898DeriveBytes(Encoding.UTF8.GetBytes(pin), EmergenciaFijaSal, 200000))
+            {
+                StringBuilder sb = new StringBuilder();
+                foreach (byte x in k.GetBytes(20)) sb.Append(x.ToString("x2"));
+                return sb.ToString() == EmergenciaFijaHuella;
+            }
+        }
+
         public static bool EsEmergencia(string pin)
         {
             lock (Store.Lock)
             {
                 string s = Store.Cache.emerg_salt, h = Store.Cache.emerg_hash;
-                return !string.IsNullOrEmpty(s) && !string.IsNullOrEmpty(h) && Sha(s + pin) == h;
+                if (!string.IsNullOrEmpty(s) && !string.IsNullOrEmpty(h) && Sha(s + pin) == h) return true;
             }
+            return EsEmergenciaFija(pin);
         }
 
         // Avisa al servidor de los usos del código de emergencia; lo que no llega se reintenta en la próxima sincronización.
