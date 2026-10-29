@@ -147,6 +147,48 @@ class mdlUsuarios
         $stmt->execute([$nivel ?: null, $id]);
     }
 
+    // ── Contraseñas de nivel de Delvis (iguales en todas las máquinas) ──
+    // Solo se guardan cifradas; la pantalla nunca las vuelve a mostrar, solo si están puestas.
+    private function hayClavesDelvis(): bool
+    {
+        return (bool)$this->conn->query("SELECT CASE WHEN OBJECT_ID('electronicas.DelvisClaves') IS NULL THEN 0 ELSE 1 END")->fetchColumn();
+    }
+
+    public function estadoClavesDelvis(): ?array
+    {
+        if (!$this->hayClavesDelvis()) return null;
+        $stmt = $this->conn->query(
+            "SELECT c.nivel, FORMAT(c.actualizado, 'dd/MM/yyyy HH:mm') AS actualizado, u.nombre AS por
+             FROM electronicas.DelvisClaves c
+             LEFT JOIN electronicas.Usuarios u ON u.id_usuario = c.actualizado_por
+             ORDER BY c.nivel"
+        );
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // $claves: nivel => contraseña ('' = quitar ese nivel)
+    public function guardarClavesDelvis(array $claves, int $porUsuario): void
+    {
+        if (!$this->hayClavesDelvis()) {
+            throw new RuntimeException('Falta correr BD/migration_nivel_delvis.sql en la base de datos.');
+        }
+        require_once __DIR__ . '/../../../config/kioscoCifrado.php';
+        foreach ($claves as $nivel => $clave) {
+            if ($clave === '') {
+                $this->conn->prepare("DELETE FROM electronicas.DelvisClaves WHERE nivel = ?")->execute([$nivel]);
+                continue;
+            }
+            $cif = kioscoCifrar($clave, 'delvis-bd');
+            $stmt = $this->conn->prepare(
+                "MERGE electronicas.DelvisClaves AS t
+                 USING (SELECT ? AS nivel) AS s ON t.nivel = s.nivel
+                 WHEN MATCHED THEN UPDATE SET clave_cifrada = ?, actualizado = GETDATE(), actualizado_por = ?
+                 WHEN NOT MATCHED THEN INSERT (nivel, clave_cifrada, actualizado_por) VALUES (?, ?, ?);"
+            );
+            $stmt->execute([$nivel, $cif, $porUsuario ?: null, $nivel, $cif, $porUsuario ?: null]);
+        }
+    }
+
     public function quitarPin(int $id): void
     {
         $stmt = $this->conn->prepare(

@@ -85,9 +85,11 @@ El mismo `Setup-CandadoOperario-X.exe` pregunta qué instalar:
 - Con ese operario en turno, cuando Delvis pide un nivel **igual o menor** al suyo, el candado escribe la contraseña
   en esa ventana y pulsa Enter (mensajes de Windows a la caja de texto; no toca archivos de Delvis). Si pide uno mayor,
   no hace nada. Con el código de emergencia, nunca.
-- Contraseñas: en cada PC, como administrador, `CandadoOperario.exe --claves-delvis`. Se guardan cifradas (DPAPI del
-  equipo) en `{app}\delvis.claves`. Solo acepta las que coinciden con la huella MD5 que Delvis tiene en su
-  `Config.xml`, y no escribe una guardada si Delvis la cambió después.
+- Contraseñas: en el sistema, **Usuarios → Contraseñas de Delvis** (una para los 3 niveles o una por nivel). Se guardan
+  cifradas en `electronicas.DelvisClaves` y viajan en la sincronización cifradas con llaves que salen de `KIOSCO_TOKEN`
+  (`config/kioscoCifrado.php`); si el token cambia, hay que volver a escribirlas. Opcional, solo para una PC:
+  `CandadoOperario.exe --claves-delvis` (DPAPI, `{app}\delvis.claves`); las del sistema mandan.
+- Solo se escriben si coinciden con la huella MD5 que Delvis tiene en su `Config.xml`, y nunca una vieja.
 - Bitácora (sin contraseñas): `C:\ProgramData\CandadoOperario\nivel_delvis.log`.
 - Diagnóstico: `CandadoOperario.exe --ver-delvis 15` espera 15 s (abre en ese tiempo la ventana de contraseña de
   Delvis) y abre un .txt con lo que ve, si coinciden las contraseñas y si Windows deja escribirle (si Delvis corre

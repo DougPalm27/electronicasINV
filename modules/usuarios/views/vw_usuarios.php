@@ -6,9 +6,14 @@
                     <h5 class="mb-0">Gestión de Usuarios</h5>
                     <small class="text-muted">Cuentas de acceso y roles asignados</small>
                 </div>
-                <button class="btn btn-primary" id="btnNuevoUsuario">
-                    <i class="bi bi-person-plus me-1"></i> Nuevo usuario
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" id="btnClavesDelvis">
+                        <i class="bi bi-shield-lock me-1"></i> Contraseñas de Delvis
+                    </button>
+                    <button class="btn btn-primary" id="btnNuevoUsuario">
+                        <i class="bi bi-person-plus me-1"></i> Nuevo usuario
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -108,6 +113,44 @@
 </div>
 
 <!-- ── Modal Código de bloqueo (PIN del kiosco de planta) ── -->
+<div class="modal fade" id="modalClavesDelvis" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Contraseñas de nivel de Delvis</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Las mismas en todas las máquinas. El candado las escribe en Delvis según el nivel de cada
+                    usuario (Código de bloqueo → Nivel en Delvis). Se guardan cifradas y nunca se vuelven a mostrar.
+                    Solo se usan si coinciden con las que tiene Delvis en esa máquina.
+                </p>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="cd_misma" checked>
+                    <label class="form-check-label" for="cd_misma">La misma para los 3 niveles</label>
+                </div>
+                <div id="cd_filas"></div>
+                <div class="form-text text-muted">
+                    <i class="bi bi-info-circle me-1"></i>
+                    En blanco = se deja la que está. Llegan a las máquinas con la próxima sincronización.
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <button class="btn btn-outline-danger" id="btnQuitarClavesDelvis">
+                    <i class="bi bi-x-circle me-1"></i> Quitar todas
+                </button>
+                <div>
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button class="btn btn-primary" id="btnGuardarClavesDelvis">
+                        <i class="bi bi-save me-1"></i> Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modalPin" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">

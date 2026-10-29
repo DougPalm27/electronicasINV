@@ -174,6 +174,18 @@ class mdlTurnos
     }
 
     // ── PCs de planta: operarios activos con PIN, para su copia local ─
+    // Contraseñas de nivel de Delvis tal como están guardadas (cifradas); [] sin la migración
+    public function clavesDelvis(): array
+    {
+        $hay = $this->conn->query("SELECT CASE WHEN OBJECT_ID('electronicas.DelvisClaves') IS NULL THEN 0 ELSE 1 END")->fetchColumn();
+        if (!$hay) return [];
+        $r = [];
+        foreach ($this->conn->query("SELECT nivel, clave_cifrada FROM electronicas.DelvisClaves")->fetchAll(PDO::FETCH_ASSOC) as $f) {
+            $r[(int)$f['nivel']] = $f['clave_cifrada'];
+        }
+        return $r;
+    }
+
     public function operariosParaSync(): array
     {
         // nivel_delvis llega con BD/migration_nivel_delvis.sql; sin ella se manda 0 (ninguno)

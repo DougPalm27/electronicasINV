@@ -231,6 +231,82 @@ $(document).ready(function () {
         });
     });
 
+    // ── Contraseñas de nivel de Delvis ─────────────────────
+    function pintarClavesDelvis(estado) {
+        const puestas = {};
+        (estado || []).forEach(e => { puestas[e.nivel] = e; });
+        const misma = $('#cd_misma').is(':checked');
+        let html = '';
+        [1, 2, 3].forEach(n => {
+            const e = puestas[n];
+            const desc = e ? `Puesta · ${e.actualizado}${e.por ? ' · ' + e.por : ''}` : 'Sin poner';
+            html += `<div class="mb-3">
+                <label class="form-label d-flex justify-content-between" for="cd_n${n}">
+                    <span>Nivel ${n}</span><span class="small ${e ? 'text-success' : 'text-muted'}">${desc}</span>
+                </label>
+                <input type="password" class="form-control" id="cd_n${n}" maxlength="50" autocomplete="new-password"
+                       ${misma && n > 1 ? 'disabled' : ''}>
+            </div>`;
+        });
+        $('#cd_filas').html(html);
+    }
+
+    $('#btnClavesDelvis').on('click', function () {
+        $.post(CTRL_USR, { accion: 'estadoClavesDelvis' }, function (resp) {
+            if (!resp.ok) {
+                Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje, confirmButtonColor: '#156b45' });
+                return;
+            }
+            if (resp.data === null) {
+                Swal.fire({ icon: 'warning', title: 'Falta la migración', text: 'Corre BD/migration_nivel_delvis.sql en la base de datos.', confirmButtonColor: '#156b45' });
+                return;
+            }
+            $('#modalClavesDelvis').data('estado', resp.data);
+            pintarClavesDelvis(resp.data);
+            abrirModal('#modalClavesDelvis');
+        }, 'json');
+    });
+
+    $('#cd_misma').on('change', function () {
+        pintarClavesDelvis($('#modalClavesDelvis').data('estado'));
+    });
+
+    function enviarClavesDelvis(datos) {
+        $.post(CTRL_USR, Object.assign({ accion: 'guardarClavesDelvis' }, datos), function (resp) {
+            if (!resp.ok) {
+                Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje, confirmButtonColor: '#156b45' });
+                return;
+            }
+            cerrarModal('#modalClavesDelvis');
+            Swal.fire({ icon: 'success', title: 'Listo', text: resp.mensaje, timer: 2500, showConfirmButton: false });
+        }, 'json');
+    }
+
+    $('#btnGuardarClavesDelvis').on('click', function () {
+        const misma = $('#cd_misma').is(':checked');
+        const datos = {};
+        [1, 2, 3].forEach(n => {
+            const v = misma ? $('#cd_n1').val() : $('#cd_n' + n).val();
+            if (v !== '') datos['nivel' + n] = v;
+        });
+        if (!Object.keys(datos).length) { cerrarModal('#modalClavesDelvis'); return; }
+        enviarClavesDelvis(datos);
+    });
+
+    $('#btnQuitarClavesDelvis').on('click', function () {
+        Swal.fire({
+            title: '¿Quitar las contraseñas de Delvis?',
+            text: 'Los candados dejarán de escribirlas; en Delvis habrá que ponerlas a mano.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, quitar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#dc3545'
+        }).then(res => {
+            if (res.isConfirmed) enviarClavesDelvis({ nivel1: '', nivel2: '', nivel3: '' });
+        });
+    });
+
     // ── Código de bloqueo (PIN) ────────────────────────────
     $('#tblUsuarios').on('click', '.btn-pin', function () {
         $('#pin_id').val($(this).data('id'));

@@ -157,6 +157,18 @@ try {
                 $salt = bin2hex(random_bytes(8));
                 $res['emergencia'] = ['salt' => $salt, 'hash' => hash('sha256', $salt . $emer)];
             }
+            // Contraseñas de nivel de Delvis: cifradas con llaves del token (el candado las descifra;
+            // por http, quien solo escucha la red no). Texto: "1=clave\n2=clave\n..."
+            $claves = $model->clavesDelvis();
+            if ($claves) {
+                require_once dirname(__DIR__, 3) . '/config/kioscoCifrado.php';
+                $plano = '';
+                foreach ($claves as $n => $cif) {
+                    $c = kioscoDescifrar($cif, 'delvis-bd');
+                    if ($c !== null) $plano .= $n . '=' . $c . "\n";
+                }
+                if ($plano !== '') $res['delvis'] = kioscoCifrar($plano, 'delvis-kiosco');
+            }
             resp($res);
             break;
 

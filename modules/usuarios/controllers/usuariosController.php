@@ -107,6 +107,26 @@ try {
             resp([], false, $nivel ? "Nivel $nivel de Delvis asignado." : 'Sin nivel de Delvis.');
             break;
 
+        case 'estadoClavesDelvis':
+            resp($model->estadoClavesDelvis());
+            break;
+
+        // Contraseñas de nivel de Delvis: llegan a los candados con la sincronización (cifradas)
+        case 'guardarClavesDelvis':
+            $claves = [];
+            foreach ([1, 2, 3] as $n) {
+                if (!isset($_POST['nivel' . $n])) continue;            // no enviado = no se toca
+                $c = (string)$_POST['nivel' . $n];
+                if ($c !== '' && !preg_match('/^[\x21-\x7E]{1,50}$/', $c)) {
+                    resp([], true, "La contraseña del nivel $n solo puede tener letras, números o símbolos, sin espacios (máx. 50).");
+                }
+                $claves[$n] = $c;
+            }
+            if (!$claves) resp([], true, 'No hay cambios.');
+            $model->guardarClavesDelvis($claves, (int)($_SESSION['id_usuario'] ?? 0));
+            resp([], false, 'Contraseñas de Delvis guardadas. Llegan a las máquinas con la próxima sincronización.');
+            break;
+
         case 'quitarPin':
             $id = (int)($_POST['id_usuario'] ?? 0);
             if (!$id) resp([], true, 'ID inválido.');

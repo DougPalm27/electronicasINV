@@ -17,6 +17,6 @@ DelvisDir=C:\Satake\Delvis\Gui
 AvisoFallas=true
 FallasIgnorar=
 # Con un operario con nivel de Delvis (se asigna en el sistema, junto a su codigo), cuando Delvis pide la
-# contrasena de ese nivel o uno menor, el candado la escribe. Las contrasenas se cargan en cada PC con
-# "CandadoOperario.exe --claves-delvis" (como administrador). false = desactivado.
+# contrasena de ese nivel o uno menor, el candado la escribe. Las contrasenas se ponen en el sistema
+# (Usuarios > Contrasenas de Delvis) y llegan al sincronizar. false = desactivado.
 NivelDelvis=true

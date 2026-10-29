@@ -138,6 +138,7 @@ namespace CandadoOperario
         public string sync;
         public string emerg_salt;   // huella del código de emergencia de la planta (viene en la sincronización)
         public string emerg_hash;
+        public string delvis;       // contraseñas de nivel de Delvis del sistema, cifradas con llaves del token (ver NivelDelvis.DelSistema)
     }
 
     static class Store
@@ -342,6 +343,7 @@ namespace CandadoOperario
                 Dictionary<string, object> em = (r.Data.ContainsKey("emergencia") ? r.Data["emergencia"] : null) as Dictionary<string, object>;
                 Store.Cache.emerg_salt = em != null ? Convert.ToString(em["salt"]) : null;
                 Store.Cache.emerg_hash = em != null ? Convert.ToString(em["hash"]) : null;
+                Store.Cache.delvis = r.Data.ContainsKey("delvis") ? Convert.ToString(r.Data["delvis"]) : null;
                 Store.Cache.sync = Now();
             }
             Store.SaveCache();
@@ -788,9 +790,10 @@ namespace CandadoOperario
     // de teclado ("Por favor introduce el nivel de N contraseña:") al entrar a una pantalla protegida.
     // Con el candado abierto por un operario que tiene nivel (viene del servidor), cuando Delvis pide
     // un nivel igual o menor al suyo, el candado escribe la contraseña en esa ventana y la acepta.
-    // Las contraseñas se guardan en esta PC cifradas con DPAPI (del equipo) en delvis.claves y se
-    // cargan con "--claves-delvis". Solo se escriben si coinciden con la huella MD5 que Delvis guarda
-    // en su Config.xml (que solo se lee): así nunca se teclea una contraseña vieja.
+    // Las contraseñas se ponen en el sistema (Usuarios → Contraseñas de Delvis) y llegan con la
+    // sincronización, cifradas con llaves que salen del token; también se pueden cargar solo en esta PC
+    // con "--claves-delvis" (DPAPI, delvis.claves). Las del sistema mandan. Solo se escriben si coinciden
+    // con la huella MD5 que Delvis guarda en su Config.xml (que solo se lee): nunca se teclea una vieja.
     static class NivelDelvis
     {
         static readonly byte[] Entropia = Encoding.UTF8.GetBytes("Honducafe.CandadoOperario.Delvis");
@@ -844,6 +847,65 @@ namespace CandadoOperario
             StringBuilder sb = new StringBuilder();
             foreach (KeyValuePair<int, string> kv in claves) sb.Append(kv.Key).Append('=').Append(kv.Value).Append('\n');
             File.WriteAllBytes(Ruta, ProtectedData.Protect(Encoding.UTF8.GetBytes(sb.ToString()), Entropia, DataProtectionScope.LocalMachine));
+        }
+
+        // ── Contraseñas del sistema ──
+        // Mismo formato que config/kioscoCifrado.php: base64(iv | AES-256-CBC | HMAC-SHA256(iv|cifrado)),
+        // llaves = HMAC-SHA256(token, "delvis-kiosco-cifrado" / "delvis-kiosco-firma").
+        static byte[] Hmac(byte[] llave, byte[] datos, int largo)
+        {
+            using (HMACSHA256 h = new HMACSHA256(llave)) return h.ComputeHash(datos, 0, largo);
+        }
+
+        public static Dictionary<int, string> Descifrar(string b64, string token)
+        {
+            Dictionary<int, string> r = new Dictionary<int, string>();
+            if (string.IsNullOrEmpty(b64) || string.IsNullOrEmpty(token) || token.Length < 16) return r;
+            try
+            {
+                byte[] raw = Convert.FromBase64String(b64);
+                if (raw.Length < 64) return r;
+                byte[] tk = Encoding.UTF8.GetBytes(token);
+                byte[] ue = Encoding.UTF8.GetBytes("delvis-kiosco-cifrado"), um = Encoding.UTF8.GetBytes("delvis-kiosco-firma");
+                byte[] ke = Hmac(tk, ue, ue.Length), km = Hmac(tk, um, um.Length);
+                int n = raw.Length - 48;
+                byte[] mac = Hmac(km, raw, 16 + n);
+                int dif = 0;
+                for (int i = 0; i < 32; i++) dif |= mac[i] ^ raw[16 + n + i];
+                if (dif != 0) return r;   // alterado o de otro token
+                byte[] iv = new byte[16];
+                Array.Copy(raw, 0, iv, 0, 16);
+                byte[] claro;
+                using (AesCryptoServiceProvider a = new AesCryptoServiceProvider())
+                {
+                    a.Key = ke; a.IV = iv; a.Mode = CipherMode.CBC; a.Padding = PaddingMode.PKCS7;
+                    using (ICryptoTransform d = a.CreateDecryptor()) claro = d.TransformFinalBlock(raw, 16, n);
+                }
+                foreach (string l in Encoding.UTF8.GetString(claro).Split('\n'))
+                {
+                    int i = l.IndexOf('=');
+                    int nv;
+                    if (i > 0 && int.TryParse(l.Substring(0, i), out nv) && nv >= 1 && nv <= 3) r[nv] = l.Substring(i + 1);
+                }
+                Array.Clear(claro, 0, claro.Length);
+            }
+            catch (Exception) { }
+            return r;
+        }
+
+        public static Dictionary<int, string> DelSistema()
+        {
+            string b64;
+            lock (Store.Lock) { b64 = Store.Cache.delvis; }
+            return Descifrar(b64, Cfg.Token);
+        }
+
+        // Las de esta PC, reemplazadas por las del sistema donde las haya
+        public static Dictionary<int, string> Todas()
+        {
+            Dictionary<int, string> r = Leer();
+            foreach (KeyValuePair<int, string> kv in DelSistema()) r[kv.Key] = kv.Value;
+            return r;
         }
 
         // Huellas que Delvis tiene ahora por nivel (vacío si no se pudo leer Config.xml)
@@ -936,12 +998,8 @@ namespace CandadoOperario
 
         // ── Llenado ──
         static HashSet<IntPtr> atendidas = new HashSet<IntPtr>();   // ventanas ya llenadas (o descartadas): una sola vez cada una
-        static Dictionary<int, string> claves;
-        static DateTime clavesFecha;
-        static Dictionary<int, string> huellas = new Dictionary<int, string>();
-        static DateTime huellasFecha;
 
-        public static void Olvidar() { atendidas.Clear(); claves = null; }
+        public static void Olvidar() { atendidas.Clear(); }
 
         // Se llama cada medio segundo mientras hay un operario con nivel. Devuelve qué hizo (para la bitácora) o null.
         public static string Revisar(int nivelOperario)
@@ -954,11 +1012,8 @@ namespace CandadoOperario
                 atendidas.Add(v.Hwnd);
                 if (v.Nivel > nivelOperario) return "Delvis pide nivel " + v.Nivel + "; el operario tiene nivel " + nivelOperario + ": no se llena.";
 
-                DateTime fc = File.Exists(Ruta) ? File.GetLastWriteTimeUtc(Ruta) : DateTime.MinValue;
-                if (claves == null || fc != clavesFecha) { claves = Leer(); clavesFecha = fc; }
-                string pc = Path.Combine(Cfg.DelvisDir, "Config.xml");
-                DateTime fh = File.Exists(pc) ? File.GetLastWriteTimeUtc(pc) : DateTime.MinValue;
-                if (fh != huellasFecha) { huellas = Huellas(); huellasFecha = fh; }
+                // Solo se lee cuando Delvis pide una contraseña (pocas veces), así que no se guarda en memoria
+                Dictionary<int, string> claves = Todas(), huellas = Huellas();
 
                 string est = Estado(v.Nivel, claves, huellas);
                 if (est == "sin guardar") return "Delvis pide nivel " + v.Nivel + " y no hay contraseña guardada para ese nivel.";
@@ -1003,8 +1058,8 @@ namespace CandadoOperario
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("Candado " + Assembly.GetExecutingAssembly().GetName().Version + " · " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " · " + Environment.MachineName);
             sb.AppendLine("Carpeta de Delvis: " + Cfg.DelvisDir);
-            Dictionary<int, string> c = Leer(), h = Huellas();
-            for (int n = 1; n <= 3; n++) sb.AppendLine("  Nivel " + n + ": " + Estado(n, c, h));
+            Dictionary<int, string> c = Todas(), h = Huellas(), sis = DelSistema();
+            for (int n = 1; n <= 3; n++) sb.AppendLine("  Nivel " + n + ": " + Estado(n, c, h) + (sis.ContainsKey(n) ? " (del sistema)" : c.ContainsKey(n) ? " (de esta PC)" : ""));
             List<Ventana> vs = Ventanas();
             sb.AppendLine("Ventanas visibles de Delvis: " + vs.Count);
             foreach (Ventana v in vs)
