@@ -147,6 +147,7 @@ try {
                     'nombre'     => $op['nombre'],
                     'salt'       => $salt,
                     'hash'       => hash('sha256', $salt . $op['pin_bloqueo']),
+                    'nivel'      => (int)($op['nivel_delvis'] ?? 0),   // nivel de Delvis que el candado escribe por él
                 ];
             }
             // Código de emergencia de la planta (KIOSCO_EMERGENCIA en .env): viaja solo su huella.

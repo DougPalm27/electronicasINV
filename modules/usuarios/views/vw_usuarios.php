@@ -120,13 +120,28 @@
                     Usuario: <strong id="pinNombreUsuario"></strong>
                 </p>
                 <input type="hidden" id="pin_id">
+                <input type="hidden" id="pin_tiene" value="0">
                 <div class="mb-3">
-                    <label class="form-label">Código (4 a 6 dígitos) <span class="text-danger">*</span></label>
+                    <label class="form-label">Código (4 a 6 dígitos) <span class="text-danger" id="pinObligatorio">*</span></label>
                     <input type="text" class="form-control" id="pin_valor" inputmode="numeric"
                            maxlength="6" placeholder="Ej. 4821">
                     <div class="form-text text-muted">
                         <i class="bi bi-info-circle me-1"></i>
                         Es el código que el operario marca en el candado de la máquina. No es su contraseña.
+                        <span id="pinYaTiene" class="d-none">En blanco = conserva el código actual.</span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="pin_nivel">Nivel en Delvis</label>
+                    <select class="form-select" id="pin_nivel">
+                        <option value="0">Ninguno (escribe la contraseña a mano)</option>
+                        <option value="1">Nivel 1</option>
+                        <option value="2">Nivel 2</option>
+                        <option value="3">Nivel 3</option>
+                    </select>
+                    <div class="form-text text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Cuando Delvis pida la contraseña de este nivel o uno menor, el candado la escribe sola.
                     </div>
                 </div>
             </div>

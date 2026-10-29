@@ -176,8 +176,11 @@ class mdlTurnos
     // ── PCs de planta: operarios activos con PIN, para su copia local ─
     public function operariosParaSync(): array
     {
+        // nivel_delvis llega con BD/migration_nivel_delvis.sql; sin ella se manda 0 (ninguno)
+        $nivel = $this->conn->query("SELECT COL_LENGTH('electronicas.Usuarios', 'nivel_delvis')")->fetchColumn()
+            ? 'nivel_delvis' : 'CAST(0 AS TINYINT) AS nivel_delvis';
         $stmt = $this->conn->prepare(
-            "SELECT id_usuario, nombre, pin_bloqueo
+            "SELECT id_usuario, nombre, pin_bloqueo, $nivel
              FROM electronicas.Usuarios
              WHERE activo = 1 AND pin_bloqueo IS NOT NULL
              ORDER BY nombre"

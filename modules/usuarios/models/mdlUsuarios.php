@@ -11,12 +11,20 @@ class mdlUsuarios
     }
 
     // ── Listar ─────────────────────────────────────────────
+    // La columna nivel_delvis llega con BD/migration_nivel_delvis.sql
+    private function hayNivelDelvis(): bool
+    {
+        return (bool)$this->conn->query("SELECT COL_LENGTH('electronicas.Usuarios', 'nivel_delvis')")->fetchColumn();
+    }
+
     public function listar(): array
     {
+        $nivel = $this->hayNivelDelvis() ? 'ISNULL(u.nivel_delvis, 0)' : '0';
         $sql = "SELECT u.id_usuario, u.username, u.nombre, u.email, u.activo,
                        FORMAT(u.fecha_registro,'dd/MM/yyyy') AS fecha_registro,
                        u.id_rol, r.nombre AS nombre_rol,
-                       CASE WHEN u.pin_bloqueo IS NOT NULL THEN 1 ELSE 0 END AS tiene_pin
+                       CASE WHEN u.pin_bloqueo IS NOT NULL THEN 1 ELSE 0 END AS tiene_pin,
+                       $nivel AS nivel_delvis
                 FROM electronicas.Usuarios u
                 LEFT JOIN electronicas.Roles r ON r.id_rol = u.id_rol
                 ORDER BY u.nombre";
@@ -125,6 +133,18 @@ class mdlUsuarios
             "UPDATE electronicas.Usuarios SET pin_bloqueo = ? WHERE id_usuario = ?"
         );
         $stmt->execute([$pin, $id]);
+    }
+
+    // Nivel de Delvis que el candado escribe por este usuario (0 = ninguno)
+    public function asignarNivelDelvis(int $id, int $nivel): void
+    {
+        if (!$this->hayNivelDelvis()) {
+            throw new RuntimeException('Falta correr BD/migration_nivel_delvis.sql en la base de datos.');
+        }
+        $stmt = $this->conn->prepare(
+            "UPDATE electronicas.Usuarios SET nivel_delvis = ? WHERE id_usuario = ?"
+        );
+        $stmt->execute([$nivel ?: null, $id]);
     }
 
     public function quitarPin(int $id): void

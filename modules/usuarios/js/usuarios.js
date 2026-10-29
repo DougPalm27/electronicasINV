@@ -49,9 +49,10 @@ $(document).ready(function () {
             {
                 data: 'tiene_pin',
                 className: 'text-center',
-                render: v => v == 1
+                render: (v, t, r) => (v == 1
                     ? '<span class="badge bg-primary-subtle text-primary-emphasis">Asignado</span>'
-                    : '<span class="text-muted small">—</span>'
+                    : '<span class="text-muted small">—</span>')
+                    + (r.nivel_delvis > 0 ? ` <span class="badge bg-success-subtle text-success-emphasis" title="Nivel en Delvis">N${r.nivel_delvis}</span>` : '')
             },
             { data: 'fecha_registro' },
             {
@@ -82,7 +83,8 @@ $(document).ready(function () {
                             </li>
                             <li>
                                 <button class="dropdown-item btn-pin" type="button"
-                                        data-id="${r.id_usuario}" data-nombre="${r.nombre}">
+                                        data-id="${r.id_usuario}" data-nombre="${r.nombre}"
+                                        data-tiene-pin="${r.tiene_pin}" data-nivel="${r.nivel_delvis || 0}">
                                     <i class="bi bi-grid-3x3-gap me-2 text-secondary"></i>Código de bloqueo
                                 </button>
                             </li>
@@ -234,26 +236,44 @@ $(document).ready(function () {
         $('#pin_id').val($(this).data('id'));
         $('#pinNombreUsuario').text($(this).data('nombre'));
         $('#pin_valor').val('').removeClass('is-invalid');
+        const tiene = $(this).data('tiene-pin') == 1;
+        $('#pin_tiene').val(tiene ? '1' : '0');
+        $('#pinYaTiene').toggleClass('d-none', !tiene);
+        $('#pinObligatorio').toggleClass('d-none', tiene);
+        $('#pin_nivel').val(String($(this).data('nivel') || 0)).data('antes', String($(this).data('nivel') || 0));
         abrirModal('#modalPin');
     });
 
     $('#btnGuardarPin').on('click', function () {
         const id  = $('#pin_id').val();
         const pin = $('#pin_valor').val().trim();
+        const nivel = $('#pin_nivel').val();
+        const cambiaNivel = nivel !== $('#pin_nivel').data('antes');
 
-        if (!/^\d{4,6}$/.test(pin)) {
+        // Con código ya asignado se puede dejar en blanco para cambiar solo el nivel
+        if (!(pin === '' && $('#pin_tiene').val() === '1') && !/^\d{4,6}$/.test(pin)) {
             $('#pin_valor').addClass('is-invalid');
             return;
         }
 
-        $.post(CTRL_USR, { accion: 'asignarPin', id_usuario: id, pin: pin }, function (resp) {
-            if (!resp.ok) {
-                Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje, confirmButtonColor: '#156b45' });
-                return;
-            }
+        const fallo = resp => Swal.fire({ icon: 'error', title: 'Error', text: resp.mensaje, confirmButtonColor: '#156b45' });
+        const listo = msg => {
             cerrarModal('#modalPin');
             tabla.ajax.reload(null, false);
-            Swal.fire({ icon: 'success', title: 'Listo', text: resp.mensaje, timer: 1800, showConfirmButton: false });
+            Swal.fire({ icon: 'success', title: 'Listo', text: msg, timer: 1800, showConfirmButton: false });
+        };
+        const guardarNivel = msgPin => {
+            if (!cambiaNivel) { listo(msgPin || 'Sin cambios.'); return; }
+            $.post(CTRL_USR, { accion: 'asignarNivelDelvis', id_usuario: id, nivel: nivel }, function (resp) {
+                if (!resp.ok) { fallo(resp); return; }
+                listo(msgPin ? msgPin + ' ' + resp.mensaje : resp.mensaje);
+            }, 'json');
+        };
+
+        if (pin === '') { guardarNivel(''); return; }
+        $.post(CTRL_USR, { accion: 'asignarPin', id_usuario: id, pin: pin }, function (resp) {
+            if (!resp.ok) { fallo(resp); return; }
+            guardarNivel(resp.mensaje);
         }, 'json');
     });
 

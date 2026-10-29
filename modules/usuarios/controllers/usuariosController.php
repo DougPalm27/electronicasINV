@@ -98,6 +98,15 @@ try {
             resp([], false, 'Código de bloqueo asignado.');
             break;
 
+        case 'asignarNivelDelvis':
+            $id    = (int)($_POST['id_usuario'] ?? 0);
+            $nivel = (int)($_POST['nivel'] ?? -1);
+            if (!$id) resp([], true, 'ID inválido.');
+            if ($nivel < 0 || $nivel > 3) resp([], true, 'Nivel inválido.');
+            $model->asignarNivelDelvis($id, $nivel);
+            resp([], false, $nivel ? "Nivel $nivel de Delvis asignado." : 'Sin nivel de Delvis.');
+            break;
+
         case 'quitarPin':
             $id = (int)($_POST['id_usuario'] ?? 0);
             if (!$id) resp([], true, 'ID inválido.');
