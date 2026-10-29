@@ -827,6 +827,13 @@ namespace CandadoOperario
             return int.Parse(m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value);
         }
 
+        // Huella como la calcula Delvis (MachineSettings.EncryptString): MD5 de la contraseña en mayúsculas
+        // seguida de 5 × (nivel − 1): "…0" para el nivel 1, "…5" para el 2 y "…10" para el 3.
+        public static string Huella(string clave, int nivel)
+        {
+            return Md5(clave.ToUpperInvariant() + (5 * (nivel - 1)).ToString(CultureInfo.InvariantCulture));
+        }
+
         public static string Md5(string s)
         {
             using (MD5 h = MD5.Create())
@@ -947,7 +954,27 @@ namespace CandadoOperario
         {
             if (!claves.ContainsKey(nivel)) return "sin guardar";
             if (!huellas.ContainsKey(nivel)) return "sin huella";
-            return Md5(claves[nivel]) == huellas[nivel] ? "ok" : "distinta";
+            return Huella(claves[nivel], nivel) == huellas[nivel] ? "ok" : "distinta";
+        }
+
+        // Contraseña a escribir cuando Delvis pide «nivel»: Delvis acepta la de ese nivel o la de uno mayor,
+        // así que sirve cualquier guardada de nivel..tope (tope = nivel del operario) que coincida con Delvis.
+        // Sin Config.xml legible se usa la del nivel pedido sin comprobar. null si ninguna sirve.
+        public static string Elegir(int nivel, int tope, Dictionary<int, string> claves, Dictionary<int, string> huellas, out string por)
+        {
+            por = "";
+            if (huellas.Count == 0)
+            {
+                por = "sin huella";
+                return claves.ContainsKey(nivel) ? claves[nivel] : null;
+            }
+            for (int n = nivel; n <= Math.Min(3, tope); n++)
+            {
+                // Una misma contraseña puede estar guardada en otro nivel del sistema («la misma para los 3»)
+                foreach (KeyValuePair<int, string> kv in claves)
+                    if (huellas.ContainsKey(n) && Huella(kv.Value, n) == huellas[n]) { por = n == nivel ? "" : "la de nivel " + n; return kv.Value; }
+            }
+            return null;
         }
 
         // ── Ventanas de Delvis ──
@@ -1032,11 +1059,12 @@ namespace CandadoOperario
                 // Solo se lee cuando Delvis pide una contraseña (pocas veces), así que no se guarda en memoria
                 Dictionary<int, string> claves = Todas(), huellas = Huellas();
 
-                string est = Estado(v.Nivel, claves, huellas);
-                if (est == "sin guardar") return "Delvis pide nivel " + v.Nivel + " y no hay contraseña guardada para ese nivel.";
-                if (est == "distinta") return "Delvis pide nivel " + v.Nivel + ": la contraseña guardada ya no coincide con Delvis (¿la cambiaron?). No se escribe.";
-                return Escribir(v.Cajas[0], claves[v.Nivel])
-                    ? "Nivel " + v.Nivel + " escrito en Delvis" + (est == "sin huella" ? " (sin poder comprobar Config.xml)." : ".")
+                if (claves.Count == 0) return "Delvis pide nivel " + v.Nivel + " y no hay contraseñas guardadas.";
+                string por;
+                string clave = Elegir(v.Nivel, nivelOperario, claves, huellas, out por);
+                if (clave == null) return "Delvis pide nivel " + v.Nivel + ": ninguna contraseña guardada coincide con Delvis (¿la cambiaron?). No se escribe.";
+                return Escribir(v.Cajas[0], clave)
+                    ? "Nivel " + v.Nivel + " escrito en Delvis" + (por == "sin huella" ? " (sin poder comprobar Config.xml)." : por.Length > 0 ? " (con " + por + ")." : ".")
                     : "Windows no dejó escribir en Delvis (error " + Marshal.GetLastWin32Error() + "; 5 = Delvis corre como administrador).";
             }
             return null;
@@ -1116,6 +1144,7 @@ namespace CandadoOperario
                         Func<byte[], string> md5 = delegate(byte[] d) { using (MD5 h = MD5.Create()) { StringBuilder x = new StringBuilder(); foreach (byte y in h.ComputeHash(d)) x.Append(y.ToString("x2")); return x.ToString(); } };
                         Func<byte[], string> sha1 = delegate(byte[] d) { using (SHA1 h = SHA1.Create()) { StringBuilder x = new StringBuilder(); foreach (byte y in h.ComputeHash(d)) x.Append(y.ToString("x2")); return x.ToString(); } };
                         string vl = v.ToLowerInvariant();
+                        if (Huella(k, n) == vl) ok.Add("como Delvis");
                         if (md5(Encoding.UTF8.GetBytes(k)) == vl) ok.Add("MD5 tal cual");
                         if (md5(Encoding.UTF8.GetBytes(k.ToUpperInvariant())) == vl) ok.Add("MD5 en mayúsculas");
                         if (md5(Encoding.UTF8.GetBytes(k.ToLowerInvariant())) == vl) ok.Add("MD5 en minúsculas");
@@ -1232,7 +1261,7 @@ namespace CandadoOperario
             {
                 string v = cajas[i].Text;
                 if (v.Length == 0) continue;
-                if (h.ContainsKey(i + 1) && NivelDelvis.Md5(v) != h[i + 1])
+                if (h.ContainsKey(i + 1) && NivelDelvis.Huella(v, i + 1) != h[i + 1])
                 {
                     info.Text = "La del nivel " + (i + 1) + " no coincide con la de Delvis. No se guardó nada.";
                     cajas[i].Focus(); cajas[i].SelectAll();
@@ -2412,13 +2441,19 @@ namespace CandadoOperario
             sb.AppendLine("pide nivel (esperado 2, 3, 0, 0): " + NivelDelvis.NivelPedido("Please enter the level 2 password:") + ", "
                 + NivelDelvis.NivelPedido("Teclado | Por favor introduce el nivel de 3 contraseña:") + ", "
                 + NivelDelvis.NivelPedido("Enter a new level 2 password:") + ", " + NivelDelvis.NivelPedido("Entrar nueva contraseña del Nivel 2"));
-            File.WriteAllText(cfgPath, "<Root>" + Environment.NewLine + "  <_passwordLevel1>" + NivelDelvis.Md5("0") + "</_passwordLevel1>" + Environment.NewLine
-                + "  <_passwordLevel2>" + NivelDelvis.Md5("dos2") + "</_passwordLevel2>" + Environment.NewLine + "</Root>");
+            sb.AppendLine("huella Delvis nivel 1 vacía (esperado cfcd208495d565ef66e7dff9f98764da): " + NivelDelvis.Huella("", 1));
+            File.WriteAllText(cfgPath, "<Root>" + Environment.NewLine + "  <_passwordLevel1>" + NivelDelvis.Huella("0", 1) + "</_passwordLevel1>" + Environment.NewLine
+                + "  <_passwordLevel2>" + NivelDelvis.Huella("dos2", 2) + "</_passwordLevel2>" + Environment.NewLine
+                + "  <_passwordLevel3>" + NivelDelvis.Huella("abc3", 3) + "</_passwordLevel3>" + Environment.NewLine + "</Root>");
             string rutaReal = NivelDelvis.Ruta;
             NivelDelvis.Ruta = Path.Combine(tmp, "delvis.claves");
             NivelDelvis.Guardar(new Dictionary<int, string> { { 1, "0" }, { 2, "vieja" }, { 3, "tres" } });
             Dictionary<int, string> cl = NivelDelvis.Leer(), hu = NivelDelvis.Huellas();
-            sb.AppendLine("claves (esperado ok, distinta, sin huella): " + NivelDelvis.Estado(1, cl, hu) + ", " + NivelDelvis.Estado(2, cl, hu) + ", " + NivelDelvis.Estado(3, cl, hu)
+            string porQue;
+            Dictionary<int, string> soloTres = new Dictionary<int, string> { { 3, "ABC3" } };
+            sb.AppendLine("elegir: pide 1 con la de nivel 3 (esperado abc3 vía nivel 3): " + NivelDelvis.Elegir(1, 3, soloTres, NivelDelvis.Huellas(), out porQue) + " / " + porQue
+                + " | operario nivel 2 (esperado nada): [" + NivelDelvis.Elegir(1, 2, soloTres, NivelDelvis.Huellas(), out porQue) + "]");
+            sb.AppendLine("claves (esperado ok, distinta, distinta): " + NivelDelvis.Estado(1, cl, hu) + ", " + NivelDelvis.Estado(2, cl, hu) + ", " + NivelDelvis.Estado(3, cl, hu)
                 + " | archivo cifrado sin texto claro: " + (Encoding.UTF8.GetString(File.ReadAllBytes(NivelDelvis.Ruta)).Contains("vieja") ? "NO" : "sí"));
             NivelDelvis.Guardar(new Dictionary<int, string>());
             sb.AppendLine("borrar (esperado sin archivo): " + (File.Exists(NivelDelvis.Ruta) ? "queda" : "sin archivo"));
