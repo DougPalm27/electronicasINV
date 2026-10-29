@@ -24,8 +24,8 @@ using System.Xml.Linq;
 [assembly: AssemblyProduct("Candado de Operario")]
 [assembly: AssemblyCompany("Honducafe")]
 [assembly: AssemblyCopyright("Desarrollado por Douglas Palma · © 2026")]
-[assembly: AssemblyVersion("1.4.0.0")]
-[assembly: AssemblyFileVersion("1.4.0.0")]
+[assembly: AssemblyVersion("1.4.1.0")]
+[assembly: AssemblyFileVersion("1.4.1.0")]
 
 namespace CandadoOperario
 {
@@ -38,6 +38,9 @@ namespace CandadoOperario
         public static string DelvisDir = @"C:\Satake\Delvis\Gui";
         public static int AutoMin = 15;
         public static bool PermitirSalir = false;
+        public static bool AvisoFallas = true;    // la pantalla parpadea en rojo con una falla activa de Delvis
+        public static HashSet<string> FallasIgnorar = new HashSet<string>();   // "grupo:codigo" o "grupo:codigo:contexto"
+        public static bool NivelDelvis = true;    // escribe la contraseña de nivel en Delvis según el operario (ver class NivelDelvis)
         public static string Url;
         public static string Base;   // direccion del sitio, sin la ruta del endpoint (de aqui se baja el instalador)
 
@@ -62,6 +65,11 @@ namespace CandadoOperario
                         case "delvisdir": DelvisDir = v; break;
                         case "autobloqueominutos": int.TryParse(v, out AutoMin); break;
                         case "permitirsalir": PermitirSalir = v.ToLowerInvariant() == "true" || v == "1"; break;
+                        case "avisofallas": AvisoFallas = !(v.ToLowerInvariant() == "false" || v == "0"); break;
+                        case "niveldelvis": NivelDelvis = !(v.ToLowerInvariant() == "false" || v == "0"); break;
+                        case "fallasignorar":
+                            foreach (string f in v.Split(new char[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)) FallasIgnorar.Add(f.Trim());
+                            break;
                     }
                 }
             }
@@ -98,6 +106,7 @@ namespace CandadoOperario
         public string nombre;
         public string salt;
         public string hash;
+        public int nivel;   // nivel de Delvis (0 = ninguno)
     }
 
     class Turno
@@ -323,6 +332,8 @@ namespace CandadoOperario
                 op.nombre = Convert.ToString(d["nombre"]);
                 op.salt = Convert.ToString(d["salt"]);
                 op.hash = Convert.ToString(d["hash"]);
+                int nv;
+                op.nivel = d.ContainsKey("nivel") && int.TryParse(Convert.ToString(d["nivel"]), out nv) && nv >= 0 && nv <= 3 ? nv : 0;
                 lista.Add(op);
             }
             lock (Store.Lock)
@@ -640,6 +651,456 @@ namespace CandadoOperario
     }
 
     // ───────────────────────── Windows ─────────────────────────
+    // ───────────────────────── Fallas activas de Delvis ─────────────────────────
+    // Para el aviso en rojo. Faults.log no basta por sí solo: Delvis no escribe FaultClear de lo que
+    // estaba activo al cerrarse, así que quedan fallas "abiertas" de hace meses. Por eso cuenta solo lo
+    // que Delvis abrió desde su último arranque (hora de inicio del proceso) y no ha cerrado.
+    static class Fallas
+    {
+        public class Activa { public string Clave; public DateTime Desde; }
+
+        public static List<Activa> Activas = new List<Activa>();
+        static HashSet<string> gruposIgnoradosActivos = new HashSet<string>();   // grupos de FallasIgnorar con una falla abierta ahora
+        public static DateTime? InicioForzado;   // solo para --selftest
+
+        static DateTime leidoMtime;
+        static long leidoLargo = -1;
+        static DateTime? leidoInicio;
+        static readonly CultureInfo Us = new CultureInfo("en-US");
+
+        // Hora en que arrancó Delvis; null si no está corriendo (sin Delvis no hay fallas que mostrar)
+        static DateTime? InicioDelvis()
+        {
+            if (InicioForzado.HasValue) return InicioForzado;
+            DateTime? r = null;
+            foreach (Process p in Process.GetProcessesByName("Delvis"))
+            {
+                try { DateTime t = p.StartTime; if (!r.HasValue || t > r.Value) r = t; }
+                catch (Exception) { if (!r.HasValue) r = DateTime.Now.AddHours(-12); }   // sin permiso para leerla: últimas 12 h
+                finally { p.Dispose(); }
+            }
+            return r;
+        }
+
+        // true si cambió la lista de fallas activas
+        public static bool Revisar()
+        {
+            string antes = Firma();
+            try { Leer(); } catch (Exception) { }
+            return Firma() != antes;
+        }
+
+        static string Firma()
+        {
+            StringBuilder sb = new StringBuilder();
+            foreach (Activa a in Activas) sb.Append(a.Clave).Append('|');
+            foreach (string g in gruposIgnoradosActivos) sb.Append("i").Append(g).Append('|');
+            return sb.ToString();
+        }
+
+        static void Leer()
+        {
+            string p = Path.Combine(Cfg.DelvisDir, "Faults.log");
+            DateTime? inicio = Cfg.AvisoFallas ? InicioDelvis() : null;
+            if (!inicio.HasValue || !File.Exists(p))
+            {
+                Activas = new List<Activa>();
+                gruposIgnoradosActivos = new HashSet<string>();
+                leidoLargo = -1;
+                return;
+            }
+            FileInfo fi = new FileInfo(p);
+            if (fi.Length == leidoLargo && fi.LastWriteTime == leidoMtime && inicio == leidoInicio) return;
+
+            string[] lineas;
+            using (FileStream fs = new FileStream(p, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (StreamReader sr = new StreamReader(fs, Encoding.Default))
+                lineas = sr.ReadToEnd().Split(new char[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+            // Formato: fecha,FaultSet|FaultClear,grupo,codigo,contexto,mensaje
+            DateTime desde = inicio.Value.AddMinutes(-1);
+            Dictionary<string, DateTime> abiertas = new Dictionary<string, DateTime>();
+            foreach (string raw in lineas)
+            {
+                string[] c = raw.Trim().Split(new char[] { ',' }, 6);
+                if (c.Length < 5) continue;
+                DateTime ts;
+                if (!DateTime.TryParse(c[0], Us, DateTimeStyles.None, out ts) || ts < desde) continue;
+                string clave = c[2] + ":" + c[3] + ":" + c[4];
+                if (c[1] == "FaultSet") { if (!abiertas.ContainsKey(clave)) abiertas[clave] = ts; }
+                else if (c[1] == "FaultClear") abiertas.Remove(clave);
+            }
+
+            List<Activa> nuevas = new List<Activa>();
+            HashSet<string> ignoradas = new HashSet<string>();
+            foreach (KeyValuePair<string, DateTime> kv in abiertas)
+            {
+                string corta = kv.Key.Substring(0, kv.Key.LastIndexOf(':'));
+                if (Cfg.FallasIgnorar.Contains(kv.Key) || Cfg.FallasIgnorar.Contains(corta))
+                {
+                    ignoradas.Add(kv.Key.Split(':')[0]);
+                    continue;
+                }
+                Activa a = new Activa();
+                a.Clave = kv.Key.EndsWith(":0") ? corta : kv.Key;
+                a.Desde = kv.Value;
+                nuevas.Add(a);
+            }
+            nuevas.Sort(delegate(Activa x, Activa y) { return x.Desde.CompareTo(y.Desde); });
+            Activas = nuevas;
+            gruposIgnoradosActivos = ignoradas;
+            leidoLargo = fi.Length; leidoMtime = fi.LastWriteTime; leidoInicio = inicio;
+        }
+
+        // Para la pantalla de bloqueo: los tipos (grupo, el primer número del código) que están en FallasIgnorar,
+        // sin la lista completa. "activa" = ese tipo tiene ahora una falla abierta que no avisa por estar ignorada.
+        public static string TextoIgnoradas()
+        {
+            if (Cfg.FallasIgnorar.Count == 0) return "";
+            List<string> grupos = new List<string>();
+            foreach (string f in Cfg.FallasIgnorar)
+            {
+                string g = f.Split(':')[0];
+                if (!grupos.Contains(g)) grupos.Add(g);
+            }
+            grupos.Sort(delegate(string x, string y)
+            {
+                int a, b;
+                return int.TryParse(x, out a) && int.TryParse(y, out b) ? a.CompareTo(b) : string.CompareOrdinal(x, y);
+            });
+            List<string> partes = new List<string>();
+            foreach (string g in grupos) partes.Add("tipo " + g + (gruposIgnoradosActivos.Contains(g) ? " (activa)" : ""));
+            return "Fallas ignoradas: " + string.Join(" · ", partes.ToArray());
+        }
+
+        public static string Texto()
+        {
+            if (Activas.Count == 0) return "";
+            List<string> partes = new List<string>();
+            foreach (Activa a in Activas)
+                partes.Add(a.Clave + " (desde " + a.Desde.ToString(a.Desde.Date == DateTime.Today ? "HH:mm" : "dd/MM HH:mm") + ")");
+            return (Activas.Count == 1 ? "Falla " : Activas.Count + " fallas: ") + string.Join(" · ", partes.ToArray());
+        }
+    }
+
+    // ───────────────────────── Nivel de Delvis automático ─────────────────────────
+    // Delvis no tiene usuarios: tiene una contraseña por nivel (1, 2 y 3) y la pide en su ventana
+    // de teclado ("Por favor introduce el nivel de N contraseña:") al entrar a una pantalla protegida.
+    // Con el candado abierto por un operario que tiene nivel (viene del servidor), cuando Delvis pide
+    // un nivel igual o menor al suyo, el candado escribe la contraseña en esa ventana y la acepta.
+    // Las contraseñas se guardan en esta PC cifradas con DPAPI (del equipo) en delvis.claves y se
+    // cargan con "--claves-delvis". Solo se escriben si coinciden con la huella MD5 que Delvis guarda
+    // en su Config.xml (que solo se lee): así nunca se teclea una contraseña vieja.
+    static class NivelDelvis
+    {
+        static readonly byte[] Entropia = Encoding.UTF8.GetBytes("Honducafe.CandadoOperario.Delvis");
+        public static string Ruta = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "delvis.claves");
+
+        // Textos de la ventana de Delvis que pide un nivel (inglés y español). No coinciden con
+        // "Enter a new level N password" (cambiar contraseña), que también usa esa ventana.
+        static readonly Regex Pide = new Regex(@"enter the level ([123]) password|introduce el nivel de ([123]) contrase", RegexOptions.IgnoreCase);
+
+        public static int NivelPedido(string texto)
+        {
+            Match m = Pide.Match(texto ?? "");
+            if (!m.Success) return 0;
+            return int.Parse(m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value);
+        }
+
+        public static string Md5(string s)
+        {
+            using (MD5 h = MD5.Create())
+            {
+                StringBuilder sb = new StringBuilder();
+                foreach (byte x in h.ComputeHash(Encoding.UTF8.GetBytes(s))) sb.Append(x.ToString("x2"));
+                return sb.ToString();
+            }
+        }
+
+        // ── Contraseñas guardadas ──
+        public static Dictionary<int, string> Leer()
+        {
+            Dictionary<int, string> r = new Dictionary<int, string>();
+            try
+            {
+                if (!File.Exists(Ruta)) return r;
+                byte[] claro = ProtectedData.Unprotect(File.ReadAllBytes(Ruta), Entropia, DataProtectionScope.LocalMachine);
+                foreach (string l in Encoding.UTF8.GetString(claro).Split('\n'))
+                {
+                    int i = l.IndexOf('=');
+                    int n;
+                    if (i > 0 && int.TryParse(l.Substring(0, i), out n) && n >= 1 && n <= 3) r[n] = l.Substring(i + 1);
+                }
+                Array.Clear(claro, 0, claro.Length);
+            }
+            catch (Exception) { }
+            return r;
+        }
+
+        // Lanza excepción si no se puede escribir (la carpeta del programa pide administrador)
+        public static void Guardar(Dictionary<int, string> claves)
+        {
+            if (claves.Count == 0) { if (File.Exists(Ruta)) File.Delete(Ruta); return; }
+            StringBuilder sb = new StringBuilder();
+            foreach (KeyValuePair<int, string> kv in claves) sb.Append(kv.Key).Append('=').Append(kv.Value).Append('\n');
+            File.WriteAllBytes(Ruta, ProtectedData.Protect(Encoding.UTF8.GetBytes(sb.ToString()), Entropia, DataProtectionScope.LocalMachine));
+        }
+
+        // Huellas que Delvis tiene ahora por nivel (vacío si no se pudo leer Config.xml)
+        public static Dictionary<int, string> Huellas()
+        {
+            Dictionary<int, string> r = new Dictionary<int, string>();
+            try
+            {
+                string p = Path.Combine(Cfg.DelvisDir, "Config.xml");
+                string xml;
+                using (FileStream fs = new FileStream(p, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (StreamReader sr = new StreamReader(fs)) xml = sr.ReadToEnd();
+                foreach (Match m in Regex.Matches(xml, @"<_passwordLevel([123])>\s*([0-9a-fA-F]{32})\s*<"))
+                    r[int.Parse(m.Groups[1].Value)] = m.Groups[2].Value.ToLowerInvariant();
+            }
+            catch (Exception) { }
+            return r;
+        }
+
+        // "ok", "distinta" (Delvis la cambió), "sin guardar" o "sin huella" (no se pudo leer Config.xml)
+        public static string Estado(int nivel, Dictionary<int, string> claves, Dictionary<int, string> huellas)
+        {
+            if (!claves.ContainsKey(nivel)) return "sin guardar";
+            if (!huellas.ContainsKey(nivel)) return "sin huella";
+            return Md5(claves[nivel]) == huellas[nivel] ? "ok" : "distinta";
+        }
+
+        // ── Ventanas de Delvis ──
+        delegate bool EnumProc(IntPtr h, IntPtr l);
+        [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr l);
+        [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr padre, EnumProc f, IntPtr l);
+        [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+        [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+        [DllImport("user32.dll")] static extern bool IsWindow(IntPtr h);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder sb, int max);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, IntPtr w, StringBuilder l, uint flags, uint ms, out IntPtr res);
+        [DllImport("user32.dll", SetLastError = true)] static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+        const uint WM_GETTEXT = 0x0D, WM_KEYDOWN = 0x100, WM_KEYUP = 0x101, WM_CHAR = 0x102, EM_SETSEL = 0xB1, SMTO_ABORTIFHUNG = 2;
+
+        public class Ventana
+        {
+            public IntPtr Hwnd;
+            public string Clase, Titulo;
+            public List<string> Textos = new List<string>();      // títulos y etiquetas (no se lee lo escrito en cajas de texto)
+            public List<IntPtr> Cajas = new List<IntPtr>();        // cajas de texto visibles
+            public List<string> Hijos = new List<string>();        // para el diagnóstico
+            public int Nivel;                                      // nivel que pide, 0 si no es la ventana de contraseña
+        }
+
+        static string Clase(IntPtr h) { StringBuilder sb = new StringBuilder(256); GetClassName(h, sb, sb.Capacity); return sb.ToString(); }
+
+        static string Texto(IntPtr h)
+        {
+            StringBuilder sb = new StringBuilder(512);
+            IntPtr r;
+            SendMessageTimeout(h, WM_GETTEXT, (IntPtr)sb.Capacity, sb, SMTO_ABORTIFHUNG, 300, out r);
+            return sb.ToString();
+        }
+
+        public static List<Ventana> Ventanas()
+        {
+            HashSet<uint> pids = new HashSet<uint>();
+            foreach (Process p in Process.GetProcessesByName("Delvis")) { pids.Add((uint)p.Id); p.Dispose(); }
+            List<Ventana> r = new List<Ventana>();
+            if (pids.Count == 0) return r;
+            EnumWindows(delegate(IntPtr h, IntPtr l)
+            {
+                uint pid;
+                GetWindowThreadProcessId(h, out pid);
+                if (!pids.Contains(pid) || !IsWindowVisible(h)) return true;
+                Ventana v = new Ventana();
+                v.Hwnd = h; v.Clase = Clase(h); v.Titulo = Texto(h);
+                v.Textos.Add(v.Titulo);
+                EnumChildWindows(h, delegate(IntPtr c, IntPtr l2)
+                {
+                    if (!IsWindowVisible(c)) return true;
+                    string cl = Clase(c);
+                    bool caja = cl.IndexOf("EDIT", StringComparison.OrdinalIgnoreCase) >= 0;
+                    string t = caja ? "" : Texto(c);
+                    if (caja) v.Cajas.Add(c); else if (t.Length > 0) v.Textos.Add(t);
+                    v.Hijos.Add(cl + (caja ? "  [caja de texto]" : t.Length > 0 ? "  \"" + t.Replace("\r", " ").Replace("\n", " ") + "\"" : ""));
+                    return true;
+                }, IntPtr.Zero);
+                v.Nivel = NivelPedido(string.Join(" | ", v.Textos.ToArray()));
+                r.Add(v);
+                return true;
+            }, IntPtr.Zero);
+            return r;
+        }
+
+        // ── Llenado ──
+        static HashSet<IntPtr> atendidas = new HashSet<IntPtr>();   // ventanas ya llenadas (o descartadas): una sola vez cada una
+        static Dictionary<int, string> claves;
+        static DateTime clavesFecha;
+        static Dictionary<int, string> huellas = new Dictionary<int, string>();
+        static DateTime huellasFecha;
+
+        public static void Olvidar() { atendidas.Clear(); claves = null; }
+
+        // Se llama cada medio segundo mientras hay un operario con nivel. Devuelve qué hizo (para la bitácora) o null.
+        public static string Revisar(int nivelOperario)
+        {
+            List<Ventana> vs = Ventanas();
+            atendidas.RemoveWhere(delegate(IntPtr h) { return !IsWindow(h); });
+            foreach (Ventana v in vs)
+            {
+                if (v.Nivel == 0 || v.Cajas.Count == 0 || atendidas.Contains(v.Hwnd)) continue;
+                atendidas.Add(v.Hwnd);
+                if (v.Nivel > nivelOperario) return "Delvis pide nivel " + v.Nivel + "; el operario tiene nivel " + nivelOperario + ": no se llena.";
+
+                DateTime fc = File.Exists(Ruta) ? File.GetLastWriteTimeUtc(Ruta) : DateTime.MinValue;
+                if (claves == null || fc != clavesFecha) { claves = Leer(); clavesFecha = fc; }
+                string pc = Path.Combine(Cfg.DelvisDir, "Config.xml");
+                DateTime fh = File.Exists(pc) ? File.GetLastWriteTimeUtc(pc) : DateTime.MinValue;
+                if (fh != huellasFecha) { huellas = Huellas(); huellasFecha = fh; }
+
+                string est = Estado(v.Nivel, claves, huellas);
+                if (est == "sin guardar") return "Delvis pide nivel " + v.Nivel + " y no hay contraseña guardada para ese nivel.";
+                if (est == "distinta") return "Delvis pide nivel " + v.Nivel + ": la contraseña guardada ya no coincide con Delvis (¿la cambiaron?). No se escribe.";
+                return Escribir(v.Cajas[0], claves[v.Nivel])
+                    ? "Nivel " + v.Nivel + " escrito en Delvis" + (est == "sin huella" ? " (sin poder comprobar Config.xml)." : ".")
+                    : "Windows no dejó escribir en Delvis (error " + Marshal.GetLastWin32Error() + "; 5 = Delvis corre como administrador).";
+            }
+            return null;
+        }
+
+        // Como si se tecleara: selecciona lo que haya, escribe cada letra y pulsa Enter
+        static bool Escribir(IntPtr caja, string clave)
+        {
+            if (!PostMessage(caja, EM_SETSEL, IntPtr.Zero, (IntPtr)(-1))) return false;
+            foreach (char c in clave) PostMessage(caja, WM_CHAR, (IntPtr)c, (IntPtr)1);
+            PostMessage(caja, WM_KEYDOWN, (IntPtr)0x0D, (IntPtr)0x001C0001);
+            return PostMessage(caja, WM_KEYUP, (IntPtr)0x0D, unchecked((IntPtr)(int)0xC01C0001));
+        }
+
+        // Prueba de envío sin escribir nada (WM_NULL): false si Windows lo bloquea
+        [DllImport("user32.dll", SetLastError = true)] static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, int l);
+        public static string PuedeEnviar(IntPtr h)
+        {
+            return PostMessage(h, 0, IntPtr.Zero, 0) ? "sí" : "NO (error " + Marshal.GetLastWin32Error() + "; 5 = Delvis corre como administrador y el candado no)";
+        }
+
+        public static void Bitacora(string s)
+        {
+            try
+            {
+                string log = Path.Combine(Store.DirDatos, "nivel_delvis.log");
+                if (File.Exists(log) && new FileInfo(log).Length > 200000) File.Delete(log);
+                File.AppendAllText(log, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + s + "\r\n");
+            }
+            catch (Exception) { }
+        }
+
+        // "--ver-delvis": espera unos segundos (para abrir la ventana de contraseña) y apunta lo que ve
+        public static string Diagnostico()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("Candado " + Assembly.GetExecutingAssembly().GetName().Version + " · " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " · " + Environment.MachineName);
+            sb.AppendLine("Carpeta de Delvis: " + Cfg.DelvisDir);
+            Dictionary<int, string> c = Leer(), h = Huellas();
+            for (int n = 1; n <= 3; n++) sb.AppendLine("  Nivel " + n + ": " + Estado(n, c, h));
+            List<Ventana> vs = Ventanas();
+            sb.AppendLine("Ventanas visibles de Delvis: " + vs.Count);
+            foreach (Ventana v in vs)
+            {
+                sb.AppendLine();
+                sb.AppendLine("== " + v.Clase + "  \"" + v.Titulo + "\"");
+                sb.AppendLine("   pide nivel: " + (v.Nivel > 0 ? v.Nivel.ToString() : "no") + " · cajas de texto: " + v.Cajas.Count + " · se le puede escribir: " + PuedeEnviar(v.Hwnd));
+                foreach (string x in v.Hijos) sb.AppendLine("   - " + x);
+            }
+            return sb.ToString();
+        }
+    }
+
+    // "--claves-delvis": carga las contraseñas de nivel de Delvis en esta PC (como administrador)
+    class ClavesForm : Form
+    {
+        TextBox[] cajas = new TextBox[3];
+        Label[] estados = new Label[3];
+        Label info;
+
+        public ClavesForm()
+        {
+            Text = "Contraseñas de Delvis · Candado";
+            Font = new Font("Segoe UI", 11f);
+            AutoScaleMode = AutoScaleMode.Font;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = MinimizeBox = false;
+            StartPosition = FormStartPosition.CenterScreen;
+            ClientSize = new Size(520, 300);
+            TopMost = true;
+
+            Controls.Add(new Label { Text = "Escribe solo las que quieras guardar o cambiar. En blanco = se deja como está.", Location = new Point(16, 12), Size = new Size(490, 44) });
+            for (int i = 0; i < 3; i++)
+            {
+                int y = 62 + i * 44;
+                Controls.Add(new Label { Text = "Nivel " + (i + 1), Location = new Point(16, y + 4), Size = new Size(70, 26) });
+                cajas[i] = new TextBox { Location = new Point(90, y), Size = new Size(190, 28), UseSystemPasswordChar = true };
+                estados[i] = new Label { Location = new Point(292, y + 4), Size = new Size(220, 26) };
+                Controls.Add(cajas[i]);
+                Controls.Add(estados[i]);
+            }
+            info = new Label { Location = new Point(16, 196), Size = new Size(490, 48), ForeColor = Color.FromArgb(160, 30, 30) };
+            Controls.Add(info);
+            Button guardar = new Button { Text = "Guardar", Location = new Point(300, 250), Size = new Size(100, 36) };
+            Button borrar = new Button { Text = "Borrar todas", Location = new Point(16, 250), Size = new Size(130, 36) };
+            Button cerrar = new Button { Text = "Cerrar", Location = new Point(408, 250), Size = new Size(96, 36), DialogResult = DialogResult.Cancel };
+            Controls.Add(guardar); Controls.Add(borrar); Controls.Add(cerrar);
+            AcceptButton = guardar; CancelButton = cerrar;
+            guardar.Click += delegate { Guardar(); };
+            borrar.Click += delegate
+            {
+                try { NivelDelvis.Guardar(new Dictionary<int, string>()); info.Text = "Borradas."; }
+                catch (Exception ex) { info.Text = NoSePudo(ex); }
+                Pintar();
+            };
+            Pintar();
+        }
+
+        static string NoSePudo(Exception ex)
+        {
+            return ex is UnauthorizedAccessException ? "No se pudo guardar: abre esto como administrador." : "No se pudo guardar: " + ex.Message;
+        }
+
+        void Pintar()
+        {
+            Dictionary<int, string> c = NivelDelvis.Leer(), h = NivelDelvis.Huellas();
+            for (int i = 0; i < 3; i++)
+            {
+                string e = NivelDelvis.Estado(i + 1, c, h);
+                estados[i].Text = e == "ok" ? "✓ guardada, coincide" : e == "distinta" ? "✗ guardada, NO coincide" : e == "sin huella" ? "guardada (sin Config.xml)" : "— sin guardar";
+                estados[i].ForeColor = e == "ok" ? Color.FromArgb(20, 120, 60) : e == "distinta" ? Color.FromArgb(180, 30, 30) : Color.DimGray;
+            }
+            if (h.Count == 0) info.Text = "No se pudo leer " + Path.Combine(Cfg.DelvisDir, "Config.xml") + ": no se puede comprobar lo que escribas.";
+        }
+
+        void Guardar()
+        {
+            Dictionary<int, string> c = NivelDelvis.Leer(), h = NivelDelvis.Huellas();
+            for (int i = 0; i < 3; i++)
+            {
+                string v = cajas[i].Text;
+                if (v.Length == 0) continue;
+                if (h.ContainsKey(i + 1) && NivelDelvis.Md5(v) != h[i + 1])
+                {
+                    info.Text = "La del nivel " + (i + 1) + " no coincide con la de Delvis. No se guardó nada.";
+                    cajas[i].Focus(); cajas[i].SelectAll();
+                    return;
+                }
+                c[i + 1] = v;
+            }
+            try { NivelDelvis.Guardar(c); info.Text = "Guardado."; foreach (TextBox t in cajas) t.Clear(); }
+            catch (Exception ex) { info.Text = NoSePudo(ex); }
+            Pintar();
+        }
+    }
+
     static class Native
     {
         [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
@@ -765,6 +1226,14 @@ namespace CandadoOperario
         public static readonly Color Borde = Color.FromArgb(231, 220, 221);
         public static readonly Color Fondo = Color.White;
         public static readonly Color Error = Color.FromArgb(190, 40, 30);
+        public static readonly Color Alarma = Color.FromArgb(200, 24, 24);       // franja de falla
+        public static readonly Color AlarmaFondo = Color.FromArgb(248, 196, 191); // punto más rojo del pulso de fondo
+        public const int PulsoMs = 2400;                                          // duración de un pulso (blanco-rojo-blanco)
+
+        public static Color Mezcla(Color a, Color b, double k)
+        {
+            return Color.FromArgb((int)(a.R + (b.R - a.R) * k), (int)(a.G + (b.G - a.G) * k), (int)(a.B + (b.B - a.B) * k));
+        }
 
         static Bitmap logo;
         public static Bitmap Logo
@@ -804,9 +1273,10 @@ namespace CandadoOperario
         public static Rectangle? Forzar;
 
         string pin = "";
-        Label dots, err, status;
-        System.Windows.Forms.Timer keep;
+        Label dots, err, status, aviso, est, sub, ignoradas;
+        System.Windows.Forms.Timer keep, parpadeo;
         bool busy;
+        double angulo;
         float fit = 1f;
 
         // Medidas y fuentes se reducen si la pantalla es pequeña o la escala de Windows es alta
@@ -852,7 +1322,7 @@ namespace CandadoOperario
 
             int ly = pic.Bottom + F(20);
 
-            Label est = new Label();
+            est = new Label();
             est.Text = Cfg.Estacion;
             est.Font = Fn("Segoe UI Semibold", 18f);
             est.ForeColor = Ui.Marca;
@@ -879,6 +1349,14 @@ namespace CandadoOperario
             sync.Click += delegate { if (SyncRequested != null) SyncRequested(); };
             Controls.Add(sync);
 
+            ignoradas = new Label();
+            ignoradas.Font = Fn("Segoe UI", 9f);
+            ignoradas.ForeColor = Ui.Texto3;
+            ignoradas.TextAlign = ContentAlignment.TopCenter;
+            ignoradas.AutoEllipsis = true;
+            ignoradas.SetBounds(x0, ly + F(114), leftW, F(40));
+            Controls.Add(ignoradas);
+
             // ── Divisor ──
             Label linea = new Label();
             linea.BackColor = Ui.Borde;
@@ -896,7 +1374,7 @@ namespace CandadoOperario
             title.SetBounds(xr, ry + F(6), rightW, F(44));
             Controls.Add(title);
 
-            Label sub = new Label();
+            sub = new Label();
             sub.Text = "Ingresa tu código para comenzar tu turno";
             sub.Font = Fn("Segoe UI", 10f);
             sub.ForeColor = Ui.Texto3;
@@ -947,6 +1425,26 @@ namespace CandadoOperario
             Controls.Add(err);
 
             UpdateDots();
+
+            // Falla activa en la máquina: franja arriba con el código y fondo que parpadea en rojo
+            aviso = new Label();
+            aviso.Font = Fn("Segoe UI Semibold", 15f);
+            aviso.ForeColor = Color.White;
+            aviso.BackColor = Ui.Alarma;
+            aviso.TextAlign = ContentAlignment.MiddleCenter;
+            aviso.AutoEllipsis = true;
+            aviso.SetBounds(ox, oy, pb.Width, F(64));
+            aviso.Visible = false;
+            Controls.Add(aviso);
+            parpadeo = new System.Windows.Forms.Timer();
+            parpadeo.Interval = 80;
+            parpadeo.Tick += delegate
+            {
+                // Pulso suave: sube y baja en Ui.PulsoMs, sin saltos de color
+                angulo += 2 * Math.PI * parpadeo.Interval / Ui.PulsoMs;
+                if (angulo > 2 * Math.PI) angulo -= 2 * Math.PI;
+                Colores((1 - Math.Cos(angulo)) / 2);
+            };
 
             keep = new System.Windows.Forms.Timer();
             keep.Interval = 500;
@@ -1013,6 +1511,28 @@ namespace CandadoOperario
         }
         public void SetStatus(string s) { status.Text = s; }
         public void ResetPin() { pin = ""; UpdateDots(); SetBusy(false); }
+
+        // texto vacío = sin fallas
+        public void SetFallas(string texto)
+        {
+            bool hay = texto.Length > 0;
+            aviso.Text = hay ? "⚠  FALLA EN LA MÁQUINA  ·  " + texto : "";
+            aviso.Visible = hay;
+            if (hay) { aviso.BringToFront(); if (!parpadeo.Enabled) parpadeo.Start(); }
+            else { parpadeo.Stop(); angulo = 0; Colores(0); }
+        }
+
+        // k: 0 = blanco, 1 = punto más rojo del pulso. Los textos grises se oscurecen un poco para seguir legibles.
+        void Colores(double k)
+        {
+            BackColor = Ui.Mezcla(Ui.Fondo, Ui.AlarmaFondo, k);
+            status.ForeColor = sub.ForeColor = ignoradas.ForeColor = Ui.Mezcla(Ui.Texto3, Ui.Texto2, k);
+        }
+
+        public void SetIgnoradas(string texto) { ignoradas.Text = texto; }
+
+        // Solo para --preview: deja el fondo en el punto más rojo
+        public void FaseRoja() { Colores(1); }
 
         // Solo para --preview
         public void PonerPin(string p) { pin = p; UpdateDots(); }
@@ -1156,6 +1676,26 @@ namespace CandadoOperario
 
         public void SetName(string n) { name.Text = "●  " + n; }
 
+        // Durante el turno también avisa: el botón flotante pulsa suave hacia rojo
+        System.Windows.Forms.Timer parpadeo;
+        double angulo;
+        public void SetFalla(bool hay)
+        {
+            if (parpadeo == null)
+            {
+                parpadeo = new System.Windows.Forms.Timer();
+                parpadeo.Interval = 80;
+                parpadeo.Tick += delegate
+                {
+                    angulo += 2 * Math.PI * parpadeo.Interval / Ui.PulsoMs;
+                    if (angulo > 2 * Math.PI) angulo -= 2 * Math.PI;
+                    BackColor = Ui.Mezcla(Ui.Texto, Ui.Alarma, (1 - Math.Cos(angulo)) / 2);
+                };
+            }
+            if (hay) { if (!parpadeo.Enabled) parpadeo.Start(); }
+            else { parpadeo.Stop(); angulo = 0; BackColor = Ui.Texto; }
+        }
+
         public void FlashSync(bool ok)
         {
             syncBtn.Text = ok ? "✓" : "!";
@@ -1176,7 +1716,10 @@ namespace CandadoOperario
         System.Windows.Forms.Timer idle = new System.Windows.Forms.Timer();
         System.Windows.Forms.Timer sync = new System.Windows.Forms.Timer();
         System.Windows.Forms.Timer poll = new System.Windows.Forms.Timer();
+        System.Windows.Forms.Timer fallas = new System.Windows.Forms.Timer();
+        System.Windows.Forms.Timer delvis = new System.Windows.Forms.Timer();
         Turno cur;
+        int nivel;   // nivel de Delvis del operario en turno
         int syncing;
         int ticks;
         int fails;
@@ -1209,6 +1752,21 @@ namespace CandadoOperario
             poll.Tick += delegate { if (cur != null) Vigia.Sondear(); Store.Estado(cur != null ? "turno" : "bloqueado"); };
             poll.Start();
 
+            // Solo mira si Faults.log cambió (tamaño y fecha); lo lee completo únicamente entonces
+            fallas.Interval = 3000;
+            fallas.Tick += delegate { if (Fallas.Revisar()) MostrarFallas(); };
+            fallas.Start();
+
+            // Ventana de contraseña de Delvis: solo se mira con un operario con nivel en turno
+            delvis.Interval = 500;
+            delvis.Tick += delegate
+            {
+                if (cur == null || nivel == 0 || !Cfg.NivelDelvis) return;
+                string r = NivelDelvis.Revisar(nivel);
+                if (r != null) NivelDelvis.Bitacora(cur.nombre + ": " + r);
+            };
+            delvis.Start();
+
             sync.Interval = 60000;
             sync.Tick += delegate
             {
@@ -1220,6 +1778,8 @@ namespace CandadoOperario
             cover.SetStatus(StatusText());
             cover.ShowLocked();
             Store.Estado("bloqueado");
+            Fallas.Revisar();
+            MostrarFallas();
             SyncAsync(false, true);
         }
 
@@ -1247,7 +1807,16 @@ namespace CandadoOperario
             viejaC.Dispose();
             viejaW.Dispose();
             if (cur == null) { cover.SetStatus(StatusText()); cover.ShowLocked(); }
-            else { widget.SetName(nombre); widget.Show(); Native.KeepOnTop(widget); }
+            else { widget.SetName(nombre + (nivel > 0 ? "  · N" + nivel : "")); widget.Show(); Native.KeepOnTop(widget); }
+            MostrarFallas();
+        }
+
+        void MostrarFallas()
+        {
+            string t = Fallas.Texto();
+            cover.SetFallas(t);
+            cover.SetIgnoradas(Fallas.TextoIgnoradas());
+            widget.SetFalla(t.Length > 0);
         }
 
         string StatusText()
@@ -1331,6 +1900,8 @@ namespace CandadoOperario
             lock (Store.Lock) { Store.Cola.Add(t); }
             Store.SaveCola();
             cur = t;
+            nivel = op.nivel;
+            NivelDelvis.Olvidar();
             Store.Estado("turno");
             Vigia.Iniciar(t);
 
@@ -1338,7 +1909,7 @@ namespace CandadoOperario
             cover.Hide();
             Native.OcultarBarraTareas(false);
             Native.BloquearTeclaWindows(false);
-            widget.SetName(op.nombre);
+            widget.SetName(op.nombre + (op.nivel > 0 ? "  · N" + op.nivel : ""));
             widget.Show();
             Native.KeepOnTop(widget);
             SyncAsync(false, false);
@@ -1356,6 +1927,7 @@ namespace CandadoOperario
             t.estacion = Cfg.Estacion;
             t.inicio = Sincro.Now();
             cur = t;
+            nivel = 0;   // con el código de emergencia no se escribe ningún nivel en Delvis
             Store.Estado("turno");
 
             cover.SetInfo("", false);
@@ -1375,6 +1947,8 @@ namespace CandadoOperario
             lock (Store.Lock) { cur.fin = Sincro.Now(); }
             Store.SaveCola();
             cur = null;
+            nivel = 0;
+            NivelDelvis.Olvidar();
         }
 
         void DoLock()
@@ -1664,6 +2238,47 @@ namespace CandadoOperario
             lock (Store.Lock) { t2.fin = Sincro.Now(); }
             sb.AppendLine("push turno+eventos: " + Sincro.Push(out m) + " - " + m + " | turnos en cola: " + Sincro.Pendientes() + " | eventos en cola: " + Store.Eventos.Count);
 
+            // Fallas activas: solo cuenta lo abierto desde que arrancó Delvis y sin FaultClear
+            CultureInfo us = new CultureInfo("en-US");
+            DateTime arranque = DateTime.Now.AddMinutes(-30);
+            Func<DateTime, string> f = delegate(DateTime d) { return d.ToString("M/d/yyyy h:mm:ss tt", us); };
+            File.WriteAllText(flog,
+                "1/1/2020 8:00:00 AM,FaultSet,2,2,0,\r\n" +                                  // vieja: antes del arranque
+                f(arranque.AddMinutes(5)) + ",FaultSet,19,35,0,\r\n" +                       // activa
+                f(arranque.AddMinutes(6)) + ",FaultSet,0,23,1,,H\r\n" +                      // activa, con contexto
+                f(arranque.AddMinutes(7)) + ",FaultSet,24,64,0,\r\n" +
+                f(arranque.AddMinutes(8)) + ",FaultClear,24,64,0,\r\n");                     // cerrada
+            Fallas.InicioForzado = arranque;
+            Fallas.Revisar();
+            sb.AppendLine("fallas activas (esperado 19:35 y 0:23:1): " + Fallas.Texto());
+            Cfg.FallasIgnorar.Add("19:35");
+            File.SetLastWriteTime(flog, DateTime.Now.AddSeconds(5));
+            Fallas.Revisar();
+            sb.AppendLine("ignorando 19:35 (esperado solo 0:23:1): " + Fallas.Texto());
+            Cfg.FallasIgnorar.Add("2:1");
+            sb.AppendLine("linea de ignoradas (esperado tipo 2 · tipo 19 (activa)): " + Fallas.TextoIgnoradas());
+            File.AppendAllText(flog, f(DateTime.Now) + ",FaultClear,0,23,1,\r\n");
+            Fallas.Revisar();
+            sb.AppendLine("tras FaultClear (esperado vacío): [" + Fallas.Texto() + "]");
+            Fallas.InicioForzado = null;
+
+            // Nivel de Delvis: textos de la ventana, huellas de Config.xml y contraseñas cifradas
+            sb.AppendLine("md5('0') (esperado cfcd208495d565ef66e7dff9f98764da): " + NivelDelvis.Md5("0"));
+            sb.AppendLine("pide nivel (esperado 2, 3, 0, 0): " + NivelDelvis.NivelPedido("Please enter the level 2 password:") + ", "
+                + NivelDelvis.NivelPedido("Teclado | Por favor introduce el nivel de 3 contraseña:") + ", "
+                + NivelDelvis.NivelPedido("Enter a new level 2 password:") + ", " + NivelDelvis.NivelPedido("Entrar nueva contraseña del Nivel 2"));
+            File.WriteAllText(cfgPath, "<Root>" + Environment.NewLine + "  <_passwordLevel1>" + NivelDelvis.Md5("0") + "</_passwordLevel1>" + Environment.NewLine
+                + "  <_passwordLevel2>" + NivelDelvis.Md5("dos2") + "</_passwordLevel2>" + Environment.NewLine + "</Root>");
+            string rutaReal = NivelDelvis.Ruta;
+            NivelDelvis.Ruta = Path.Combine(tmp, "delvis.claves");
+            NivelDelvis.Guardar(new Dictionary<int, string> { { 1, "0" }, { 2, "vieja" }, { 3, "tres" } });
+            Dictionary<int, string> cl = NivelDelvis.Leer(), hu = NivelDelvis.Huellas();
+            sb.AppendLine("claves (esperado ok, distinta, sin huella): " + NivelDelvis.Estado(1, cl, hu) + ", " + NivelDelvis.Estado(2, cl, hu) + ", " + NivelDelvis.Estado(3, cl, hu)
+                + " | archivo cifrado sin texto claro: " + (Encoding.UTF8.GetString(File.ReadAllBytes(NivelDelvis.Ruta)).Contains("vieja") ? "NO" : "sí"));
+            NivelDelvis.Guardar(new Dictionary<int, string>());
+            sb.AppendLine("borrar (esperado sin archivo): " + (File.Exists(NivelDelvis.Ruta) ? "queda" : "sin archivo"));
+            NivelDelvis.Ruta = rutaReal;
+
             File.WriteAllText(Path.Combine(Path.GetTempPath(), "candado-selftest.txt"), sb.ToString());
         }
 
@@ -1691,6 +2306,26 @@ namespace CandadoOperario
                     {
                         c.DrawToBitmap(bmp, new Rectangle(0, 0, t[0], t[1]));
                         bmp.Save(Path.Combine(dir, "cover-" + t[0] + "x" + t[1] + ".png"), System.Drawing.Imaging.ImageFormat.Png);
+                    }
+                }
+            }
+            // Con falla activa: las dos fases del parpadeo
+            foreach (bool faseRoja in new bool[] { true, false })
+            {
+                CoverForm.Forzar = new Rectangle(0, 0, 1024, 768);
+                using (CoverForm c = new CoverForm())
+                {
+                    c.SetStatus("2 operarios · sincronizado 14:32");
+                    c.SetFallas("Falla 24:64 (desde 14:03)");
+                    c.SetIgnoradas("Fallas ignoradas: tipo 0 · tipo 19 (activa)");
+                    if (faseRoja) c.FaseRoja();
+                    c.Location = new Point(-30000, -30000);
+                    c.Show();
+                    Application.DoEvents();
+                    using (Bitmap bmp = new Bitmap(1024, 768))
+                    {
+                        c.DrawToBitmap(bmp, new Rectangle(0, 0, 1024, 768));
+                        bmp.Save(Path.Combine(dir, "cover-falla-" + (faseRoja ? "rojo" : "blanco") + ".png"), System.Drawing.Imaging.ImageFormat.Png);
                     }
                 }
             }
@@ -1807,6 +2442,56 @@ namespace CandadoOperario
                 Store.Init();
                 if (modo == "--preview" && args.Length > 1) Preview(args[1], args.Length > 2 && args[2] == "100");
                 else if (modo == "--selftest") SelfTest(args.Length > 1 ? args[1] : "1234");
+                return;
+            }
+
+            if (modo == "--demo-falla")
+            {
+                // Muestra 15 s la pantalla con el aviso en rojo, aunque no haya falla, y dice qué fallas
+                // reales ve ahora en Delvis. No toca el candado que esté corriendo ni los archivos de Delvis.
+                Cfg.Load();
+                Native.SetProcessDPIAware();
+                using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) Ui.Scale = g.DpiX / 96f;
+                Application.EnableVisualStyles();
+                Fallas.Revisar();
+                bool delvis = Process.GetProcessesByName("Delvis").Length > 0;
+                CoverForm c = new CoverForm();
+                c.SetStatus("Demostración: se cierra sola en 15 s");
+                c.SetFallas("PRUEBA (desde " + DateTime.Now.ToString("HH:mm") + ")");
+                c.SetInfo(!delvis ? "Delvis no está abierto: sin él no hay aviso real."
+                    : !Directory.Exists(Cfg.DelvisDir) ? "No existe la carpeta de Delvis: " + Cfg.DelvisDir
+                    : Fallas.Activas.Count == 0 ? "Delvis abierto. Fallas activas ahora: ninguna."
+                    : "Fallas activas ahora: " + Fallas.Texto(), delvis && Directory.Exists(Cfg.DelvisDir) ? Fallas.Activas.Count > 0 : true);
+                System.Windows.Forms.Timer fin = new System.Windows.Forms.Timer();
+                fin.Interval = 15000;
+                fin.Tick += delegate { fin.Stop(); Application.ExitThread(); };
+                fin.Start();
+                c.Show();
+                Application.Run();
+                Native.OcultarBarraTareas(false);   // la pantalla la oculta mientras está visible
+                return;
+            }
+
+            if (modo == "--claves-delvis")
+            {
+                // Carga las contraseñas de nivel de Delvis (cifradas, solo para esta PC). Pide administrador para guardar.
+                Cfg.Load();
+                Application.EnableVisualStyles();
+                Application.Run(new ClavesForm());
+                return;
+            }
+
+            if (modo == "--ver-delvis")
+            {
+                // Diagnóstico: espera N s (para abrir la ventana de contraseña en Delvis) y deja en un .txt lo que ve.
+                // No escribe nada en Delvis.
+                Cfg.Load();
+                int seg;
+                if (args.Length < 2 || !int.TryParse(args[1], out seg)) seg = 15;
+                Thread.Sleep(seg * 1000);
+                string txt = Path.Combine(Path.GetTempPath(), "candado-ver-delvis.txt");
+                File.WriteAllText(txt, NivelDelvis.Diagnostico(), Encoding.UTF8);
+                try { Process.Start("notepad.exe", "\"" + txt + "\""); } catch (Exception) { }
                 return;
             }
 

@@ -65,3 +65,32 @@ El mismo `Setup-CandadoOperario-X.exe` pregunta qué instalar:
   Pide la carpeta Planos (la del visor 3D). Silencioso: `/VERYSILENT /TYPE=control /PLANOS=C:\xampp\htdocs\Planos`.
 
 `compilar-instalador.bat` compila también `..\CuartoControl\CuartoControl.exe`.
+
+## Aviso de falla en rojo (desde 1.4.1, en prueba)
+
+- Con una falla activa de Delvis, la pantalla de bloqueo parpadea en rojo con una franja que dice el código
+  (grupo:codigo) y desde qué hora; durante el turno parpadea el botón flotante.
+- Falla activa = `FaultSet` en `Faults.log` **desde que arrancó Delvis** (hora del proceso `Delvis.exe`) y sin
+  `FaultClear`. Delvis deja fallas abiertas al cerrarse, por eso no se cuentan las anteriores a su arranque (*supuesto
+  sacado de un Faults.log real*). Sin Delvis abierto no hay aviso. Solo lee el archivo, nunca escribe.
+- `candado.config`: `AvisoFallas=false` lo apaga; `FallasIgnorar=19:35,24:64` calla esos códigos. La pantalla de bloqueo muestra en una línea los tipos (grupo) ignorados y marca «(activa)» si alguno tiene una falla abierta.
+- Probar sin falla real: `CandadoOperario.exe --demo-falla` (15 s; dice qué fallas reales ve en ese momento).
+
+## Nivel de Delvis automático (desde 1.4.1, en prueba)
+
+- Delvis no tiene usuarios: tiene una contraseña por nivel (1, 2, 3) y la pide en su ventana de teclado
+  («Por favor introduce el nivel de N contraseña:») al entrar a una pantalla protegida.
+- En el sistema, Usuarios → Código de bloqueo → «Nivel en Delvis». Requiere `BD/migration_nivel_delvis.sql`
+  (sin ella todo sigue igual y el nivel va en 0). Llega a las PCs con la sincronización.
+- Con ese operario en turno, cuando Delvis pide un nivel **igual o menor** al suyo, el candado escribe la contraseña
+  en esa ventana y pulsa Enter (mensajes de Windows a la caja de texto; no toca archivos de Delvis). Si pide uno mayor,
+  no hace nada. Con el código de emergencia, nunca.
+- Contraseñas: en cada PC, como administrador, `CandadoOperario.exe --claves-delvis`. Se guardan cifradas (DPAPI del
+  equipo) en `{app}\delvis.claves`. Solo acepta las que coinciden con la huella MD5 que Delvis tiene en su
+  `Config.xml`, y no escribe una guardada si Delvis la cambió después.
+- Bitácora (sin contraseñas): `C:\ProgramData\CandadoOperario\nivel_delvis.log`.
+- Diagnóstico: `CandadoOperario.exe --ver-delvis 15` espera 15 s (abre en ese tiempo la ventana de contraseña de
+  Delvis) y abre un .txt con lo que ve, si coinciden las contraseñas y si Windows deja escribirle (si Delvis corre
+  como administrador y el candado no, Windows lo bloquea).
+- Al bloquear, el candado no baja el nivel de Delvis: eso lo hace el propio Delvis por inactividad.
+- `NivelDelvis=false` en `candado.config` lo apaga.
