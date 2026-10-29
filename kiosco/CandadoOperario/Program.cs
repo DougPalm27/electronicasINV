@@ -1024,6 +1024,7 @@ namespace CandadoOperario
         TextBox[] cajas = new TextBox[3];
         Label[] estados = new Label[3];
         Label info;
+        CheckBox misma;
 
         public ClavesForm()
         {
@@ -1033,7 +1034,7 @@ namespace CandadoOperario
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = MinimizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(520, 300);
+            ClientSize = new Size(520, 332);
             TopMost = true;
 
             Controls.Add(new Label { Text = "Escribe solo las que quieras guardar o cambiar. En blanco = se deja como está.", Location = new Point(16, 12), Size = new Size(490, 44) });
@@ -1046,11 +1047,21 @@ namespace CandadoOperario
                 Controls.Add(cajas[i]);
                 Controls.Add(estados[i]);
             }
-            info = new Label { Location = new Point(16, 196), Size = new Size(490, 48), ForeColor = Color.FromArgb(160, 30, 30) };
+            // En la planta los 3 niveles usan la misma: se escribe una vez
+            misma = new CheckBox { Text = "La misma para los 3 niveles", Location = new Point(90, 192), Size = new Size(400, 28), Checked = true };
+            Controls.Add(misma);
+            EventHandler copiar = delegate
+            {
+                for (int i = 1; i < 3; i++) { cajas[i].Enabled = !misma.Checked; if (misma.Checked) cajas[i].Text = cajas[0].Text; }
+            };
+            misma.CheckedChanged += copiar;
+            cajas[0].TextChanged += copiar;
+            copiar(null, EventArgs.Empty);
+            info = new Label { Location = new Point(16, 228), Size = new Size(490, 48), ForeColor = Color.FromArgb(160, 30, 30) };
             Controls.Add(info);
-            Button guardar = new Button { Text = "Guardar", Location = new Point(300, 250), Size = new Size(100, 36) };
-            Button borrar = new Button { Text = "Borrar todas", Location = new Point(16, 250), Size = new Size(130, 36) };
-            Button cerrar = new Button { Text = "Cerrar", Location = new Point(408, 250), Size = new Size(96, 36), DialogResult = DialogResult.Cancel };
+            Button guardar = new Button { Text = "Guardar", Location = new Point(300, 282), Size = new Size(100, 36) };
+            Button borrar = new Button { Text = "Borrar todas", Location = new Point(16, 282), Size = new Size(130, 36) };
+            Button cerrar = new Button { Text = "Cerrar", Location = new Point(408, 282), Size = new Size(96, 36), DialogResult = DialogResult.Cancel };
             Controls.Add(guardar); Controls.Add(borrar); Controls.Add(cerrar);
             AcceptButton = guardar; CancelButton = cerrar;
             guardar.Click += delegate { Guardar(); };
