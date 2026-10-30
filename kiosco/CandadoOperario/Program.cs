@@ -24,8 +24,8 @@ using System.Xml.Linq;
 [assembly: AssemblyProduct("Candado de Operario")]
 [assembly: AssemblyCompany("Honducafe")]
 [assembly: AssemblyCopyright("Desarrollado por Douglas Palma · © 2026")]
-[assembly: AssemblyVersion("1.4.1.0")]
-[assembly: AssemblyFileVersion("1.4.1.0")]
+[assembly: AssemblyVersion("1.4.2.0")]
+[assembly: AssemblyFileVersion("1.4.2.0")]
 
 namespace CandadoOperario
 {
@@ -1009,10 +1009,30 @@ namespace CandadoOperario
             return sb.ToString();
         }
 
-        public static List<Ventana> Ventanas()
+        // Procesos de Delvis: se buscan cada 10 s, no en cada revisión (listar procesos cuesta más que mirar ventanas)
+        static HashSet<uint> pidsDelvis = new HashSet<uint>();
+        static DateTime pidsFecha = DateTime.MinValue;
+
+        static HashSet<uint> PidsDelvis()
         {
-            HashSet<uint> pids = new HashSet<uint>();
-            foreach (Process p in Process.GetProcessesByName("Delvis")) { pids.Add((uint)p.Id); p.Dispose(); }
+            if ((DateTime.UtcNow - pidsFecha).TotalSeconds >= 10)
+            {
+                HashSet<uint> pids = new HashSet<uint>();
+                foreach (Process p in Process.GetProcessesByName("Delvis")) { pids.Add((uint)p.Id); p.Dispose(); }
+                pidsDelvis = pids;
+                pidsFecha = DateTime.UtcNow;
+            }
+            return pidsDelvis;
+        }
+
+        // completo = false (cada medio segundo durante el turno): solo se mira la clase de los controles, que Windows
+        // contesta sin molestar a Delvis; los textos se le piden únicamente a una ventana con caja de texto (la de
+        // contraseña) que aún no se haya atendido. Así, con Delvis en su pantalla normal, no recibe ningún mensaje.
+        // completo = true (diagnóstico): textos de todo.
+        public static List<Ventana> Ventanas(bool completo)
+        {
+            HashSet<uint> pids = completo ? new HashSet<uint>() : PidsDelvis();
+            if (completo) { foreach (Process p in Process.GetProcessesByName("Delvis")) { pids.Add((uint)p.Id); p.Dispose(); } }
             List<Ventana> r = new List<Ventana>();
             if (pids.Count == 0) return r;
             EnumWindows(delegate(IntPtr h, IntPtr l)
@@ -1021,19 +1041,29 @@ namespace CandadoOperario
                 GetWindowThreadProcessId(h, out pid);
                 if (!pids.Contains(pid) || !IsWindowVisible(h)) return true;
                 Ventana v = new Ventana();
-                v.Hwnd = h; v.Clase = Clase(h); v.Titulo = Texto(h);
-                v.Textos.Add(v.Titulo);
+                v.Hwnd = h; v.Clase = Clase(h);
+                List<IntPtr> otros = new List<IntPtr>();
                 EnumChildWindows(h, delegate(IntPtr c, IntPtr l2)
                 {
                     if (!IsWindowVisible(c)) return true;
-                    string cl = Clase(c);
-                    bool caja = cl.IndexOf("EDIT", StringComparison.OrdinalIgnoreCase) >= 0;
-                    string t = caja ? "" : Texto(c);
-                    if (caja) v.Cajas.Add(c); else if (t.Length > 0) v.Textos.Add(t);
-                    v.Hijos.Add(cl + (caja ? "  [caja de texto]" : t.Length > 0 ? "  \"" + t.Replace("\r", " ").Replace("\n", " ") + "\"" : ""));
+                    if (Clase(c).IndexOf("EDIT", StringComparison.OrdinalIgnoreCase) >= 0) v.Cajas.Add(c); else otros.Add(c);
                     return true;
                 }, IntPtr.Zero);
-                v.Nivel = NivelPedido(string.Join(" | ", v.Textos.ToArray()));
+                bool leer = completo || (v.Cajas.Count > 0 && !atendidas.Contains(h));
+                if (leer)
+                {
+                    v.Titulo = Texto(h);
+                    v.Textos.Add(v.Titulo);
+                    foreach (IntPtr c in otros)
+                    {
+                        string t = Texto(c);
+                        if (t.Length > 0) v.Textos.Add(t);
+                        if (completo) v.Hijos.Add(Clase(c) + (t.Length > 0 ? "  \"" + t.Replace("\r", " ").Replace("\n", " ") + "\"" : ""));
+                    }
+                    if (completo) foreach (IntPtr c in v.Cajas) v.Hijos.Add(Clase(c) + "  [caja de texto]");
+                    v.Nivel = NivelPedido(string.Join(" | ", v.Textos.ToArray()));
+                }
+                else v.Titulo = "";
                 r.Add(v);
                 return true;
             }, IntPtr.Zero);
@@ -1048,12 +1078,14 @@ namespace CandadoOperario
         // Se llama cada medio segundo mientras hay un operario con nivel. Devuelve qué hizo (para la bitácora) o null.
         public static string Revisar(int nivelOperario)
         {
-            List<Ventana> vs = Ventanas();
+            atendidas.RemoveWhere(delegate(IntPtr h) { return !IsWindow(h); });
+            List<Ventana> vs = Ventanas(false);
             atendidas.RemoveWhere(delegate(IntPtr h) { return !IsWindow(h); });
             foreach (Ventana v in vs)
             {
-                if (v.Nivel == 0 || v.Cajas.Count == 0 || atendidas.Contains(v.Hwnd)) continue;
-                atendidas.Add(v.Hwnd);
+                if (v.Cajas.Count == 0 || atendidas.Contains(v.Hwnd)) continue;
+                atendidas.Add(v.Hwnd);   // otras ventanas con caja (teclado numérico de Delvis) también: se leen una sola vez
+                if (v.Nivel == 0) continue;
                 if (v.Nivel > nivelOperario) return "Delvis pide nivel " + v.Nivel + "; el operario tiene nivel " + nivelOperario + ": no se llena.";
 
                 // Solo se lee cuando Delvis pide una contraseña (pocas veces), así que no se guarda en memoria
@@ -1168,7 +1200,7 @@ namespace CandadoOperario
             Dictionary<int, string> c = Todas(), h = Huellas(), sis = DelSistema();
             for (int n = 1; n <= 3; n++) sb.AppendLine("  Nivel " + n + ": " + Estado(n, c, h) + (sis.ContainsKey(n) ? " (del sistema)" : c.ContainsKey(n) ? " (de esta PC)" : ""));
             sb.Append(DiagnosticoHuellas(c));
-            List<Ventana> vs = Ventanas();
+            List<Ventana> vs = Ventanas(true);
             sb.AppendLine("Ventanas visibles de Delvis: " + vs.Count);
             foreach (Ventana v in vs)
             {
