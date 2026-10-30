@@ -188,6 +188,11 @@ try {
             resp($r);
             break;
 
+        // El candado avisa que sigue vivo (lo usa el puente del cuarto de control; aquí no se guarda nada)
+        case 'latido':
+            resp([]);
+            break;
+
         case 'estado':
             $activa = $model->sesionActivaEn($estacion);
             resp(['activa' => $activa]);

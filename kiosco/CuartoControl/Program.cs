@@ -1,6 +1,8 @@
 // Cuarto de control: lista de las máquinas de cada planta, si responden en la red y conexión con doble clic.
 // Lee y guarda las mismas conexiones que el visor 3D (salida\remoto.json de cada planta). Sin contraseñas:
 // las pide TightVNC / Escritorio remoto al conectar.
+// También arranca y muestra el puente de los candados (Planos\utilidades\servidor.py): versión, turno, fallas de
+// Delvis y turnos por subir de cada máquina, y los reportes de diagnóstico que mandan.
 //
 // Compilar: compilar.bat (usa el compilador de .NET 4 que trae Windows).
 // Prueba sin ventana: CuartoControl.exe --prueba   (estado de todas las máquinas en la consola y en %TEMP%\CuartoControl-prueba.txt)
@@ -8,8 +10,11 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
@@ -20,8 +25,8 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Cuarto de control")]
 [assembly: AssemblyProduct("Cuarto de control - Honducafe")]
-[assembly: AssemblyVersion("1.4.0.0")]
-[assembly: AssemblyFileVersion("1.4.0.0")]
+[assembly: AssemblyVersion("1.4.3.0")]
+[assembly: AssemblyFileVersion("1.4.3.0")]
 
 namespace CuartoControl
 {
@@ -32,6 +37,8 @@ namespace CuartoControl
         public static string VisorVnc = "";       // tvnviewer.exe; vacío = buscarlo
         public static int Intervalo = 30;         // segundos entre revisiones automáticas
         public static int Espera = 1500;          // ms máximos para decidir si una máquina responde
+        public static string Puente = "http://127.0.0.1:8000";   // puente de los candados (utilidades\servidor.py)
+        public static string Python = "";         // pythonw.exe para arrancar el puente; vacío = el del PATH
 
         public static string Archivo { get { return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CuartoControl.config"); } }
 
@@ -52,6 +59,8 @@ namespace CuartoControl
                             case "visorvnc": VisorVnc = v; break;
                             case "intervalo": if (int.TryParse(v, out n) && n >= 5) Intervalo = n; break;
                             case "espera": if (int.TryParse(v, out n) && n >= 200) Espera = n; break;
+                            case "puente": if (Regex.IsMatch(v, @"^https?://[^\s/]+$")) Puente = v; break;
+                            case "python": Python = v; break;
                         }
                     }
             }
@@ -103,7 +112,7 @@ namespace CuartoControl
         public string Puerto = "";
         public string Url = "";
         public string Nota = "";
-        public string Estado = "";     // "", "ok", "mal", "revisando"
+        public string Estado = "";     // "", "ok" (responde el VNC/RDP), "ping" (solo ping), "mal", "revisando"
         public DateTime Revisado;
 
         public bool Configurada { get { return Protocolo == "url" ? Url != "" : Host != ""; } }
@@ -235,6 +244,12 @@ namespace CuartoControl
             catch (Exception) { return false; }
         }
 
+        public static bool Ping(string host, int espera)
+        {
+            try { using (var p = new System.Net.NetworkInformation.Ping()) return p.Send(host, espera).Status == IPStatus.Success; }
+            catch (Exception) { return false; }
+        }
+
         // Devuelve null si abrió; si no, el motivo
         public static string Conectar(Maquina m)
         {
@@ -348,15 +363,97 @@ namespace CuartoControl
         void Error(string t) { MessageBox.Show(this, t, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); }
     }
 
+    // ───────────────────────── Puente (utilidades/servidor.py) ─────────────────────────
+    // El puente corre en esta PC (Python): recibe a los candados de las máquinas y guarda el estado de cada una.
+    // La app lo arranca si no está corriendo y lee su estado de http://127.0.0.1:8000/api/estado.
+    static class Puente
+    {
+        class Cliente : WebClient
+        {
+            protected override WebRequest GetWebRequest(Uri u) { WebRequest r = base.GetWebRequest(u); r.Timeout = 3000; return r; }
+        }
+
+        public static string Carpeta { get { return Path.Combine(Cfg.Carpeta, "utilidades"); } }
+
+        // null si no responde
+        public static Dictionary<string, object> Estado()
+        {
+            try
+            {
+                using (var c = new Cliente { Encoding = Encoding.UTF8 })
+                    return new JavaScriptSerializer { MaxJsonLength = 8 * 1024 * 1024 }.DeserializeObject(c.DownloadString(Cfg.Puente + "/api/estado")) as Dictionary<string, object>;
+            }
+            catch (Exception) { return null; }
+        }
+
+        public static string Reporte(string url)
+        {
+            using (var c = new Cliente { Encoding = Encoding.UTF8 }) return c.DownloadString(Cfg.Puente + url);
+        }
+
+        // Devuelve null si lo arrancó; si no, el motivo
+        public static string Iniciar()
+        {
+            string srv = Path.Combine(Carpeta, "servidor.py");
+            if (!File.Exists(srv)) return "No encontré " + srv;
+            string py = Cfg.Python != "" ? Cfg.Python : "pythonw.exe";
+            try
+            {
+                var psi = new ProcessStartInfo(py, "\"" + srv + "\"") { WorkingDirectory = Carpeta, UseShellExecute = false, CreateNoWindow = true };
+                Process.Start(psi);
+                return null;
+            }
+            catch (Exception ex) { return "No se pudo arrancar el puente con " + py + ": " + ex.Message + "\nInstala Python o escribe su ruta en CuartoControl.config (Python=...pythonw.exe)."; }
+        }
+
+        public static string Txt(Dictionary<string, object> d, string k)
+        {
+            object v;
+            return d != null && d.TryGetValue(k, out v) && v != null ? Convert.ToString(v) : "";
+        }
+
+        // "2026-10-30 09:56:36" -> "hace 3 min" (respecto a la hora del puente)
+        public static string Hace(string fecha, string ahora)
+        {
+            DateTime f, a;
+            if (!DateTime.TryParseExact(fecha, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out f)) return "";
+            if (!DateTime.TryParseExact(ahora, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out a)) a = DateTime.Now;
+            TimeSpan t = a - f;
+            if (t.TotalSeconds < 90) return "ahora";
+            if (t.TotalMinutes < 60) return "hace " + (int)t.TotalMinutes + " min";
+            if (t.TotalHours < 24) return "hace " + (int)t.TotalHours + " h";
+            return f.ToString("dd/MM HH:mm");
+        }
+
+        public static double Minutos(string fecha, string ahora)
+        {
+            DateTime f, a;
+            if (!DateTime.TryParseExact(fecha, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out f)) return double.MaxValue;
+            if (!DateTime.TryParseExact(ahora, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out a)) a = DateTime.Now;
+            return (a - f).TotalMinutes;
+        }
+    }
+
     // ───────────────────────── Ventana principal ─────────────────────────
     class FormPrincipal : Form
     {
         readonly TabControl tabs = new TabControl { Dock = DockStyle.Fill };
         readonly ImageList iconos = new ImageList { ImageSize = new Size(16, 16), ColorDepth = ColorDepth.Depth32Bit };
         readonly Label lblEstado = new Label { Dock = DockStyle.Bottom, Height = 26, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(8, 0, 0, 0) };
+        readonly Label lblPuente = new Label { AutoSize = true, Padding = new Padding(4, 7, 4, 0) };
+        readonly Button bPuente;
         readonly System.Windows.Forms.Timer reloj = new System.Windows.Forms.Timer();
+        readonly System.Windows.Forms.Timer relojPuente = new System.Windows.Forms.Timer { Interval = 10000 };
         readonly Dictionary<string, List<Maquina>> datos = new Dictionary<string, List<Maquina>>();
+        readonly ListView lvEstaciones = Lista();
+        readonly ListView lvReportes = Lista();
+        readonly TextBox txtReporte = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both, WordWrap = false, Font = new Font("Consolas", 9.5f), BackColor = SystemColors.Window };
+        Dictionary<string, object> puente;      // último /api/estado (null = el puente no responde)
+        DateTime arrancado = DateTime.MinValue;
         int revisando;
+        string reporteVisto = "";
+
+        static readonly Color Rojo = Color.FromArgb(252, 226, 224);
 
         static Bitmap Punto(Color c)
         {
@@ -369,26 +466,34 @@ namespace CuartoControl
             return b;
         }
 
+        static ListView Lista()
+        {
+            return new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, MultiSelect = false, HideSelection = false };
+        }
+
         public FormPrincipal()
         {
             Text = "Cuarto de control";
             Font = new Font("Segoe UI", 10f);
-            Size = new Size(860, 560);
-            MinimumSize = new Size(560, 360);
+            Size = new Size(1180, 620);
+            MinimumSize = new Size(700, 400);
             StartPosition = FormStartPosition.CenterScreen;
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch (Exception) { }
 
             iconos.Images.Add("nada", Punto(Color.FromArgb(160, 160, 160)));     // sin configurar
-            iconos.Images.Add("ok", Punto(Color.FromArgb(34, 160, 70)));        // responde
+            iconos.Images.Add("ok", Punto(Color.FromArgb(34, 160, 70)));        // VNC responde
+            iconos.Images.Add("ping", Punto(Color.FromArgb(230, 170, 30)));     // responde al ping pero no al VNC
             iconos.Images.Add("mal", Punto(Color.FromArgb(210, 50, 50)));       // no responde
-            iconos.Images.Add("revisando", Punto(Color.FromArgb(230, 170, 30))); // revisando
+            iconos.Images.Add("revisando", Punto(Color.FromArgb(150, 180, 220)));
 
             var barra = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(6, 6, 6, 2) };
             Button bConectar = Boton("Conectar", (s, e) => Conectar(Seleccionada()));
             Button bConfig = Boton("Configurar…", (s, e) => Configurar(Seleccionada()));
-            Button bRevisar = Boton("Revisar ahora", (s, e) => RevisarTodo());
+            Button bRevisar = Boton("Revisar ahora", (s, e) => { RevisarTodo(); LeerPuente(); });
             Button bRecargar = Boton("Recargar lista", (s, e) => Cargar());
-            barra.Controls.AddRange(new Control[] { bConectar, bConfig, bRevisar, bRecargar });
+            bPuente = Boton("Iniciar puente", (s, e) => IniciarPuente());
+            Button bPagina = Boton("Página de utilidades", (s, e) => { try { Process.Start(Cfg.Puente); } catch (Exception) { } });
+            barra.Controls.AddRange(new Control[] { bConectar, bConfig, bRevisar, bRecargar, bPuente, bPagina, lblPuente });
 
             Controls.Add(tabs);
             Controls.Add(barra);
@@ -396,7 +501,14 @@ namespace CuartoControl
 
             reloj.Interval = Cfg.Intervalo * 1000;
             reloj.Tick += (s, e) => RevisarTodo();
-            Shown += (s, e) => { Cargar(); reloj.Start(); };
+            relojPuente.Tick += (s, e) => LeerPuente();
+            Shown += (s, e) =>
+            {
+                Cargar();
+                reloj.Start();
+                LeerPuente();
+                relojPuente.Start();
+            };
         }
 
         static Button Boton(string t, EventHandler h)
@@ -424,13 +536,19 @@ namespace CuartoControl
                 catch (Exception ex) { lista = new List<Maquina>(); error = ex.Message; }
                 datos[p.Nombre] = lista;
 
-                var lv = new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, MultiSelect = false, HideSelection = false, SmallImageList = iconos };
-                lv.Columns.Add("Máquina", 120);
-                lv.Columns.Add("Estado", 130);
-                lv.Columns.Add("Conexión", 90);
-                lv.Columns.Add("Equipo", 220);
-                lv.Columns.Add("Nota", 240);
-                foreach (Maquina m in lista) lv.Items.Add(new ListViewItem(new[] { "", "", "", "", "" }) { Tag = m });
+                var lv = Lista();
+                lv.SmallImageList = iconos;
+                lv.ShowItemToolTips = true;
+                lv.Columns.Add("Máquina", 95);
+                lv.Columns.Add("Red", 135);
+                lv.Columns.Add("Candado", 75);
+                lv.Columns.Add("Último contacto", 120);
+                lv.Columns.Add("Turno", 150);
+                lv.Columns.Add("Fallas de Delvis", 220);
+                lv.Columns.Add("Por subir", 75);
+                lv.Columns.Add("Equipo", 150);
+                lv.Columns.Add("Nota", 160);
+                foreach (Maquina m in lista) lv.Items.Add(new ListViewItem(new string[9]) { Tag = m });
                 lv.DoubleClick += (s, e) => Conectar(Seleccionada());
                 lv.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) Conectar(Seleccionada()); };
                 var tp = new TabPage(p.Nombre);
@@ -441,31 +559,88 @@ namespace CuartoControl
                 tabs.TabPages.Add(tp);
                 foreach (ListViewItem it in lv.Items) Pintar(it);
             }
+
+            // Todas las estaciones que han hablado con el puente (también las que no están en el plano)
+            if (lvEstaciones.Columns.Count == 0)
+            {
+                foreach (var c in new[] { new { t = "Estación", w = 130 }, new { t = "IP", w = 120 }, new { t = "Candado", w = 75 }, new { t = "Último contacto", w = 120 },
+                                          new { t = "Turno", w = 150 }, new { t = "Fallas de Delvis", w = 220 }, new { t = "Por subir", w = 75 }, new { t = "Última sincronización", w = 150 } })
+                    lvEstaciones.Columns.Add(c.t, c.w);
+            }
+            var tpE = new TabPage("Candados");
+            tpE.Controls.Add(lvEstaciones);
+            tabs.TabPages.Add(tpE);
+
+            if (lvReportes.Columns.Count == 0)
+            {
+                lvReportes.Columns.Add("Equipo", 220);
+                lvReportes.Columns.Add("Fecha", 130);
+                lvReportes.Columns.Add("Tamaño", 80);
+                lvReportes.SelectedIndexChanged += (s, e) => VerReporte();
+            }
+            var division = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, FixedPanel = FixedPanel.Panel1 };
+            bool repartido = false;
+            division.SizeChanged += (s, e) => { if (!repartido && division.Width > 500) { division.SplitterDistance = 440; repartido = true; } };   // lista angosta, reporte ancho
+            division.Panel1.Controls.Add(lvReportes);
+            division.Panel2.Controls.Add(txtReporte);
+            var tpR = new TabPage("Reportes");
+            tpR.Controls.Add(division);
+            tabs.TabPages.Add(tpR);
+
             if (sel != null) foreach (TabPage t in tabs.TabPages) if (t.Text == sel) tabs.SelectedTab = t;
+            PintarPuente();
             RevisarTodo();
         }
 
-        static void Pintar(ListViewItem it)
+        // Estado que mandó el candado de esa máquina (por su IP), o null
+        Dictionary<string, object> DelPuente(Maquina m)
+        {
+            var maq = puente == null ? null : puente.ContainsKey("maquinas") ? puente["maquinas"] as Dictionary<string, object> : null;
+            if (maq == null || m.Host == "") return null;
+            Dictionary<string, object> mejor = null;
+            foreach (var kv in maq)
+            {
+                var d = kv.Value as Dictionary<string, object>;
+                if (d == null || Puente.Txt(d, "ip") != m.Host) continue;
+                if (mejor == null || string.CompareOrdinal(Puente.Txt(d, "ultima"), Puente.Txt(mejor, "ultima")) > 0) { mejor = d; mejor["_estacion"] = kv.Key; }
+            }
+            return mejor;
+        }
+
+        void Pintar(ListViewItem it)
         {
             var m = (Maquina)it.Tag;
             it.Text = m.Id;
             string h; int pu;
             it.SubItems[1].Text = !m.Configurada ? "Sin configurar"
                 : !m.Destino(out h, out pu) ? "Dato no válido"
-                : m.Estado == "ok" ? "Responde"
+                : m.Estado == "ok" ? "Ping ✓ · " + Nombre(m) + " ✓"
+                : m.Estado == "ping" ? "Ping ✓ · " + Nombre(m) + " ✗"
                 : m.Estado == "mal" ? "No responde"
                 : m.Estado == "revisando" ? "Revisando…" : "";
-            it.SubItems[2].Text = !m.Configurada ? "" : m.Protocolo == "rdp" ? "RDP" : m.Protocolo == "url" ? "Web" : "VNC";
-            it.SubItems[3].Text = !m.Configurada ? "" : m.Protocolo == "url" ? m.Url : m.Host + ":" + m.PuertoEfectivo;
-            it.SubItems[4].Text = m.Nota;
             it.ImageKey = m.Configurada && m.Estado != "" ? m.Estado : "nada";
-            it.ToolTipText = m.Configurada && m.Revisado != DateTime.MinValue ? "Revisado a las " + m.Revisado.ToString("HH:mm:ss") : "";
+            it.SubItems[7].Text = !m.Configurada ? "" : m.Protocolo == "url" ? m.Url : m.Host + ":" + m.PuertoEfectivo;
+            it.SubItems[8].Text = m.Nota;
+
+            var c = DelPuente(m);
+            string ahora = Puente.Txt(puente, "ahora");
+            string fallas = Puente.Txt(c, "fallas");
+            it.SubItems[2].Text = Puente.Txt(c, "version");
+            it.SubItems[3].Text = c == null ? (puente == null ? "puente apagado" : "sin datos") : Puente.Hace(Puente.Txt(c, "ultima"), ahora);
+            it.SubItems[4].Text = c == null ? "" : !c.ContainsKey("turno") ? "(candado < 1.4.3)" : Puente.Txt(c, "turno") == "" ? "Bloqueado" : Puente.Txt(c, "turno");
+            it.SubItems[5].Text = fallas;
+            it.SubItems[6].Text = Puente.Txt(c, "pendientes");
+            it.BackColor = fallas != "" ? Rojo : SystemColors.Window;
+            it.ToolTipText = (c != null ? "Estación del candado: " + Puente.Txt(c, "_estacion") + "\n" : "") +
+                             (m.Configurada && m.Revisado != DateTime.MinValue ? "Red revisada a las " + m.Revisado.ToString("HH:mm:ss") : "");
         }
+
+        static string Nombre(Maquina m) { return m.Protocolo == "rdp" ? "RDP" : m.Protocolo == "url" ? "Web" : "VNC"; }
 
         Maquina Seleccionada()
         {
             var lv = tabs.SelectedTab == null ? null : tabs.SelectedTab.Controls.OfType<ListView>().FirstOrDefault();
-            if (lv == null || lv.SelectedItems.Count == 0) { lblEstado.Text = "Elige una máquina de la lista."; return null; }
+            if (lv == null || lv.SelectedItems.Count == 0 || !(lv.SelectedItems[0].Tag is Maquina)) { lblEstado.Text = "Elige una máquina de la lista (pestaña Planta 1 o Planta 2)."; return null; }
             return (Maquina)lv.SelectedItems[0].Tag;
         }
 
@@ -514,11 +689,12 @@ namespace CuartoControl
             ThreadPool.QueueUserWorkItem(_ =>
             {
                 bool ok = Red.Responde(host, puerto, Cfg.Espera);
+                bool ping = ok || Red.Ping(host, Cfg.Espera);
                 try
                 {
                     BeginInvoke(new Action(() =>
                     {
-                        m.Estado = ok ? "ok" : "mal";
+                        m.Estado = ok ? "ok" : ping ? "ping" : "mal";
                         m.Revisado = DateTime.Now;
                         Refrescar(m);
                         if (Interlocked.Decrement(ref revisando) == 0) Resumen();
@@ -533,8 +709,116 @@ namespace CuartoControl
             var todas = datos.Values.SelectMany(x => x).Where(x => x.Configurada).ToList();
             string h; int pu;
             int malas = todas.Count(x => !x.Destino(out h, out pu));
-            lblEstado.Text = "Revisado a las " + DateTime.Now.ToString("HH:mm:ss") + ": " + todas.Count(x => x.Estado == "ok") + " responden, " +
-                             (todas.Count(x => x.Estado == "mal") - malas) + " no responden" + (malas > 0 ? ", " + malas + " con dato no válido" : "") + ". Se revisa cada " + Cfg.Intervalo + " s. Doble clic para conectar.";
+            lblEstado.Text = "Red revisada a las " + DateTime.Now.ToString("HH:mm:ss") + ": " + todas.Count(x => x.Estado == "ok") + " con VNC, " +
+                             todas.Count(x => x.Estado == "ping") + " solo ping, " + (todas.Count(x => x.Estado == "mal") - malas) + " no responden" +
+                             (malas > 0 ? ", " + malas + " con dato no válido" : "") + ". Cada " + Cfg.Intervalo + " s. Doble clic para conectar.";
+        }
+
+        // ── Puente ──
+        void LeerPuente()
+        {
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                var e = Puente.Estado();
+                try { BeginInvoke(new Action(() => { puente = e; PintarPuente(); })); }
+                catch (InvalidOperationException) { }
+            });
+        }
+
+        void IniciarPuente()
+        {
+            string err = Puente.Iniciar();
+            if (err != null) { MessageBox.Show(this, err, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            arrancado = DateTime.Now;
+            lblPuente.Text = "Arrancando el puente…";
+            var t = new System.Windows.Forms.Timer { Interval = 2500 };
+            t.Tick += (s, e) => { t.Stop(); t.Dispose(); LeerPuente(); };
+            t.Start();
+        }
+
+        void PintarPuente()
+        {
+            if (puente == null)
+            {
+                bPuente.Visible = true;
+                lblPuente.ForeColor = Color.Firebrick;
+                lblPuente.Text = (DateTime.Now - arrancado).TotalSeconds < 15 ? "Arrancando el puente…" : "Puente apagado: las máquinas no pueden sincronizar.";
+            }
+            else
+            {
+                bPuente.Visible = false;
+                var p = puente.ContainsKey("puente") ? puente["puente"] as Dictionary<string, object> : null;
+                string ahora = Puente.Txt(puente, "ahora");
+                int pend;
+                int.TryParse(Puente.Txt(p, "pendientes"), out pend);
+                string copia = Puente.Txt(p, "copia_operarios");
+                lblPuente.ForeColor = pend > 0 || copia == "" ? Color.DarkGoldenrod : Color.FromArgb(20, 110, 50);
+                lblPuente.Text = "Puente activo · por subir: " + pend +
+                                 " · copia de operarios: " + (copia == "" ? "sin copia" : Puente.Hace(copia, ahora)) +
+                                 " · versión publicada: " + (Puente.Txt(p, "version") == "" ? "?" : Puente.Txt(p, "version"));
+            }
+
+            foreach (TabPage tp in tabs.TabPages)
+                foreach (ListView lv in tp.Controls.OfType<ListView>())
+                    if (lv != lvEstaciones)
+                        foreach (ListViewItem it in lv.Items) if (it.Tag is Maquina) Pintar(it);
+
+            PintarEstaciones();
+            PintarReportes();
+        }
+
+        void PintarEstaciones()
+        {
+            var maq = puente == null ? null : puente.ContainsKey("maquinas") ? puente["maquinas"] as Dictionary<string, object> : null;
+            string ahora = Puente.Txt(puente, "ahora");
+            lvEstaciones.BeginUpdate();
+            lvEstaciones.Items.Clear();
+            if (maq != null)
+                foreach (var kv in maq.OrderBy(x => x.Key))
+                {
+                    var d = kv.Value as Dictionary<string, object>;
+                    if (d == null) continue;
+                    string fallas = Puente.Txt(d, "fallas");
+                    var it = new ListViewItem(new[] {
+                        kv.Key, Puente.Txt(d, "ip"), Puente.Txt(d, "version"), Puente.Hace(Puente.Txt(d, "ultima"), ahora),
+                        !d.ContainsKey("turno") ? "(candado < 1.4.3)" : Puente.Txt(d, "turno") == "" ? "Bloqueado" : Puente.Txt(d, "turno"),
+                        fallas, Puente.Txt(d, "pendientes"), Puente.Hace(Puente.Txt(d, "ultima_sync"), ahora) });
+                    if (fallas != "") it.BackColor = Rojo;
+                    else if (Puente.Minutos(Puente.Txt(d, "ultima"), ahora) > 15) it.ForeColor = SystemColors.GrayText;   // hace rato que no habla
+                    lvEstaciones.Items.Add(it);
+                }
+            lvEstaciones.EndUpdate();
+        }
+
+        void PintarReportes()
+        {
+            var lista = puente == null ? null : puente.ContainsKey("reportes") ? puente["reportes"] as object[] : null;
+            string sel = lvReportes.SelectedItems.Count > 0 ? (string)lvReportes.SelectedItems[0].Tag : null;
+            lvReportes.BeginUpdate();
+            lvReportes.Items.Clear();
+            if (lista != null)
+                foreach (object o in lista)
+                {
+                    var d = o as Dictionary<string, object>;
+                    if (d == null) continue;
+                    string nombre = Puente.Txt(d, "nombre");
+                    long tam;
+                    long.TryParse(Puente.Txt(d, "tam"), out tam);
+                    var it = new ListViewItem(new[] { Regex.Replace(nombre, @"_\d{8}-\d{6}\.txt$", ""), Puente.Txt(d, "fecha"), (tam / 1024.0).ToString("0.0") + " KB" }) { Tag = Puente.Txt(d, "url") };
+                    lvReportes.Items.Add(it);
+                    if ((string)it.Tag == sel) it.Selected = true;
+                }
+            lvReportes.EndUpdate();
+        }
+
+        void VerReporte()
+        {
+            if (lvReportes.SelectedItems.Count == 0) return;
+            string url = (string)lvReportes.SelectedItems[0].Tag;
+            if (url == reporteVisto) return;
+            reporteVisto = url;
+            try { txtReporte.Text = Puente.Reporte(url).Replace("\r\n", "\n").Replace("\n", "\r\n"); }
+            catch (Exception ex) { txtReporte.Text = "No se pudo leer el reporte: " + ex.Message; }
         }
     }
 

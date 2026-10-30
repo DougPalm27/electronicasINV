@@ -24,8 +24,8 @@ using System.Xml.Linq;
 [assembly: AssemblyProduct("Candado de Operario")]
 [assembly: AssemblyCompany("Honducafe")]
 [assembly: AssemblyCopyright("Desarrollado por Douglas Palma · © 2026")]
-[assembly: AssemblyVersion("1.4.2.0")]
-[assembly: AssemblyFileVersion("1.4.2.0")]
+[assembly: AssemblyVersion("1.4.3.0")]
+[assembly: AssemblyFileVersion("1.4.3.0")]
 
 namespace CandadoOperario
 {
@@ -222,8 +222,20 @@ namespace CandadoOperario
         }
     }
 
+    // Estado del candado que va en cada envío, para el Cuarto de control (lo guarda el puente de la PC
+    // del cuarto de control; el servidor de internet lo ignora). Solo lo llena el candado que tiene la pantalla:
+    // la tarea de actualización (SYSTEM) no lo manda, para no borrar el turno que ve el puente.
+    static class Aviso
+    {
+        public static bool Activo;
+        public static string Turno = "";     // nombre del operario en turno, "" = bloqueado
+        public static string Fallas = "";    // fallas activas de Delvis (texto de la franja roja)
+    }
+
     static class Api
     {
+        public static DateTime UltimoContacto = DateTime.MinValue;   // último envío que llegó (para el latido)
+
         public static Res Post(Dictionary<string, string> fields)
         {
             Res res = new Res();
@@ -233,6 +245,17 @@ namespace CandadoOperario
                 foreach (KeyValuePair<string, string> kv in fields) data[kv.Key] = kv.Value;
                 data["estacion"] = Cfg.Estacion;
                 data["token"] = Cfg.Token;
+                data["version"] = fields.ContainsKey("version") ? fields["version"] : Actualizador.Actual().ToString();
+                if (Aviso.Activo)
+                {
+                    data["turno"] = Aviso.Turno;
+                    data["fallas"] = Aviso.Fallas;
+                    if (Monitor.TryEnter(Store.Lock, 200))
+                    {
+                        try { data["pendientes"] = (Store.Cola.Count + Store.Eventos.Count).ToString(); }
+                        finally { Monitor.Exit(Store.Lock); }
+                    }
+                }
                 string json;
                 using (var wc = new TimeoutClient())
                 {
@@ -244,6 +267,7 @@ namespace CandadoOperario
                 res.Ok = d.ContainsKey("ok") && d["ok"] is bool && (bool)d["ok"];
                 res.Msg = d.ContainsKey("mensaje") && d["mensaje"] != null ? d["mensaje"].ToString() : "";
                 res.Data = d.ContainsKey("data") ? d["data"] as Dictionary<string, object> : null;
+                UltimoContacto = DateTime.UtcNow;
             }
             catch (Exception)
             {
@@ -1933,6 +1957,7 @@ namespace CandadoOperario
 
         public Ctl()
         {
+            Aviso.Activo = true;
             // Turnos que quedaron abiertos por un reinicio o corte: se cierran ahora.
             lock (Store.Lock)
             {
@@ -2020,6 +2045,7 @@ namespace CandadoOperario
         void MostrarFallas()
         {
             string t = Fallas.Texto();
+            Aviso.Fallas = t;
             cover.SetFallas(t);
             cover.SetIgnoradas(Fallas.TextoIgnoradas());
             widget.SetFalla(t.Length > 0);
@@ -2052,6 +2078,8 @@ namespace CandadoOperario
                 bool okPush = Sincro.Push(out mPush);
                 bool okPull = true;
                 if (pull) okPull = Sincro.Pull(out mPull);
+                // Latido: si en el último minuto no hubo ningún envío, uno corto para que el Cuarto de control vea el estado
+                if ((DateTime.UtcNow - Api.UltimoContacto).TotalSeconds > 50) Api.Post(new Dictionary<string, string> { { "accion", "latido" } });
                 Interlocked.Exchange(ref syncing, 0);
                 cover.BeginInvoke(new Action(delegate
                 {
@@ -2108,6 +2136,7 @@ namespace CandadoOperario
             cur = t;
             nivel = op.nivel;
             NivelDelvis.Olvidar();
+            Aviso.Turno = op.nombre;
             Store.Estado("turno");
             Vigia.Iniciar(t);
 
@@ -2134,6 +2163,7 @@ namespace CandadoOperario
             t.inicio = Sincro.Now();
             cur = t;
             nivel = 0;   // con el código de emergencia no se escribe ningún nivel en Delvis
+            Aviso.Turno = "EMERGENCIA";
             Store.Estado("turno");
 
             cover.SetInfo("", false);
@@ -2155,6 +2185,7 @@ namespace CandadoOperario
             cur = null;
             nivel = 0;
             NivelDelvis.Olvidar();
+            Aviso.Turno = "";
         }
 
         void DoLock()
