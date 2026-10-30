@@ -74,6 +74,9 @@ El mismo `Setup-CandadoOperario-X.exe` pregunta qué instalar:
   `FaultClear`. Delvis deja fallas abiertas al cerrarse, por eso no se cuentan las anteriores a su arranque (*supuesto
   sacado de un Faults.log real*). Sin Delvis abierto no hay aviso. Solo lee el archivo, nunca escribe.
 - `candado.config`: `AvisoFallas=false` lo apaga; `FallasIgnorar=19:35,24:64` calla esos códigos. La pantalla de bloqueo muestra en una línea los tipos (grupo) ignorados y marca «(activa)» si alguno tiene una falla abierta.
+- Desde 1.4.4 tampoco avisa de los grupos marcados en **«Ignorar Fallas» de Delvis** (`Config.xml`,
+  `<_faultIgnoreFlags A="…">`, una posición por grupo = el primer número del código). La franja y la línea de
+  ignoradas muestran el nombre del grupo (Cámara, Alimentador…). `IgnorarComoDelvis=false` lo apaga.
 - Probar sin falla real: `CandadoOperario.exe --demo-falla` (15 s; dice qué fallas reales ve en ese momento).
 
 ## Nivel de Delvis automático (desde 1.4.1)

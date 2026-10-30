@@ -24,8 +24,8 @@ using System.Xml.Linq;
 [assembly: AssemblyProduct("Candado de Operario")]
 [assembly: AssemblyCompany("Honducafe")]
 [assembly: AssemblyCopyright("Desarrollado por Douglas Palma · © 2026")]
-[assembly: AssemblyVersion("1.4.3.0")]
-[assembly: AssemblyFileVersion("1.4.3.0")]
+[assembly: AssemblyVersion("1.4.4.0")]
+[assembly: AssemblyFileVersion("1.4.4.0")]
 
 namespace CandadoOperario
 {
@@ -39,7 +39,8 @@ namespace CandadoOperario
         public static int AutoMin = 15;
         public static bool PermitirSalir = false;
         public static bool AvisoFallas = true;    // la pantalla parpadea en rojo con una falla activa de Delvis
-        public static HashSet<string> FallasIgnorar = new HashSet<string>();   // "grupo:codigo" o "grupo:codigo:contexto"
+        public static HashSet<string> FallasIgnorar = new HashSet<string>();   // "grupo", "grupo:codigo" o "grupo:codigo:contexto"
+        public static bool IgnorarComoDelvis = true;   // también calla los grupos marcados en «Ignorar Fallas» de Delvis
         public static bool NivelDelvis = true;    // escribe la contraseña de nivel en Delvis según el operario (ver class NivelDelvis)
         public static string Url;
         public static string Base;   // direccion del sitio, sin la ruta del endpoint (de aqui se baja el instalador)
@@ -66,6 +67,7 @@ namespace CandadoOperario
                         case "autobloqueominutos": int.TryParse(v, out AutoMin); break;
                         case "permitirsalir": PermitirSalir = v.ToLowerInvariant() == "true" || v == "1"; break;
                         case "avisofallas": AvisoFallas = !(v.ToLowerInvariant() == "false" || v == "0"); break;
+                        case "ignorarcomodelvis": IgnorarComoDelvis = !(v.ToLowerInvariant() == "false" || v == "0"); break;
                         case "niveldelvis": NivelDelvis = !(v.ToLowerInvariant() == "false" || v == "0"); break;
                         case "fallasignorar":
                             foreach (string f in v.Split(new char[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)) FallasIgnorar.Add(f.Trim());
@@ -709,7 +711,46 @@ namespace CandadoOperario
         static DateTime leidoMtime;
         static long leidoLargo = -1;
         static DateTime? leidoInicio;
+        static DateTime leidoCfg;
         static readonly CultureInfo Us = new CultureInfo("en-US");
+
+        // Grupos de falla de Delvis (SPS2.FaultGroupType = el primer número del código en Faults.log), con el nombre
+        // que usa Delvis en español donde lo tiene; los marcados con * los traduje yo.
+        static readonly string[] Nombres = {
+            "Cámara", "Motor clasificador", "Sistema de E/S", "Alimentación de aire", "Eyector",
+            "Fuente motor clasificador", "Fuente de eyector", "Fuente de iluminación", "Lámparas de producto", "Lámparas de fondo",
+            "Indicador de fuente", "Fuente de cámara", "Temperatura", "Alimentador", "Porcentaje de rechazo",
+            "LED", "Visor abierto", "Bloqueo externo*", "Aviso de arranque*", "Disco USB*",
+            "Batería de reserva", "Eyectores disparan de más*", "Fuga de corriente*", "Fuente de enfriamiento*", "Limpieza manual*" };
+
+        public static string NombreGrupo(string g)
+        {
+            int n;
+            return int.TryParse(g, out n) && n >= 0 && n < Nombres.Length ? Nombres[n].TrimEnd('*') : "tipo " + g;
+        }
+
+        // Grupos que el operario marcó en «Ignorar Fallas» de Delvis: Config.xml, <_faultIgnoreFlags A="True,False,…" />
+        // (una posición por grupo). Delvis tampoco avisa de esos, así que el candado tampoco.
+        static HashSet<string> gruposDelvis = new HashSet<string>();
+
+        static HashSet<string> LeerIgnoradosDelvis(string ruta)
+        {
+            HashSet<string> r = new HashSet<string>();
+            try
+            {
+                string xml;
+                using (FileStream fs = new FileStream(ruta, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (StreamReader sr = new StreamReader(fs)) xml = sr.ReadToEnd();
+                Match m = Regex.Match(xml, @"<_faultIgnoreFlags\s+A=""([^""]*)""");
+                if (m.Success)
+                {
+                    string[] f = m.Groups[1].Value.Split(',');
+                    for (int i = 0; i < f.Length; i++) if (f[i].Trim().Equals("True", StringComparison.OrdinalIgnoreCase)) r.Add(i.ToString());
+                }
+            }
+            catch (Exception) { }
+            return r;
+        }
 
         // Hora en que arrancó Delvis; null si no está corriendo (sin Delvis no hay fallas que mostrar)
         static DateTime? InicioDelvis()
@@ -753,7 +794,10 @@ namespace CandadoOperario
                 return;
             }
             FileInfo fi = new FileInfo(p);
-            if (fi.Length == leidoLargo && fi.LastWriteTime == leidoMtime && inicio == leidoInicio) return;
+            string pc = Path.Combine(Cfg.DelvisDir, "Config.xml");
+            DateTime fc = Cfg.IgnorarComoDelvis && File.Exists(pc) ? File.GetLastWriteTime(pc) : DateTime.MinValue;
+            if (fi.Length == leidoLargo && fi.LastWriteTime == leidoMtime && inicio == leidoInicio && fc == leidoCfg) return;
+            if (fc != leidoCfg) gruposDelvis = fc == DateTime.MinValue ? new HashSet<string>() : LeerIgnoradosDelvis(pc);
 
             string[] lineas;
             using (FileStream fs = new FileStream(p, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
@@ -779,9 +823,10 @@ namespace CandadoOperario
             foreach (KeyValuePair<string, DateTime> kv in abiertas)
             {
                 string corta = kv.Key.Substring(0, kv.Key.LastIndexOf(':'));
-                if (Cfg.FallasIgnorar.Contains(kv.Key) || Cfg.FallasIgnorar.Contains(corta))
+                string grupo = kv.Key.Split(':')[0];
+                if (Cfg.FallasIgnorar.Contains(kv.Key) || Cfg.FallasIgnorar.Contains(corta) || Cfg.FallasIgnorar.Contains(grupo) || gruposDelvis.Contains(grupo))
                 {
-                    ignoradas.Add(kv.Key.Split(':')[0]);
+                    ignoradas.Add(grupo);
                     continue;
                 }
                 Activa a = new Activa();
@@ -792,27 +837,27 @@ namespace CandadoOperario
             nuevas.Sort(delegate(Activa x, Activa y) { return x.Desde.CompareTo(y.Desde); });
             Activas = nuevas;
             gruposIgnoradosActivos = ignoradas;
-            leidoLargo = fi.Length; leidoMtime = fi.LastWriteTime; leidoInicio = inicio;
+            leidoLargo = fi.Length; leidoMtime = fi.LastWriteTime; leidoInicio = inicio; leidoCfg = fc;
         }
 
-        // Para la pantalla de bloqueo: los tipos (grupo, el primer número del código) que están en FallasIgnorar,
-        // sin la lista completa. "activa" = ese tipo tiene ahora una falla abierta que no avisa por estar ignorada.
+        // Para la pantalla de bloqueo: los grupos ignorados (en Delvis o en FallasIgnorar), por nombre y sin la lista
+        // completa. "activa" = ese grupo tiene ahora una falla abierta que no avisa por estar ignorada.
         public static string TextoIgnoradas()
         {
-            if (Cfg.FallasIgnorar.Count == 0) return "";
-            List<string> grupos = new List<string>();
+            List<string> grupos = new List<string>(gruposDelvis);
             foreach (string f in Cfg.FallasIgnorar)
             {
                 string g = f.Split(':')[0];
                 if (!grupos.Contains(g)) grupos.Add(g);
             }
+            if (grupos.Count == 0) return "";
             grupos.Sort(delegate(string x, string y)
             {
                 int a, b;
                 return int.TryParse(x, out a) && int.TryParse(y, out b) ? a.CompareTo(b) : string.CompareOrdinal(x, y);
             });
             List<string> partes = new List<string>();
-            foreach (string g in grupos) partes.Add("tipo " + g + (gruposIgnoradosActivos.Contains(g) ? " (activa)" : ""));
+            foreach (string g in grupos) partes.Add(NombreGrupo(g) + (gruposIgnoradosActivos.Contains(g) ? " (activa)" : ""));
             return "Fallas ignoradas: " + string.Join(" · ", partes.ToArray());
         }
 
@@ -821,7 +866,7 @@ namespace CandadoOperario
             if (Activas.Count == 0) return "";
             List<string> partes = new List<string>();
             foreach (Activa a in Activas)
-                partes.Add(a.Clave + " (desde " + a.Desde.ToString(a.Desde.Date == DateTime.Today ? "HH:mm" : "dd/MM HH:mm") + ")");
+                partes.Add(NombreGrupo(a.Clave.Split(':')[0]) + " " + a.Clave + " (desde " + a.Desde.ToString(a.Desde.Date == DateTime.Today ? "HH:mm" : "dd/MM HH:mm") + ")");
             return (Activas.Count == 1 ? "Falla " : Activas.Count + " fallas: ") + string.Join(" · ", partes.ToArray());
         }
     }
@@ -2493,10 +2538,18 @@ namespace CandadoOperario
             Fallas.Revisar();
             sb.AppendLine("ignorando 19:35 (esperado solo 0:23:1): " + Fallas.Texto());
             Cfg.FallasIgnorar.Add("2:1");
-            sb.AppendLine("linea de ignoradas (esperado tipo 2 · tipo 19 (activa)): " + Fallas.TextoIgnoradas());
+            sb.AppendLine("linea de ignoradas (esperado Sistema de E/S · Disco USB (activa)): " + Fallas.TextoIgnoradas());
             File.AppendAllText(flog, f(DateTime.Now) + ",FaultClear,0,23,1,\r\n");
             Fallas.Revisar();
             sb.AppendLine("tras FaultClear (esperado vacío): [" + Fallas.Texto() + "]");
+            // Ignoradas en Delvis (Config.xml): grupo 13 (Alimentador) ignorado, grupo 24 no
+            Cfg.FallasIgnorar.Clear();
+            File.WriteAllText(cfgPath, "<Root><_faultIgnoreFlags A=\"False,False,False,False,False,False,False,False,False,False,False,False,False,True\" /></Root>");
+            File.SetLastWriteTime(cfgPath, DateTime.Now.AddSeconds(8));
+            File.AppendAllText(flog, f(DateTime.Now) + ",FaultSet,13,35,0,\r\n" + f(DateTime.Now) + ",FaultSet,24,64,0,\r\n");
+            File.SetLastWriteTime(flog, DateTime.Now.AddSeconds(9));
+            Fallas.Revisar();
+            sb.AppendLine("ignoradas en Delvis (esperado Disco USB 19:35 y Limpieza manual 24:64, sin Alimentador): " + Fallas.Texto() + " | linea: " + Fallas.TextoIgnoradas());
             Fallas.InicioForzado = null;
 
             // Nivel de Delvis: textos de la ventana, huellas de Config.xml y contraseñas cifradas
@@ -2559,8 +2612,8 @@ namespace CandadoOperario
                 using (CoverForm c = new CoverForm())
                 {
                     c.SetStatus("2 operarios · sincronizado 14:32");
-                    c.SetFallas("Falla 24:64 (desde 14:03)");
-                    c.SetIgnoradas("Fallas ignoradas: tipo 0 · tipo 19 (activa)");
+                    c.SetFallas("Falla Limpieza manual 24:64 (desde 14:03)");
+                    c.SetIgnoradas("Fallas ignoradas: Cámara · Alimentación de aire · Alimentador (activa)");
                     if (faseRoja) c.FaseRoja();
                     c.Location = new Point(-30000, -30000);
                     c.Show();

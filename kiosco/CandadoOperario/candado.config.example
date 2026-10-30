@@ -12,10 +12,12 @@ PermitirSalir=false
 # Carpeta donde Delvis guarda sus bitacoras y configuracion
 DelvisDir=C:\Satake\Delvis\Gui
 # Con una falla activa de Delvis (FaultSet sin FaultClear desde que abrio Delvis) la pantalla
-# parpadea en rojo. false = desactivado. FallasIgnorar: codigos grupo:codigo separados por coma
-# (ej. 19:35) que no deben avisar.
+# parpadea en rojo. false = desactivado. FallasIgnorar: grupos o codigos separados por coma
+# (ej. 13 o 19:35) que no deben avisar. Ademas calla los grupos marcados en «Ignorar Fallas» de Delvis
+# (IgnorarComoDelvis=false para no tomarlos en cuenta).
 AvisoFallas=true
 FallasIgnorar=
+IgnorarComoDelvis=true
 # Con un operario con nivel de Delvis (se asigna en el sistema, junto a su codigo), cuando Delvis pide la
 # contrasena de ese nivel o uno menor, el candado la escribe. Las contrasenas se ponen en el sistema
 # (Usuarios > Contrasenas de Delvis) y llegan al sincronizar. false = desactivado.
