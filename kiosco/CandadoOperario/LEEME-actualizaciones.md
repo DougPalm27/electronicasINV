@@ -66,7 +66,7 @@ El mismo `Setup-CandadoOperario-X.exe` pregunta qué instalar:
 
 `compilar-instalador.bat` compila también `..\CuartoControl\CuartoControl.exe`.
 
-## Aviso de falla en rojo (desde 1.4.1, en prueba)
+## Aviso de falla en rojo (desde 1.4.1)
 
 - Con una falla activa de Delvis, la pantalla de bloqueo parpadea en rojo con una franja que dice el código
   (grupo:codigo) y desde qué hora; durante el turno parpadea el botón flotante.
@@ -76,7 +76,7 @@ El mismo `Setup-CandadoOperario-X.exe` pregunta qué instalar:
 - `candado.config`: `AvisoFallas=false` lo apaga; `FallasIgnorar=19:35,24:64` calla esos códigos. La pantalla de bloqueo muestra en una línea los tipos (grupo) ignorados y marca «(activa)» si alguno tiene una falla abierta.
 - Probar sin falla real: `CandadoOperario.exe --demo-falla` (15 s; dice qué fallas reales ve en ese momento).
 
-## Nivel de Delvis automático (desde 1.4.1, en prueba)
+## Nivel de Delvis automático (desde 1.4.1)
 
 - Delvis no tiene usuarios: tiene una contraseña por nivel (1, 2, 3) y la pide en su ventana de teclado
   («Por favor introduce el nivel de N contraseña:») al entrar a una pantalla protegida.
