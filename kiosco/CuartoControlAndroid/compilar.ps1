@@ -1,4 +1,4 @@
-# Arma salida\CuartoControl-<version>.apk (app de la tablet) sin Android Studio ni Gradle.
+﻿# Arma salida\CuartoControl-<version>.apk (app de la tablet) sin Android Studio ni Gradle.
 # Herramientas en %LOCALAPPDATA%\Honducafe\android-build: OpenJDK 17 (Temurin), Android build-tools 34 y la
 # plataforma android-34 (licencia del Android SDK aceptada por el usuario el 2026-10-30).
 # Toma de Planos los visores 3D y las máquinas (IPs de salida\...\remoto.json y posiciones de layout_*.json).
