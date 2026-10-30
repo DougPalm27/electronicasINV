@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cuarto de control</title>
+<style>
+  :root {
+    --fondo:#14181d; --panel:#1b2027; --tarjeta:#222831; --hover:#2a313c; --borde:#303844;
+    --texto:#e6eaf0; --tenue:#8b95a3; --verde:#3ddc84; --ambar:#f5b942; --rojo:#ff5a5a; --rojofondo:#401e22;
+    --azul:#5aa9ff; --gris:#606a78;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:var(--fondo); color:var(--texto);
+    font:15px/1.35 "Segoe UI", Roboto, system-ui, sans-serif; overflow:hidden; }
+  body { display:flex; flex-direction:column; }
+  button { font:inherit; color:inherit; }
+
+  /* ── Encabezado ── */
+  header { display:flex; align-items:center; gap:14px; padding:14px 18px 12px; background:var(--panel); border-bottom:1px solid var(--borde); }
+  header .marca { width:5px; align-self:stretch; background:var(--azul); border-radius:2px; }
+  header h1 { margin:0; font-size:19px; letter-spacing:.04em; }
+  header .sub { color:var(--tenue); font-size:13.5px; margin-top:2px; }
+  header .sub.falla { color:var(--rojo); }
+  header .der { margin-left:auto; display:flex; align-items:center; gap:10px; color:var(--tenue); font-size:13px; text-align:right; }
+  .btn { background:var(--tarjeta); border:1px solid var(--borde); border-radius:10px; padding:9px 14px; font-weight:700; cursor:pointer; }
+  .btn:active { background:var(--hover); }
+  .btn.prim { background:var(--azul); border-color:var(--azul); color:var(--fondo); }
+
+  /* ── Navegación ── */
+  nav { display:flex; align-items:center; gap:4px; padding:8px 12px 0; overflow-x:auto; white-space:nowrap; }
+  nav .tab { padding:9px 14px 11px; font-weight:700; color:var(--tenue); background:none; border:0; position:relative; cursor:pointer; }
+  nav .tab.on { color:var(--texto); }
+  nav .tab.on::after { content:""; position:absolute; left:10px; right:10px; bottom:2px; height:3px; border-radius:2px; background:var(--azul); }
+  nav .sep { flex:0 0 18px; }
+  nav .modo { padding:8px 12px; font-weight:700; color:var(--tenue); background:none; border:0; cursor:pointer; }
+  nav .modo.on { color:var(--azul); }
+
+  main { flex:1; min-height:0; position:relative; overflow:auto; }
+  .vista { display:none; height:100%; }
+  .vista.on { display:block; }
+
+  /* ── Tarjetas ── */
+  .rejilla { padding:6px 16px 90px; }
+  .seccion { color:var(--tenue); font-size:12px; font-weight:700; letter-spacing:.08em; margin:14px 4px 8px; }
+  .grupo { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; }
+  .tarjeta { position:relative; background:var(--tarjeta); border:1px solid var(--borde); border-radius:12px; padding:12px 14px 10px 22px; min-height:142px; cursor:pointer; }
+  .tarjeta::before { content:""; position:absolute; left:10px; top:14px; width:4px; height:26px; border-radius:2px; background:var(--c, var(--gris)); }
+  .tarjeta.falla { background:var(--rojofondo); border:2px solid var(--rojo); animation:pulso 1.6s ease-in-out infinite; }
+  @keyframes pulso { 50% { border-color:rgba(255,90,90,.45); } }
+  .tarjeta .fila1 { display:flex; align-items:center; gap:8px; }
+  .tarjeta .nombre { font-size:21px; font-weight:800; }
+  .tarjeta .red { margin-left:auto; font-size:12px; font-weight:700; color:var(--c, var(--gris)); white-space:nowrap; }
+  .tarjeta .red::before { content:"●"; margin-right:5px; }
+  .tarjeta .turno { margin-top:8px; font-weight:700; }
+  .tarjeta .turno.bloq, .tarjeta .tenue { color:var(--tenue); font-weight:400; }
+  .tarjeta .fallas { margin-top:4px; color:var(--rojo); font-weight:700; font-size:14px; }
+  .tarjeta .pie { margin-top:10px; padding-top:7px; border-top:1px solid var(--borde); color:var(--tenue); font-size:12.5px; }
+  .tarjeta .pie.ambar { color:var(--ambar); }
+
+  /* ── Mapa ── */
+  .mapa svg { width:100%; height:100%; display:block; }
+  /* ── 3D ── */
+  .visor3d { width:100%; height:100%; border:0; display:block; background:var(--fondo); }
+
+  /* ── Candados ── */
+  .tabla { margin:10px 16px 90px; background:var(--panel); border:1px solid var(--borde); border-radius:12px; overflow:auto; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  th, td { text-align:left; padding:11px 12px; border-bottom:1px solid var(--borde); white-space:nowrap; }
+  th { color:var(--tenue); font-size:11.5px; letter-spacing:.08em; }
+  tr.falla td { background:var(--rojofondo); color:var(--rojo); }
+  tr:last-child td { border-bottom:0; }
+
+  /* ── Hoja inferior (detalle de una máquina) ── */
+  #velo { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; }
+  #hoja { position:fixed; left:0; right:0; bottom:0; background:var(--panel); border-top:1px solid var(--borde);
+    border-radius:16px 16px 0 0; padding:16px 20px 22px; transform:translateY(105%); transition:transform .2s; max-height:80%; overflow:auto; }
+  #hoja.on { transform:none; }
+  #hoja h2 { margin:0 0 4px; font-size:22px; }
+  #hoja .datos { display:grid; grid-template-columns:max-content 1fr; gap:6px 16px; margin:12px 0 16px; font-size:14.5px; }
+  #hoja .datos div:nth-child(odd) { color:var(--tenue); }
+  #hoja .acciones { display:flex; flex-wrap:wrap; gap:10px; }
+  #hoja .acciones .btn { padding:12px 18px; }
+  #hoja form { display:none; gap:10px; flex-wrap:wrap; align-items:end; margin-top:14px; }
+  #hoja form.on { display:flex; }
+  #hoja label { display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--tenue); }
+  #hoja input { font:inherit; color:var(--texto); background:var(--fondo); border:1px solid var(--borde); border-radius:8px; padding:9px 10px; width:190px; }
+  #aviso { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--texto); color:var(--fondo); padding:10px 16px; border-radius:10px;
+    font-weight:600; opacity:0; transition:opacity .2s; pointer-events:none; max-width:90%; text-align:center; }
+  #aviso.on { opacity:1; }
+  #demo { display:none; background:#3a2f12; color:var(--ambar); padding:6px 18px; font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="marca"></div>
+  <div>
+    <h1>CUARTO DE CONTROL</h1>
+    <div class="sub" id="sub">Cargando…</div>
+  </div>
+  <div class="der">
+    <div id="hora">—</div>
+    <button class="btn" id="bRevisar">⟳ Revisar</button>
+  </div>
+</header>
+<div id="demo">Vista de prueba en el navegador: los datos son de ejemplo. En la tablet se ven los reales.</div>
+<nav id="nav"></nav>
+<main id="main"></main>
+<div id="velo"></div>
+<div id="hoja">
+  <h2 id="hTitulo">—</h2>
+  <div id="hSub" style="color:var(--tenue)"></div>
+  <div class="datos" id="hDatos"></div>
+  <div class="acciones">
+    <button class="btn prim" id="hVnc">🖥 Ver pantalla (VNC)</button>
+    <button class="btn" id="hConf">⚙ Configurar</button>
+    <button class="btn" id="hCopiar">Copiar IP</button>
+    <button class="btn" id="hCerrar">Cerrar</button>
+  </div>
+  <form id="hForm">
+    <label>IP de la máquina<input id="fHost" inputmode="decimal" autocomplete="off" placeholder="192.168.11.150"></label>
+    <label>Puerto VNC<input id="fPuerto" inputmode="numeric" autocomplete="off" placeholder="5900"></label>
+    <button class="btn prim" type="submit">Guardar</button>
+  </form>
+</div>
+<div id="aviso"></div>
+
+<script src="plano.js"></script>
+<script>
+"use strict";
+// Cuarto de control para la tablet: habla DIRECTO con cada máquina, sin pasar por la PC del cuarto de control.
+//  - VNC: abre la app VNC de la tablet (AVNC u otra) con vnc://IP:puerto.
+//  - Estado: pregunta al candado de cada máquina (puerto 8765, desde la versión 1.4.5) y revisa el puerto VNC.
+// La parte de Android está en MainActivity.java (objeto AndroidApp); en el navegador se ve con datos de ejemplo.
+const A = window.AndroidApp || null;
+const PUERTO_ESTADO = 8765, CADA_MS = 15000;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+let PLANO = { plantas: [] };          // assets/plano.js (lo arma el script de compilación desde Planos)
+const EST = {};                        // id -> {red, estado, visto}
+let vista = "", modo = "tarjetas", hojaId = null;
+const iframes = {};
+
+function cfg() { try { return JSON.parse((A ? A.cargar("maquinas") : localStorage.getItem("maquinas")) || "{}"); } catch (e) { return {}; } }
+function guardarCfg(o) { const t = JSON.stringify(o); if (A) A.guardar("maquinas", t); else localStorage.setItem("maquinas", t); }
+function maquinas() {
+  const c = cfg(), r = [];
+  for (const p of PLANO.plantas) for (const m of p.maquinas) {
+    const x = Object.assign({}, m, c[m.id] || {}); x.planta = p.nombre; r.push(x);
+  }
+  return r;
+}
+function maq(id) { return maquinas().find(m => m.id === id); }
+
+function avisar(t) { const a = $("aviso"); a.textContent = t; a.classList.add("on"); clearTimeout(avisar.t); avisar.t = setTimeout(() => a.classList.remove("on"), 2600); }
+
+// ── Estado de una máquina ──
+function color(red) { return red === "ok" ? "var(--verde)" : red === "ping" ? "var(--ambar)" : red === "mal" ? "var(--rojo)" : "var(--gris)"; }
+function redTexto(m, e) {
+  if (!m.host) return "Sin configurar";
+  if (!e) return "Revisando…";
+  return e.red === "ok" ? "VNC en línea" : e.red === "ping" ? "Sin VNC" : "Sin red";
+}
+// "2 fallas: Bloqueo externo 17:32 (desde 08:59) · Cámara 0:23 (desde 13:54)" -> "2 fallas · Bloqueo externo, Cámara"
+function resumen(f) {
+  if (!f) return "";
+  const resto = f.replace(/^(Falla|\d+ fallas:)\s*/, "");
+  const nombres = []; let desde = "";
+  for (const p of resto.split(" · ")) {
+    const d = p.match(/\(desde ([^)]*)\)/); if (d && !desde) desde = d[1];
+    const n = p.replace(/\s*\(desde [^)]*\)/, "").replace(/\s+\d+:\d+(:\d+)?$/, "").trim();
+    if (n && !nombres.includes(n)) nombres.push(n);
+  }
+  if (!nombres.length) return f;
+  if (nombres.length === 1) return nombres[0] + (desde ? " · desde " + desde : "");
+  const c = f.match(/^(\d+) fallas/);
+  return (c ? c[1] : nombres.length) + " fallas · " + nombres.join(", ");
+}
+function hace(ms) {
+  if (!ms) return "";
+  const s = (Date.now() - ms) / 1000;
+  return s < 60 ? "ahora" : s < 3600 ? "hace " + Math.floor(s / 60) + " min" : "hace " + Math.floor(s / 3600) + " h";
+}
+
+// ── Revisión (en la tablet la hace Android en segundo plano; contesta en window.resultado) ──
+function revisarTodo() {
+  for (const m of maquinas()) {
+    if (!m.host) continue;
+    if (A) A.revisar(m.id, m.host, parseInt(m.puerto, 10) || 5900, PUERTO_ESTADO);
+    else demo(m);
+  }
+  $("hora").textContent = "Revisado " + new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+}
+window.resultado = function (r) {
+  const e = EST[r.id] || (EST[r.id] = {});
+  e.estado = r.estado || null;
+  e.red = r.vnc ? "ok" : r.estado ? "ping" : "mal";
+  if (r.vnc || r.estado) e.visto = Date.now();
+  pintar();
+};
+function demo(m) {   // solo en el navegador (sin Android): datos de ejemplo
+  const i = parseInt(m.host.split(".").pop(), 10) || 0;
+  const red = i % 7 === 0 ? "mal" : "ok";
+  const estado = red === "mal" ? null : { estacion: m.id, version: "1.4.5.0", turno: i % 3 === 0 ? "Operario de ejemplo" : "",
+    fallas: i % 5 === 0 ? "2 fallas: Alimentador 13:35 (desde 08:12) · Cámara 0:23 (desde 09:40)" : "", pendientes: i % 4 === 0 ? 2 : 0 };
+  setTimeout(() => window.resultado({ id: m.id, vnc: red === "ok", estado }), 150);
+}
+
+// ── Pintar ──
+function pintar() {
+  const ms = maquinas();
+  const enPlanta = ms.filter(m => m.planta === vista);
+  const lista = enPlanta.length ? enPlanta : ms;
+  const enLinea = lista.filter(m => (EST[m.id] || {}).red === "ok").length;
+  const conFalla = lista.filter(m => ((EST[m.id] || {}).estado || {}).fallas).length;
+  $("sub").textContent = (vista || "") + (enPlanta.length ? "  ·  " + enPlanta.length + " máquinas  ·  " + enLinea + " en línea" + (conFalla ? "  ·  " + conFalla + " con falla" : "") : "");
+  $("sub").classList.toggle("falla", conFalla > 0);
+  if (modo === "tarjetas" || !PLANO.plantas.some(p => p.nombre === vista)) pintarTarjetas();
+  if (modo === "mapa") pintarMapa();
+  enviar3D();
+  pintarCandados();
+  if (hojaId) llenarHoja(hojaId);
+}
+
+function tarjetaHtml(m) {
+  const e = EST[m.id] || {}, est = e.estado || null;
+  const falla = est && est.fallas;
+  const turno = !est ? "" : est.turno ? "● " + esc(est.turno) : "Bloqueada";
+  const pie = [];
+  if (est && est.version) pie.push("v" + est.version.replace(/\.0$/, ""));
+  if (est && est.pendientes > 0) pie.push("↑" + est.pendientes);
+  if (e.visto) pie.push(hace(e.visto));
+  if (m.host) pie.push(m.host.replace("192.168.11.", "."));
+  return '<div class="tarjeta' + (falla ? " falla" : "") + '" style="--c:' + (falla ? "var(--rojo)" : color(m.host ? e.red : "")) + '" data-id="' + esc(m.id) + '">' +
+    '<div class="fila1"><div class="nombre">' + esc(m.id) + '</div><div class="red">' + redTexto(m, e) + "</div></div>" +
+    (est ? '<div class="turno' + (est.turno ? "" : " bloq") + '">' + turno + "</div>" : '<div class="turno tenue">' + (m.host ? "Candado sin datos" : "Sin IP: toca para configurar") + "</div>") +
+    (falla ? '<div class="fallas">⚠ ' + esc(resumen(est.fallas)) + "</div>" : est ? '<div class="tenue" style="margin-top:4px">Sin fallas</div>' : "") +
+    '<div class="pie' + (est && est.pendientes > 0 ? " ambar" : "") + '">' + esc(pie.join("  ·  ")) + "</div></div>";
+}
+
+function pintarTarjetas() {
+  const cont = document.querySelector('.vista[data-v="' + vista + '"] .rejilla');
+  if (!cont) return;
+  const ms = maquinas().filter(m => m.planta === vista);
+  const grupos = [["FILA A", ms.filter(m => /A$/i.test(m.id))], ["FILA B", ms.filter(m => /B$/i.test(m.id))]];
+  const usadas = new Set(grupos.flatMap(g => g[1]));
+  grupos.push([usadas.size ? "OTRAS" : "MÁQUINAS", ms.filter(m => !usadas.has(m))]);
+  let html = "";
+  for (const [t, g] of grupos) if (g.length) html += '<div class="seccion">' + t + "  ·  " + g.length + '</div><div class="grupo">' + g.map(tarjetaHtml).join("") + "</div>";
+  cont.innerHTML = html || '<div class="seccion">Sin máquinas en esta planta.</div>';
+}
+
+function pintarMapa() {
+  const cont = document.querySelector('.vista[data-v="' + vista + '"] .mapa');
+  if (!cont) return;
+  const ms = maquinas().filter(m => m.planta === vista && m.s && m.t);
+  if (!ms.length) { cont.innerHTML = '<div class="seccion" style="padding:16px">El plano de esta planta no tiene posiciones.</div>'; return; }
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const m of ms) { x0 = Math.min(x0, m.s[0], m.s[1]); x1 = Math.max(x1, m.s[0], m.s[1]); y0 = Math.min(y0, m.t[0], m.t[1]); y1 = Math.max(y1, m.t[0], m.t[1]); }
+  const pad = 700; x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
+  const W = x1 - x0, H = y1 - y0;
+  const Y = t => y1 - t;   // t positivo arriba
+  let g = '<rect x="0" y="0" width="' + W + '" height="' + H + '" rx="260" fill="var(--panel)" stroke="var(--borde)" stroke-width="30"/>';
+  for (let s = Math.ceil(x0 / 1000) * 1000; s < x1; s += 1000) g += '<line x1="' + (s - x0) + '" y1="0" x2="' + (s - x0) + '" y2="' + H + '" stroke="rgba(255,255,255,.05)" stroke-width="12"/>';
+  for (let t = Math.ceil(y0 / 1000) * 1000; t < y1; t += 1000) g += '<line x1="0" y1="' + Y(t) + '" x2="' + W + '" y2="' + Y(t) + '" stroke="rgba(255,255,255,.05)" stroke-width="12"/>';
+  if (ms.some(m => Math.max(...m.t) <= 0) && ms.some(m => Math.min(...m.t) >= 0))
+    g += '<line x1="250" y1="' + Y(0) + '" x2="' + (W - 250) + '" y2="' + Y(0) + '" stroke="var(--gris)" stroke-width="18" stroke-dasharray="120 90"/>' +
+         '<text x="300" y="' + (Y(0) - 120) + '" fill="var(--gris)" font-size="230" font-weight="700">PASILLO</text>';
+  for (const m of ms) {
+    const e = EST[m.id] || {}, est = e.estado, falla = est && est.fallas;
+    const rx = Math.min(...m.s) - x0, ry = Y(Math.max(...m.t)), rw = Math.abs(m.s[1] - m.s[0]), rh = Math.abs(m.t[1] - m.t[0]);
+    const c = falla ? "var(--rojo)" : color(m.host ? e.red : "");
+    const cx = rx + rw / 2, cy = ry + rh / 2, fs = Math.min(rw / 5, 380);
+    g += '<g data-id="' + esc(m.id) + '" style="cursor:pointer">' +
+      (falla ? '<rect x="' + (rx - 60) + '" y="' + (ry - 60) + '" width="' + (rw + 120) + '" height="' + (rh + 120) + '" rx="160" fill="none" stroke="var(--rojo)" stroke-width="50" opacity=".5"><animate attributeName="opacity" values=".15;.7;.15" dur="1.6s" repeatCount="indefinite"/></rect>' : "") +
+      '<rect x="' + rx + '" y="' + ry + '" width="' + rw + '" height="' + rh + '" rx="110" fill="' + (falla ? "var(--rojofondo)" : "var(--tarjeta)") + '" stroke="' + c + '" stroke-width="45"/>' +
+      '<circle cx="' + (rx + rw - 170) + '" cy="' + (ry + 170) + '" r="70" fill="' + c + '"/>' +
+      '<text x="' + cx + '" y="' + (cy - (est ? fs * 0.35 : -fs * 0.35)) + '" text-anchor="middle" fill="var(--texto)" font-size="' + fs + '" font-weight="800">' + esc(m.id) + "</text>" +
+      (est ? '<text x="' + cx + '" y="' + (cy + fs * 0.75) + '" text-anchor="middle" fill="' + (falla ? "var(--rojo)" : "var(--tenue)") + '" font-size="' + (fs * 0.6) + '" font-weight="' + (falla ? 700 : 400) + '">' +
+        esc(falla ? "⚠ " + resumen(est.fallas).split(" · ")[0] : est.turno ? est.turno.split(" ")[0] : "Bloqueada") + "</text>" : "") + "</g>";
+  }
+  cont.innerHTML = '<svg viewBox="-200 -200 ' + (W + 400) + " " + (H + 400) + '" preserveAspectRatio="xMidYMid meet">' + g + "</svg>";
+}
+
+function estado3D(planta) {
+  const d = {};
+  for (const m of maquinas().filter(x => x.planta === planta)) {
+    const e = EST[m.id] || {}, est = e.estado;
+    d[m.id] = { red: m.host ? (e.red || "") : "", falla: est && est.fallas ? resumen(est.fallas).split(" · ")[0] : "", turno: est && est.turno ? est.turno : "" };
+  }
+  return d;
+}
+function enviar3D() { for (const [planta, f] of Object.entries(iframes)) try { f.contentWindow.postMessage({ vivo: estado3D(planta) }, "*"); } catch (e) {} }
+
+function pintarCandados() {
+  const cont = document.querySelector('.vista[data-v="Candados"] .tabla');
+  if (!cont) return;
+  let filas = "";
+  for (const m of maquinas()) {
+    const e = EST[m.id] || {}, est = e.estado;
+    if (!m.host) continue;
+    filas += '<tr class="' + (est && est.fallas ? "falla" : "") + '" data-id="' + esc(m.id) + '"><td><b>' + esc(m.id) + "</b></td><td>" + esc(est ? est.estacion : "—") + "</td><td>" + esc(m.host) + "</td><td>" +
+      redTexto(m, e) + "</td><td>" + esc(est ? est.version : "") + "</td><td>" + esc(est ? (est.turno || "Bloqueada") : "") + "</td><td>" + esc(est && est.fallas ? resumen(est.fallas) : "") +
+      "</td><td>" + esc(est && est.pendientes >= 0 ? est.pendientes : "") + "</td><td>" + esc(hace(e.visto)) + "</td></tr>";
+  }
+  cont.innerHTML = "<table><thead><tr><th>MÁQUINA</th><th>ESTACIÓN</th><th>IP</th><th>RED</th><th>CANDADO</th><th>TURNO</th><th>FALLAS</th><th>POR SUBIR</th><th>ÚLTIMO CONTACTO</th></tr></thead><tbody>" +
+    (filas || '<tr><td colspan="9">Ninguna máquina con IP.</td></tr>') + "</tbody></table>";
+}
+
+// ── Hoja de una máquina ──
+function abrirHoja(id) {
+  hojaId = id;
+  llenarHoja(id);
+  $("hForm").classList.remove("on");
+  $("velo").style.display = "block";
+  $("hoja").classList.add("on");
+}
+function cerrarHoja() { hojaId = null; $("hoja").classList.remove("on"); $("velo").style.display = "none"; }
+window.atras = function () { if (hojaId) { cerrarHoja(); return true; } return false; };   // botón «atrás» de Android
+function llenarHoja(id) {
+  const m = maq(id); if (!m) return;
+  const e = EST[id] || {}, est = e.estado;
+  $("hTitulo").textContent = m.id;
+  $("hSub").textContent = m.planta + (est && est.estacion ? "  ·  candado «" + est.estacion + "»" : "");
+  const filas = [["Red", redTexto(m, e)], ["IP", m.host ? m.host + ":" + (m.puerto || 5900) : "sin configurar"]];
+  if (est) {
+    filas.push(["Turno", est.turno || "Bloqueada"], ["Fallas", est.fallas || "Sin fallas"]);
+    if (est.ignoradas) filas.push(["Ignoradas", est.ignoradas.replace(/^Fallas ignoradas:\s*/, "")]);
+    filas.push(["Candado", "v" + est.version], ["Por subir", est.pendientes >= 0 ? String(est.pendientes) : "—"], ["Último contacto", hace(e.visto)]);
+  } else if (m.host) filas.push(["Candado", "no contesta (necesita la versión 1.4.5)"]);
+  $("hDatos").innerHTML = filas.map(f => "<div>" + esc(f[0]) + "</div><div" + (f[0] === "Fallas" && est && est.fallas ? ' style="color:var(--rojo);font-weight:700"' : "") + ">" + esc(f[1]) + "</div>").join("");
+}
+function conectar(id) {
+  const m = maq(id); if (!m) return;
+  if (!m.host) { avisar("Primero pon la IP de " + id + " en «Configurar»."); return; }
+  const p = parseInt(m.puerto, 10) || 5900;
+  if (A) A.abrirVnc(m.host, p); else avisar("En la tablet se abriría la app VNC con vnc://" + m.host + ":" + p);
+}
+$("hVnc").onclick = () => conectar(hojaId);
+$("hCopiar").onclick = () => { const m = maq(hojaId); if (m && m.host) { if (A) A.copiar(m.host); avisar("IP copiada: " + m.host); } };
+$("hCerrar").onclick = cerrarHoja;
+$("velo").onclick = cerrarHoja;
+$("hConf").onclick = () => { const m = maq(hojaId); $("fHost").value = m.host || ""; $("fPuerto").value = m.puerto || ""; $("hForm").classList.toggle("on"); };
+$("hForm").onsubmit = ev => {
+  ev.preventDefault();
+  const host = $("fHost").value.trim(), puerto = $("fPuerto").value.trim();
+  if (host && !/^[A-Za-z0-9][A-Za-z0-9.\-]{0,99}$/.test(host)) { avisar("Escribe una IP (ej. 192.168.11.150)."); return; }
+  if (puerto && !(/^\d+$/.test(puerto) && +puerto >= 1 && +puerto <= 65535)) { avisar("El puerto debe ser un número entre 1 y 65535."); return; }
+  const c = cfg(); c[hojaId] = { host, puerto }; guardarCfg(c);
+  delete EST[hojaId];
+  $("hForm").classList.remove("on");
+  avisar("Guardado en esta tablet.");
+  revisarTodo(); pintar();
+};
+
+// ── Navegación ──
+function armar() {
+  const nav = $("nav"), main = $("main");
+  let html = "";
+  for (const p of PLANO.plantas) {
+    html += '<button class="tab" data-v="' + esc(p.nombre) + '">' + esc(p.nombre) + "</button>";
+    main.insertAdjacentHTML("beforeend", '<div class="vista" data-v="' + esc(p.nombre) + '"><div class="rejilla"></div><div class="mapa" style="display:none;height:100%"></div><div class="tres" style="display:none;height:100%"></div></div>');
+  }
+  html += '<button class="tab" data-v="Candados">Candados</button><span class="sep"></span>' +
+    '<button class="modo" data-m="tarjetas">▦ Tarjetas</button><button class="modo" data-m="mapa">⌖ Mapa</button><button class="modo" data-m="3d">◈ 3D</button>';
+  main.insertAdjacentHTML("beforeend", '<div class="vista" data-v="Candados"><div class="tabla"></div></div>');
+  nav.innerHTML = html;
+  nav.onclick = ev => {
+    const t = ev.target.closest(".tab"), b = ev.target.closest(".modo");
+    if (t) mostrar(t.dataset.v);
+    if (b) { modo = b.dataset.m; mostrar(vista); }
+  };
+  main.onclick = ev => { const t = ev.target.closest("[data-id]"); if (t) abrirHoja(t.dataset.id); };
+  window.addEventListener("message", ev => {   // del visor 3D
+    const d = ev.data || {};
+    if (d.abrir) conectar(d.abrir);
+    if (d.configurar || d.seleccion) abrirHoja(d.configurar || d.seleccion);
+  });
+}
+function mostrar(v) {
+  vista = v;
+  try { localStorage.setItem("vista", v); localStorage.setItem("modo", modo); } catch (e) {}
+  const planta = PLANO.plantas.find(p => p.nombre === v);
+  for (const t of document.querySelectorAll("nav .tab")) t.classList.toggle("on", t.dataset.v === v);
+  for (const b of document.querySelectorAll("nav .modo")) { b.style.display = planta ? "" : "none"; b.classList.toggle("on", b.dataset.m === modo); }
+  for (const d of document.querySelectorAll(".vista")) d.classList.toggle("on", d.dataset.v === v);
+  if (planta) {
+    const d = document.querySelector('.vista[data-v="' + v + '"]');
+    d.querySelector(".rejilla").style.display = modo === "tarjetas" ? "" : "none";
+    d.querySelector(".mapa").style.display = modo === "mapa" ? "block" : "none";
+    const tres = d.querySelector(".tres");
+    tres.style.display = modo === "3d" ? "block" : "none";
+    if (modo === "3d" && !iframes[v]) {
+      const f = document.createElement("iframe");
+      f.className = "visor3d"; f.src = planta.visor;
+      f.onload = () => enviar3D();
+      tres.appendChild(f); iframes[v] = f;
+    }
+  }
+  pintar();
+}
+
+$("bRevisar").onclick = () => { revisarTodo(); avisar("Revisando las máquinas…"); };
+
+(function () {
+  const p = window.PLANO_DATOS;
+  if (!p) { $("sub").textContent = "No se pudo leer plano.js"; return; }
+  PLANO = p;
+  if (!A) $("demo").style.display = "block";
+  armar();
+  let v0 = PLANO.plantas.length ? PLANO.plantas[0].nombre : "Candados";
+  try { const v = localStorage.getItem("vista"), m = localStorage.getItem("modo"); if (v && (v === "Candados" || PLANO.plantas.some(x => x.nombre === v))) v0 = v; if (m) modo = m; } catch (e) {}
+  mostrar(v0);
+  revisarTodo();
+  setInterval(revisarTodo, CADA_MS);
+  setInterval(pintar, 30000);   // para que «hace N min» avance
+})();
+</script>
+</body>
+</html>

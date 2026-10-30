@@ -99,3 +99,15 @@ El mismo `Setup-CandadoOperario-X.exe` pregunta qué instalar:
   como administrador y el candado no, Windows lo bloquea).
 - Al bloquear, el candado no baja el nivel de Delvis: eso lo hace el propio Delvis por inactividad.
 - `NivelDelvis=false` en `candado.config` lo apaga.
+
+## Estado por la red y tablet (desde 1.4.5)
+
+- El candado contesta `GET /estado` en el puerto **8765** (JSON: estación, versión, turno, fallas, ignoradas,
+  pendientes, hora) **solo** a las IPs de `EstadoDesde` (por defecto `192.168.11.141,192.168.11.142`: PC del cuarto
+  de control y tablet). A las demás no les contesta nada. Solo lee; no se puede cambiar nada por ahí.
+  `EstadoPuerto=0` en `candado.config` lo apaga.
+- El instalador abre ese puerto en el firewall solo para esas dos IPs y, si TightVNC ya está limitado a la PC del
+  cuarto de control, agrega la tablet (`192.168.11.142`) a su lista y reinicia el servicio VNC (se corta un momento
+  una conexión VNC abierta). Al desinstalar se quita la regla del firewall.
+- App de la tablet: `kiosco/CuartoControlAndroid` (se arma con `compilar.ps1`; ver comentarios). Habla directo con cada
+  máquina: estado por el puerto 8765 y VNC con una app VNC de la tablet (AVNC) por `vnc://IP:5900`.

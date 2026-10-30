@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
@@ -24,8 +25,8 @@ using System.Xml.Linq;
 [assembly: AssemblyProduct("Candado de Operario")]
 [assembly: AssemblyCompany("Honducafe")]
 [assembly: AssemblyCopyright("Desarrollado por Douglas Palma · © 2026")]
-[assembly: AssemblyVersion("1.4.4.0")]
-[assembly: AssemblyFileVersion("1.4.4.0")]
+[assembly: AssemblyVersion("1.4.5.0")]
+[assembly: AssemblyFileVersion("1.4.5.0")]
 
 namespace CandadoOperario
 {
@@ -41,6 +42,8 @@ namespace CandadoOperario
         public static bool AvisoFallas = true;    // la pantalla parpadea en rojo con una falla activa de Delvis
         public static HashSet<string> FallasIgnorar = new HashSet<string>();   // "grupo", "grupo:codigo" o "grupo:codigo:contexto"
         public static bool IgnorarComoDelvis = true;   // también calla los grupos marcados en «Ignorar Fallas» de Delvis
+        public static int EstadoPuerto = 8765;         // estado del candado por la red (para la tablet y el Cuarto de control); 0 = apagado
+        public static HashSet<string> EstadoDesde = new HashSet<string> { "192.168.11.141", "192.168.11.142" };   // IPs que pueden pedirlo
         public static bool NivelDelvis = true;    // escribe la contraseña de nivel en Delvis según el operario (ver class NivelDelvis)
         public static string Url;
         public static string Base;   // direccion del sitio, sin la ruta del endpoint (de aqui se baja el instalador)
@@ -68,6 +71,11 @@ namespace CandadoOperario
                         case "permitirsalir": PermitirSalir = v.ToLowerInvariant() == "true" || v == "1"; break;
                         case "avisofallas": AvisoFallas = !(v.ToLowerInvariant() == "false" || v == "0"); break;
                         case "ignorarcomodelvis": IgnorarComoDelvis = !(v.ToLowerInvariant() == "false" || v == "0"); break;
+                        case "estadopuerto": int.TryParse(v, out EstadoPuerto); break;
+                        case "estadodesde":
+                            EstadoDesde = new HashSet<string>();
+                            foreach (string ip in v.Split(new char[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)) EstadoDesde.Add(ip.Trim());
+                            break;
                         case "niveldelvis": NivelDelvis = !(v.ToLowerInvariant() == "false" || v == "0"); break;
                         case "fallasignorar":
                             foreach (string f in v.Split(new char[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)) FallasIgnorar.Add(f.Trim());
@@ -232,6 +240,108 @@ namespace CandadoOperario
         public static bool Activo;
         public static string Turno = "";     // nombre del operario en turno, "" = bloqueado
         public static string Fallas = "";    // fallas activas de Delvis (texto de la franja roja)
+    }
+
+    // Estado del candado por la red, sin pasar por la PC del cuarto de control: la tablet le pregunta directo
+    // a cada máquina «GET /estado» (puerto 8765) y recibe JSON con estación, versión, turno, fallas y pendientes.
+    // Solo contesta a las IPs de EstadoDesde (las demás ni reciben respuesta) y solo lee: no se puede cambiar nada.
+    // El instalador abre ese puerto en el firewall solo para esas IPs.
+    static class EstadoRed
+    {
+        static TcpListener escucha;
+
+        public static void Iniciar()
+        {
+            if (Cfg.EstadoPuerto <= 0 || Cfg.EstadoPuerto > 65535 || escucha != null) return;
+            try
+            {
+                escucha = new TcpListener(IPAddress.Any, Cfg.EstadoPuerto);
+                escucha.Start(8);
+                Thread t = new Thread(Bucle) { IsBackground = true, Name = "EstadoRed" };
+                t.Start();
+            }
+            catch (Exception ex) { escucha = null; Bitacora("no se pudo abrir el puerto " + Cfg.EstadoPuerto + ": " + ex.Message); }
+        }
+
+        public static void Detener()
+        {
+            try { if (escucha != null) escucha.Stop(); } catch (Exception) { }
+            escucha = null;
+        }
+
+        static void Bucle()
+        {
+            while (escucha != null)
+            {
+                TcpClient c;
+                try { c = escucha.AcceptTcpClient(); }
+                catch (Exception) { if (escucha == null) return; Thread.Sleep(500); continue; }
+                ThreadPool.QueueUserWorkItem(delegate { Atender(c); });
+            }
+        }
+
+        static void Atender(TcpClient c)
+        {
+            try
+            {
+                using (c)
+                {
+                    string ip = ((IPEndPoint)c.Client.RemoteEndPoint).Address.ToString();
+                    if (ip.StartsWith("::ffff:")) ip = ip.Substring(7);
+                    if (!Cfg.EstadoDesde.Contains(ip)) return;   // no autorizada: se cierra sin contestar
+                    c.ReceiveTimeout = 3000;
+                    c.SendTimeout = 3000;
+                    NetworkStream ns = c.GetStream();
+                    byte[] buf = new byte[2048];
+                    int n = ns.Read(buf, 0, buf.Length);
+                    string pedido = n > 0 ? Encoding.ASCII.GetString(buf, 0, n) : "";
+                    string linea = pedido.Split('\n')[0].Trim();
+                    bool ok = linea.StartsWith("GET /estado", StringComparison.Ordinal);
+                    string cuerpo = ok ? Json() : "{\"error\":\"no existe\"}";
+                    byte[] b = Encoding.UTF8.GetBytes(cuerpo);
+                    string cab = (ok ? "HTTP/1.1 200 OK" : "HTTP/1.1 404 Not Found") + "\r\n" +
+                                 "Content-Type: application/json; charset=utf-8\r\n" +
+                                 "Access-Control-Allow-Origin: *\r\n" +
+                                 "Cache-Control: no-store\r\n" +
+                                 "Content-Length: " + b.Length + "\r\nConnection: close\r\n\r\n";
+                    byte[] h = Encoding.ASCII.GetBytes(cab);
+                    ns.Write(h, 0, h.Length);
+                    ns.Write(b, 0, b.Length);
+                }
+            }
+            catch (Exception) { }
+        }
+
+        public static string Json()
+        {
+            int pend = -1;
+            if (Monitor.TryEnter(Store.Lock, 200))
+            {
+                try { pend = Store.Cola.Count + Store.Eventos.Count; }
+                finally { Monitor.Exit(Store.Lock); }
+            }
+            var d = new Dictionary<string, object>
+            {
+                { "estacion", Cfg.Estacion },
+                { "version", Actualizador.Actual().ToString() },
+                { "turno", Aviso.Turno },
+                { "fallas", Aviso.Fallas },
+                { "ignoradas", Fallas.TextoIgnoradas() },
+                { "pendientes", pend },
+                { "hora", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") },
+            };
+            return new JavaScriptSerializer().Serialize(d);
+        }
+
+        static void Bitacora(string t)
+        {
+            try
+            {
+                Directory.CreateDirectory(Store.DirDatos);
+                File.AppendAllText(Path.Combine(Store.DirDatos, "errores.log"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  EstadoRed: " + t + "\r\n");
+            }
+            catch (Exception) { }
+        }
     }
 
     static class Api
@@ -2003,6 +2113,8 @@ namespace CandadoOperario
         public Ctl()
         {
             Aviso.Activo = true;
+            EstadoRed.Iniciar();
+            Application.ApplicationExit += delegate { EstadoRed.Detener(); };
             // Turnos que quedaron abiertos por un reinicio o corte: se cierran ahora.
             lock (Store.Lock)
             {
@@ -2574,6 +2686,29 @@ namespace CandadoOperario
             NivelDelvis.Guardar(new Dictionary<int, string>());
             sb.AppendLine("borrar (esperado sin archivo): " + (File.Exists(NivelDelvis.Ruta) ? "queda" : "sin archivo"));
             NivelDelvis.Ruta = rutaReal;
+
+            // Estado por la red: contesta a una IP permitida y a otra no
+            Cfg.EstadoPuerto = 18765;
+            Cfg.EstadoDesde = new HashSet<string> { "127.0.0.1" };
+            Aviso.Turno = "Prueba Operario";
+            Aviso.Fallas = "Falla Alimentador 13:35 (desde 08:00)";
+            EstadoRed.Iniciar();
+            try
+            {
+                using (var wc = new WebClient { Encoding = Encoding.UTF8 })
+                {
+                    string r = wc.DownloadString("http://127.0.0.1:18765/estado");
+                    sb.AppendLine("estado por red (esperado turno Prueba Operario y la falla): " + r);
+                }
+            }
+            catch (Exception ex) { sb.AppendLine("estado por red: ERROR " + ex.Message); }
+            Cfg.EstadoDesde = new HashSet<string> { "10.0.0.1" };
+            try
+            {
+                using (var wc = new WebClient()) { wc.DownloadString("http://127.0.0.1:18765/estado"); sb.AppendLine("IP no permitida: CONTESTÓ (mal)"); }
+            }
+            catch (Exception) { sb.AppendLine("IP no permitida: sin respuesta (correcto)"); }
+            EstadoRed.Detener();
 
             File.WriteAllText(Path.Combine(Path.GetTempPath(), "candado-selftest.txt"), sb.ToString());
         }

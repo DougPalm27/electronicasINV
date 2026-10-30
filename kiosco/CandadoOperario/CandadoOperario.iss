@@ -8,10 +8,10 @@
 ; Compilar: compilar-instalador.bat  ->  Output\Setup-CandadoOperario-<version>.exe (requiere ..\CuartoControl\CuartoControl.exe)
 ;
 ; Instalacion silenciosa (despliegue en varias PCs):
-;   Setup-CandadoOperario-1.4.4.exe /VERYSILENT /SERVIDOR=electronicas.simfcoh.com /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
+;   Setup-CandadoOperario-1.4.5.exe /VERYSILENT /SERVIDOR=electronicas.simfcoh.com /ESTACION=Evolution-Linea2 /TOKEN=xxxxxxxx /MINUTOS=15 /DELVIS=C:\Satake\Delvis\Gui
 
 #define AppName "Honducafe: Candado y Cuarto de control"
-#define AppVer "1.4.4"
+#define AppVer "1.4.5"
 
 [Setup]
 AppId={{B7C2E1A4-5D3F-4E8A-9C61-2F0A7D9E4B13}
@@ -19,7 +19,7 @@ AppName={#AppName}
 AppVersion={#AppVer}
 AppPublisher=Honducafe · Desarrollado por Douglas Palma
 AppCopyright=Desarrollado por Douglas Palma · © 2026
-VersionInfoVersion=1.4.4.0
+VersionInfoVersion=1.4.5.0
 VersionInfoCompany=Honducafe
 VersionInfoCopyright=Desarrollado por Douglas Palma · © 2026
 VersionInfoDescription=Instalador de Honducafe (Candado de operario / Cuarto de control)
@@ -91,6 +91,7 @@ Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""Honducafe\Candado de 
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""Honducafe\Candado de Operario Instalar"" /F"; Flags: runhidden; RunOnceId: "QuitarInstalador"
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""Honducafe\Candado de Operario Vigilante"" /F"; Flags: runhidden; RunOnceId: "QuitarVigilante"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM CandadoOperario.exe"; Flags: runhidden; RunOnceId: "CerrarCandado"
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Candado de Operario - estado"""; Flags: runhidden; RunOnceId: "QuitarFirewallEstado"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM CuartoControl.exe"; Flags: runhidden; RunOnceId: "CerrarCuartoControl"
 
 [UninstallDelete]
@@ -719,6 +720,40 @@ begin
   end;
 end;
 
+// Tablet del cuarto de control (192.168.11.142) sin depender de la PC (192.168.11.141):
+//  - abre en el firewall el puerto del estado del candado (8765) solo para esas dos IPs;
+//  - si TightVNC ya esta limitado a la PC del cuarto de control, agrega la tablet a la lista y reinicia su
+//    servicio (se corta un momento una conexion VNC abierta). No toca nada mas de la maquina.
+procedure PermitirTablet;
+var
+  Ps, Ruta: String;
+  Codigo: Integer;
+begin
+  Ps :=
+    '$ErrorActionPreference = ''Continue''' + #13#10 +
+    '$exe = ''' + ExpandConstant('{app}\CandadoOperario.exe') + '''' + #13#10 +
+    '$pc = ''192.168.11.141''; $tablet = ''192.168.11.142''' + #13#10 +
+    'netsh advfirewall firewall delete rule name="Candado de Operario - estado" | Out-Null' + #13#10 +
+    'netsh advfirewall firewall add rule name="Candado de Operario - estado" dir=in action=allow protocol=TCP localport=8765 remoteip="$pc,$tablet" program="$exe" profile=any | Out-Null' + #13#10 +
+    '$k = ''HKLM:\SOFTWARE\TightVNC\Server''' + #13#10 +
+    'if (Test-Path $k) {' + #13#10 +
+    '  $v = (Get-ItemProperty $k -Name IpAccessControl -ErrorAction SilentlyContinue).IpAccessControl' + #13#10 +
+    '  if ($v -and $v -like "*$pc*" -and $v -notlike "*$tablet*") {' + #13#10 +
+    '    Set-ItemProperty $k -Name IpAccessControl -Value ("$tablet-$tablet" + '':0,'' + $v)' + #13#10 +
+    '    Restart-Service tvnserver -Force -ErrorAction SilentlyContinue' + #13#10 +
+    '    Write-Output "TightVNC: tablet agregada"' + #13#10 +
+    '  }' + #13#10 +
+    '}' + #13#10;
+  Ruta := ExpandConstant('{tmp}\tablet.ps1');
+  SaveStringToFile(Ruta, Ps, False);
+  if (not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+        '-NoProfile -ExecutionPolicy Bypass -File "' + Ruta + '"', '', SW_HIDE, ewWaitUntilTerminated, Codigo))
+     or (Codigo <> 0) then
+    Log('No se pudo preparar el acceso de la tablet. Codigo: ' + IntToStr(Codigo))
+  else
+    Log('Acceso de la tablet listo (firewall del estado y TightVNC).');
+end;
+
 // Anota en el servidor que esta PC tiene el candado de esa máquina; así no se ofrece a otra PC.
 // Si falla, el candado queda instalado igual (solo se avisa).
 procedure RegistrarInstalacion;
@@ -781,6 +816,7 @@ begin
     SaveStringToFile(ExpandConstant('{app}\candado.config'), Cfg, False);
     CrearTareaVigilante;
     CrearTareasActualizacion;
+    PermitirTablet;
     RegistrarInstalacion;
   end;
 end;

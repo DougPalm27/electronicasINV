@@ -22,3 +22,6 @@ IgnorarComoDelvis=true
 # contrasena de ese nivel o uno menor, el candado la escribe. Las contrasenas se ponen en el sistema
 # (Usuarios > Contrasenas de Delvis) y llegan al sincronizar. false = desactivado.
 NivelDelvis=true
+# Estado del candado por la red (para la tablet): puerto y las unicas IPs a las que contesta. 0 = apagado.
+EstadoPuerto=8765
+EstadoDesde=192.168.11.141,192.168.11.142

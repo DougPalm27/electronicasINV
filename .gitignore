@@ -19,3 +19,7 @@ kiosco/CandadoOperario/Output/
 kiosco/CuartoControl/*.exe
 kiosco/CuartoControl/*.dll
 kiosco/CuartoControl/CuartoControl.config
+
+# App de la tablet: archivos generados al compilar (compilar.ps1)
+kiosco/CuartoControlAndroid/obj/
+kiosco/CuartoControlAndroid/salida/

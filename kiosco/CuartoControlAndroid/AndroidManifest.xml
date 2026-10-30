@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cuarto de control para la tablet. Habla directo con las máquinas de la red de la antena (http sin cifrar, solo en
+     esa red): por eso usesCleartextTraffic. Solo pide internet (para la red local). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.honducafe.cuartocontrol">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:label="Cuarto de control"
+        android:icon="@drawable/icono"
+        android:usesCleartextTraffic="true"
+        android:allowBackup="false"
+        android:hardwareAccelerated="true"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
