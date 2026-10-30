@@ -58,6 +58,8 @@ Name: "control"; Description: "Cuarto de control: lista de máquinas por planta,
 [Files]
 Source: "CandadoOperario.exe"; DestDir: "{app}"; Flags: ignoreversion; Components: candado
 Source: "..\CuartoControl\CuartoControl.exe"; DestDir: "{autopf}\Honducafe\CuartoControl"; Flags: ignoreversion; Components: control
+; Visor 3D dentro del Cuarto de control: WebView2 (paquete oficial Microsoft.Web.WebView2, ver ..\CuartoControl\lib)
+Source: "..\CuartoControl\lib\*.dll"; DestDir: "{autopf}\Honducafe\CuartoControl"; Flags: ignoreversion; Components: control
 
 [Icons]
 Name: "{commonprograms}\Candado de Operario"; Filename: "{app}\CandadoOperario.exe"; Comment: "Abre el candado de operario"; Tasks: iconoinicio; Components: candado

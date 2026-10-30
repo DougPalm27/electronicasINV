@@ -26,8 +26,8 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Cuarto de control")]
 [assembly: AssemblyProduct("Cuarto de control - Honducafe")]
-[assembly: AssemblyVersion("1.4.5.0")]
-[assembly: AssemblyFileVersion("1.4.5.0")]
+[assembly: AssemblyVersion("1.4.6.0")]
+[assembly: AssemblyFileVersion("1.4.6.0")]
 
 namespace CuartoControl
 {
@@ -889,6 +889,81 @@ namespace CuartoControl
         }
     }
 
+    // ───────────────────────── Visor 3D (el mismo de Planos\salida, dentro de la app) ─────────────────────────
+    // Usa WebView2 (el motor de Microsoft Edge). La app le manda el estado de cada máquina y el visor las pinta;
+    // «Abrir pantalla» y «Configurar» del visor vuelven a la app (VNC directo y la ventana de configuración).
+    class Visor3D : Panel
+    {
+        readonly Planta planta;
+        public string Nombre;
+        readonly Label aviso = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Tema.Tenue, Text = "Cargando el visor 3D…" };
+        Microsoft.Web.WebView2.WinForms.WebView2 web;
+        bool listo, iniciado;
+        string pendiente;
+        public event Action<string> Abrir, Configurar;
+
+        public Visor3D(Planta p)
+        {
+            planta = p;
+            Dock = DockStyle.Fill;
+            BackColor = Tema.Fondo;
+            aviso.Font = Tema.Fuente(11f);
+            Controls.Add(aviso);
+        }
+
+        public string Archivo { get { return Path.Combine(Path.GetDirectoryName(planta.Remoto), "visor_3d.html"); } }
+
+        public async void Iniciar()
+        {
+            if (iniciado) return;
+            iniciado = true;
+            if (!File.Exists(Archivo)) { aviso.Text = "No existe " + Archivo + "\nGenera el visor de esta planta con make_3d.py."; return; }
+            try
+            {
+                string datos = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CuartoControl", "WebView2");
+                var env = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(null, datos);
+                web = new Microsoft.Web.WebView2.WinForms.WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = Tema.Fondo };
+                Controls.Add(web);
+                web.BringToFront();
+                await web.EnsureCoreWebView2Async(env);
+                var c = web.CoreWebView2;
+                c.Settings.IsStatusBarEnabled = false;
+                c.Settings.AreDevToolsEnabled = false;
+                c.Settings.IsZoomControlEnabled = true;
+                try { c.Profile.PreferredColorScheme = Microsoft.Web.WebView2.Core.CoreWebView2PreferredColorScheme.Dark; } catch (Exception) { }
+                c.WebMessageReceived += (s, e) =>
+                {
+                    try
+                    {
+                        var d = new JavaScriptSerializer().DeserializeObject(e.WebMessageAsJson) as Dictionary<string, object>;
+                        if (d == null) return;
+                        if (d.ContainsKey("abrir") && Abrir != null) Abrir(Convert.ToString(d["abrir"]));
+                        if (d.ContainsKey("configurar") && Configurar != null) Configurar(Convert.ToString(d["configurar"]));
+                    }
+                    catch (Exception) { }
+                };
+                c.NavigationCompleted += (s, e) => { listo = true; if (pendiente != null) Enviar(pendiente); };
+                // Ventanas nuevas (enlaces del visor) en el navegador normal, no dentro de la app
+                c.NewWindowRequested += (s, e) => { e.Handled = true; try { Process.Start(e.Uri); } catch (Exception) { } };
+                c.Navigate(new Uri(Archivo).AbsoluteUri);
+            }
+            catch (Exception ex)
+            {
+                aviso.ForeColor = Tema.Rojo;
+                aviso.Text = "No se pudo abrir el visor 3D: " + ex.Message +
+                             "\nHace falta «Microsoft Edge WebView2 Runtime» (viene con Windows 11; en Windows 10 se instala desde microsoft.com).";
+                aviso.BringToFront();
+            }
+        }
+
+        public void Enviar(string json)
+        {
+            pendiente = json;
+            if (listo && web != null && web.CoreWebView2 != null)
+                try { web.CoreWebView2.PostWebMessageAsJson(json); } catch (Exception) { }
+        }
+    }
+
     // ───────────────────────── Ventana principal ─────────────────────────
     class FormPrincipal : Form
     {
@@ -906,9 +981,10 @@ namespace CuartoControl
         readonly Dictionary<string, Control> vistas = new Dictionary<string, Control>();
         readonly List<Tarjeta> tarjetas = new List<Tarjeta>();
         readonly List<Mapa> mapas = new List<Mapa>();
-        readonly Dictionary<string, KeyValuePair<Control, Control>> modos = new Dictionary<string, KeyValuePair<Control, Control>>();   // planta -> (tarjetas, mapa)
-        bool verMapa;
-        Label bTarjetas, bMapa;
+        readonly Dictionary<string, Control[]> modos = new Dictionary<string, Control[]>();   // planta -> [tarjetas, mapa, visor 3D]
+        readonly List<Visor3D> visores = new List<Visor3D>();
+        int modo;   // 0 tarjetas, 1 mapa, 2 visor 3D
+        Label[] bModos;
         readonly ListView lvEstaciones;
         readonly ListView lvReportes;
         readonly TextBox txtReporte;
@@ -989,7 +1065,7 @@ namespace CuartoControl
                 foreach (Tarjeta t in tarjetas) if (t.Fallas != "") t.Invalidate();
                 foreach (Mapa m in mapas) if (m.Visible && tarjetas.Any(t => t.Fallas != "")) m.Invalidate();
             };
-            verMapa = Program.MapaInicial;
+            modo = Program.ModoInicial;
             Shown += (s, e) =>
             {
                 Cargar();
@@ -1034,19 +1110,40 @@ namespace CuartoControl
         void Modo()
         {
             bool planta = modos.ContainsKey(vista);
-            if (bTarjetas != null) { bTarjetas.Visible = bMapa.Visible = planta; bTarjetas.ForeColor = !verMapa ? Tema.Azul : Tema.Tenue; bMapa.ForeColor = verMapa ? Tema.Azul : Tema.Tenue; }
+            if (bModos != null) for (int i = 0; i < bModos.Length; i++) { bModos[i].Visible = planta; bModos[i].ForeColor = i == modo ? Tema.Azul : Tema.Tenue; }
             if (!planta) return;
-            var par = modos[vista];
-            par.Key.Visible = !verMapa;
-            par.Value.Visible = verMapa;
-            if (verMapa) par.Value.Invalidate();
+            Control[] v = modos[vista];
+            for (int i = 0; i < v.Length; i++) v[i].Visible = i == modo;
+            if (modo == 1) v[1].Invalidate();
+            if (modo == 2) { var vz = (Visor3D)v[2]; vz.Iniciar(); EnviarEstado(); }
         }
 
-        Label Interruptor(string texto, bool mapa)
+        Label Interruptor(string texto, int m)
         {
             var b = new Label { Text = texto, AutoSize = true, Cursor = Cursors.Hand, Font = Tema.Fuente(9.5f, FontStyle.Bold), Padding = new Padding(Tema.P(10), Tema.P(7), Tema.P(10), Tema.P(7)), Margin = new Padding(0) };
-            b.Click += (s, e) => { verMapa = mapa; Modo(); };
+            b.Click += (s, e) => { modo = m; Modo(); };
             return b;
+        }
+
+        // Estado de cada máquina para el visor 3D: {id: {red, falla, turno}}
+        void EnviarEstado()
+        {
+            var js = new JavaScriptSerializer();
+            foreach (Visor3D vz in visores)
+            {
+                var d = new Dictionary<string, object>();
+                foreach (Tarjeta t in tarjetas)
+                {
+                    if (!datos.ContainsKey(vz.Nombre) || !datos[vz.Nombre].Contains(t.M)) continue;
+                    d[t.M.Id] = new Dictionary<string, object>
+                    {
+                        { "red", t.M.Configurada ? t.M.Estado : "" },
+                        { "falla", t.Fallas == "" ? "" : Tarjeta.Resumen(t.Fallas).Split(new[] { " · " }, StringSplitOptions.None)[0] + (t.Fallas.Contains(" · ") || t.Fallas.Contains(" fallas") ? "…" : "") },
+                        { "turno", t.SinCandado ? "" : t.Turno == "Bloqueada" ? "" : t.Turno },
+                    };
+                }
+                vz.Enviar(js.Serialize(d));
+            }
         }
 
         void Cargar()
@@ -1062,6 +1159,7 @@ namespace CuartoControl
             tarjetas.Clear();
             mapas.Clear();
             modos.Clear();
+            visores.Clear();
             datos.Clear();
             foreach (Planta p in Datos.Plantas())
             {
@@ -1076,10 +1174,16 @@ namespace CuartoControl
                 mapa.Abrir += m => Conectar(m);
                 mapa.Menu += (m, pt) => { tarjetaMenu = mapa.TarjetaDe(m); menu.Show(mapa, pt); };
                 mapas.Add(mapa);
+                var visor = new Visor3D(p) { Visible = false, Nombre = p.Nombre };
+                List<Maquina> deLaPlanta = lista;
+                visor.Abrir += id => { Maquina m = deLaPlanta.FirstOrDefault(x => x.Id == id); if (m != null) Conectar(m); };
+                visor.Configurar += id => { Maquina m = deLaPlanta.FirstOrDefault(x => x.Id == id); if (m != null) Configurar(m); };
+                visores.Add(visor);
                 var cont = new Panel { Dock = DockStyle.Fill, BackColor = Tema.Fondo };
                 cont.Controls.Add(rej);
                 cont.Controls.Add(mapa);
-                modos[p.Nombre] = new KeyValuePair<Control, Control>(rej, mapa);
+                cont.Controls.Add(visor);
+                modos[p.Nombre] = new Control[] { rej, mapa, visor };
                 vistas[p.Nombre] = cont;
                 Pestana(p.Nombre);
             }
@@ -1110,10 +1214,8 @@ namespace CuartoControl
             vistas["Reportes"] = Envolver(division);
             Pestana("Reportes");
             nav.Controls.Add(new Label { Width = Tema.P(40), Height = 1, Margin = new Padding(0) });
-            bTarjetas = Interruptor("▦  Tarjetas", false);
-            bMapa = Interruptor("⌖  Mapa", true);
-            nav.Controls.Add(bTarjetas);
-            nav.Controls.Add(bMapa);
+            bModos = new[] { Interruptor("▦  Tarjetas", 0), Interruptor("⌖  Mapa", 1), Interruptor("◈  3D", 2) };
+            nav.Controls.AddRange(bModos);
 
             Mostrar(vistas.ContainsKey(antes) ? antes : vistas.ContainsKey(Program.VistaInicial) ? Program.VistaInicial : Datos.Plantas()[0].Nombre);
             PintarPuente();
@@ -1197,6 +1299,7 @@ namespace CuartoControl
         {
             foreach (Tarjeta t in tarjetas) if (t.M == m) Pintar(t);
             foreach (Mapa mp in mapas) if (mp.Visible) mp.Invalidate();
+            EnviarEstado();
         }
 
         void Subtitulo()
@@ -1317,6 +1420,7 @@ namespace CuartoControl
             }
             foreach (Tarjeta t in tarjetas) Pintar(t);
             foreach (Mapa mp in mapas) mp.Invalidate();
+            EnviarEstado();
             PintarEstaciones();
             PintarReportes();
             Subtitulo();
@@ -1381,14 +1485,15 @@ namespace CuartoControl
     static class Program
     {
         public static string VistaInicial = "";   // "--vista Candados": abre en esa pestaña
-        public static bool MapaInicial;            // "--vista \"Planta 1\" --mapa": abre en el mapa
+        public static int ModoInicial;             // "--vista \"Planta 1\" --mapa" o "--3d": abre en el mapa o en el visor 3D
         [STAThread]
         static int Main(string[] args)
         {
             Cfg.Cargar();
             if (args.Length > 0 && args[0] == "--prueba") return Prueba();
             if (args.Length > 1 && args[0] == "--vista") VistaInicial = args[1];
-            if (args.Length > 2 && args[2] == "--mapa") MapaInicial = true;
+            if (args.Length > 2 && args[2] == "--mapa") ModoInicial = 1;
+            if (args.Length > 2 && args[2] == "--3d") ModoInicial = 2;
             SetProcessDPIAware();   // nítido en pantallas con escala; los tamaños se multiplican por Tema.S
             using (var g = Graphics.FromHwnd(IntPtr.Zero)) Tema.S = g.DpiX / 96f;
             Application.EnableVisualStyles();

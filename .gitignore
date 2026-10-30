@@ -17,4 +17,5 @@ kiosco/CandadoOperario/Output/
 
 # Cuarto de control: binario generado y config local
 kiosco/CuartoControl/*.exe
+kiosco/CuartoControl/*.dll
 kiosco/CuartoControl/CuartoControl.config
