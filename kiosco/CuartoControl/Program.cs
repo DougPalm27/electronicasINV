@@ -102,6 +102,7 @@ namespace CuartoControl
     {
         public string Nombre;
         public string Remoto;    // ruta del remoto.json
+        public string Layout;    // datos del plano (posiciones de las máquinas) para el mapa
     }
 
     class Maquina
@@ -154,8 +155,8 @@ namespace CuartoControl
         {
             return new List<Planta>
             {
-                new Planta { Nombre = "Planta 1", Remoto = Path.Combine(Cfg.Carpeta, "salida", "planta1", "remoto.json") },
-                new Planta { Nombre = "Planta 2", Remoto = Path.Combine(Cfg.Carpeta, "salida", "remoto.json") },
+                new Planta { Nombre = "Planta 1", Remoto = Path.Combine(Cfg.Carpeta, "salida", "planta1", "remoto.json"), Layout = Path.Combine(Cfg.Carpeta, "layout_planta1.json") },
+                new Planta { Nombre = "Planta 2", Remoto = Path.Combine(Cfg.Carpeta, "salida", "remoto.json"), Layout = Path.Combine(Cfg.Carpeta, "layout_mm.json") },
             };
         }
 
@@ -712,6 +713,182 @@ namespace CuartoControl
         }
     }
 
+    // ───────────────────────── Mapa de la planta (vista desde arriba) ─────────────────────────
+    // Posiciones de las máquinas tomadas del plano 3D: layout_planta1.json / layout_mm.json (s_mm a lo largo,
+    // t_mm a través; 0 = pasillo). Cada máquina se pinta con el mismo estado que su tarjeta.
+    class Mapa : Control
+    {
+        readonly List<Tarjeta> tarjetas;
+        readonly Dictionary<Maquina, RectangleF> pos = new Dictionary<Maquina, RectangleF>();   // en mm
+        readonly bool aproximado;
+        readonly string error;
+        readonly Dictionary<Maquina, RectangleF> pantalla = new Dictionary<Maquina, RectangleF>();
+        Maquina encima;
+        public event Action<Maquina> Abrir;
+        public event Action<Maquina, Point> Menu;
+
+        public Mapa(Planta p, List<Tarjeta> ts)
+        {
+            tarjetas = ts;
+            Dock = DockStyle.Fill;
+            BackColor = Tema.Fondo;
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+            try
+            {
+                var raiz = new JavaScriptSerializer().DeserializeObject(File.ReadAllText(p.Layout, Encoding.UTF8)) as Dictionary<string, object>;
+                aproximado = raiz != null && raiz.ContainsKey("_nota") && Convert.ToString(raiz["_nota"]).Contains("SUPUESTO");
+                var lista = raiz != null && raiz.ContainsKey("maquinas") ? raiz["maquinas"] as object[] : null;
+                if (lista != null)
+                    foreach (object o in lista)
+                    {
+                        var d = o as Dictionary<string, object>;
+                        var s = d != null && d.ContainsKey("s_mm") ? d["s_mm"] as object[] : null;
+                        var t = d != null && d.ContainsKey("t_mm") ? d["t_mm"] as object[] : null;
+                        if (s == null || t == null || s.Length < 2 || t.Length < 2) continue;
+                        string id = Convert.ToString(d["id"]);
+                        Tarjeta tj = ts.FirstOrDefault(x => x.M.Id == id);
+                        if (tj == null) continue;
+                        float s0 = Convert.ToSingle(s[0]), s1 = Convert.ToSingle(s[1]), t0 = Convert.ToSingle(t[0]), t1 = Convert.ToSingle(t[1]);
+                        pos[tj.M] = RectangleF.FromLTRB(Math.Min(s0, s1), Math.Min(t0, t1), Math.Max(s0, s1), Math.Max(t0, t1));
+                    }
+                if (pos.Count == 0) error = "El plano de esta planta no tiene máquinas con posición (" + p.Layout + ").";
+            }
+            catch (Exception ex) { error = "No se pudo leer el plano " + p.Layout + ": " + ex.Message; }
+        }
+
+        Maquina En(Point p)
+        {
+            foreach (var kv in pantalla) if (kv.Value.Contains(p)) return kv.Key;
+            return null;
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            Maquina m = En(e.Location);
+            if (m != encima) { encima = m; Cursor = m != null ? Cursors.Hand : Cursors.Default; Invalidate(); }
+            base.OnMouseMove(e);
+        }
+
+        protected override void OnMouseLeave(EventArgs e) { encima = null; Invalidate(); base.OnMouseLeave(e); }
+
+        protected override void OnMouseDoubleClick(MouseEventArgs e)
+        {
+            Maquina m = En(e.Location);
+            if (m != null && Abrir != null) Abrir(m);
+            base.OnMouseDoubleClick(e);
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            Maquina m = En(e.Location);
+            if (m != null && e.Button == MouseButtons.Right && Menu != null) Menu(m, e.Location);
+            base.OnMouseUp(e);
+        }
+
+        public Tarjeta TarjetaDe(Maquina m) { return tarjetas.FirstOrDefault(t => t.M == m); }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+            pantalla.Clear();
+            if (error != null)
+            {
+                TextRenderer.DrawText(g, error, Tema.Fuente(10f), new Rectangle(Tema.P(22), Tema.P(16), Width - Tema.P(44), Tema.P(60)), Tema.Rojo, TextFormatFlags.WordBreak);
+                return;
+            }
+
+            // Encaje: todo el plano con margen, sin deformar
+            RectangleF tot = pos.Values.Aggregate((a, b) => RectangleF.Union(a, b));
+            tot.Inflate(600, 600);
+            int pie = Tema.P(46);
+            float area_w = Width - Tema.P(44), area_h = Height - Tema.P(30) - pie;
+            float k = Math.Min(area_w / tot.Width, area_h / tot.Height);
+            float ox = Tema.P(22) + (area_w - tot.Width * k) / 2, oy = Tema.P(14) + (area_h - tot.Height * k) / 2;
+            // s hacia la derecha; t hacia arriba (fila de t positivo arriba)
+            Func<float, float> X = s => ox + (s - tot.Left) * k;
+            Func<float, float> Y = t => oy + (tot.Bottom - t) * k;
+
+            // Piso
+            var piso = new RectangleF(X(tot.Left), Y(tot.Bottom), tot.Width * k, tot.Height * k);
+            using (var path = Tema.Redondo(piso, Tema.P(12)))
+            {
+                using (var b = new SolidBrush(Tema.Panel)) g.FillPath(b, path);
+                using (var p = new Pen(Tema.Borde)) g.DrawPath(p, path);
+            }
+            // Cuadrícula de 1 m
+            using (var p = new Pen(Color.FromArgb(14, 255, 255, 255)))
+            {
+                for (float s = (float)Math.Ceiling(tot.Left / 1000) * 1000; s < tot.Right; s += 1000) g.DrawLine(p, X(s), piso.Top, X(s), piso.Bottom);
+                for (float t = (float)Math.Ceiling(tot.Top / 1000) * 1000; t < tot.Bottom; t += 1000) g.DrawLine(p, piso.Left, Y(t), piso.Right, Y(t));
+            }
+            // Pasillo (t = 0) si hay máquinas a los dos lados
+            if (pos.Values.Any(r => r.Bottom <= 0) && pos.Values.Any(r => r.Top >= 0))
+            {
+                using (var p = new Pen(Color.FromArgb(70, Tema.Tenue), 1) { DashStyle = DashStyle.Dash }) g.DrawLine(p, piso.Left + Tema.P(10), Y(0), piso.Right - Tema.P(10), Y(0));
+                TextRenderer.DrawText(g, "PASILLO", Tema.Fuente(8f, FontStyle.Bold), new Point((int)piso.Left + Tema.P(14), (int)Y(0) - Tema.P(18)), Tema.Gris);
+            }
+
+            // Máquinas
+            foreach (var kv in pos)
+            {
+                Tarjeta t = TarjetaDe(kv.Key);
+                if (t == null) continue;
+                var r = RectangleF.FromLTRB(X(kv.Value.Left), Y(kv.Value.Bottom), X(kv.Value.Right), Y(kv.Value.Top));
+                pantalla[kv.Key] = r;
+                bool falla = t.Fallas != "";
+                Color estado = !t.M.Configurada ? Tema.Gris : t.M.Estado == "ok" ? Tema.Verde : t.M.Estado == "ping" ? Tema.Ambar : t.M.Estado == "mal" ? Tema.Rojo : Tema.Gris;
+                Color fondo = falla ? Tema.RojoFondo : encima == kv.Key ? Tema.TarjetaHover : Tema.Tarjeta;
+                using (var path = Tema.Redondo(r, Tema.P(6)))
+                {
+                    if (falla)   // halo que pulsa
+                        using (var halo = new Pen(Color.FromArgb((int)(40 + 90 * Tarjeta.Pulso), Tema.Rojo), Tema.P(8))) g.DrawPath(halo, path);
+                    using (var b = new SolidBrush(fondo)) g.FillPath(b, path);
+                    using (var p = new Pen(falla ? Tema.Rojo : estado, Tema.P(2))) g.DrawPath(p, path);
+                }
+                // punto de estado de la red
+                using (var b = new SolidBrush(estado)) g.FillEllipse(b, r.Right - Tema.P(14), r.Top + Tema.P(6), Tema.P(8), Tema.P(8));
+
+                var cuadro = Rectangle.Round(RectangleF.Inflate(r, -Tema.P(5), -Tema.P(4)));
+                float tamNombre = Math.Max(8f, Math.Min(14f, r.Width / (7.5f * Tema.S)));
+                var lineas = new List<KeyValuePair<string, Color>>();
+                lineas.Add(new KeyValuePair<string, Color>(t.M.Id, Tema.Texto));
+                string turno = t.SinCandado ? "" : t.Turno == "Bloqueada" ? "Bloqueada" : t.Turno.Split(' ')[0];
+                if (turno != "") lineas.Add(new KeyValuePair<string, Color>(turno, t.Turno == "Bloqueada" ? Tema.Tenue : Tema.Texto));
+                if (falla) lineas.Add(new KeyValuePair<string, Color>("⚠ " + Tarjeta.Resumen(t.Fallas).Split(new[] { " · " }, StringSplitOptions.None)[0], Tema.Rojo));
+                int y = cuadro.Top + (cuadro.Height - lineas.Count * Tema.P(tamNombre * 1.7f)) / 2;
+                for (int i = 0; i < lineas.Count; i++)
+                {
+                    var f = i == 0 ? Tema.Fuente(tamNombre, FontStyle.Bold) : Tema.Fuente(Math.Max(7f, tamNombre * 0.68f), i == 2 ? FontStyle.Bold : FontStyle.Regular);
+                    TextRenderer.DrawText(g, lineas[i].Key, f, new Rectangle(cuadro.Left, y, cuadro.Width, Tema.P(tamNombre * 1.7f)), lineas[i].Value,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+                    y += Tema.P(tamNombre * 1.7f);
+                }
+            }
+
+            // Pie: nota, escala y leyenda
+            int yp = Height - pie + Tema.P(8);
+            TextRenderer.DrawText(g, "Vista desde arriba · posiciones del plano 3D" + (aproximado ? " (aproximadas*: faltan medidas)" : "") + " · doble clic = VNC",
+                Tema.Fuente(8.5f), new Point(Tema.P(22), yp + Tema.P(4)), Tema.Tenue);
+            float m5 = 5000 * k;
+            int xe = Tema.P(22), ye = yp + Tema.P(26);
+            using (var p = new Pen(Tema.Tenue, Tema.P(2))) { g.DrawLine(p, xe, ye, xe + m5, ye); g.DrawLine(p, xe, ye - Tema.P(4), xe, ye + Tema.P(4)); g.DrawLine(p, xe + m5, ye - Tema.P(4), xe + m5, ye + Tema.P(4)); }
+            TextRenderer.DrawText(g, "5 m", Tema.Fuente(8f), new Point(xe + (int)m5 + Tema.P(6), ye - Tema.P(8)), Tema.Tenue);
+            var ley = new[] { new { c = Tema.Verde, t = "VNC en línea" }, new { c = Tema.Ambar, t = "Solo ping" }, new { c = Tema.Rojo, t = "Sin red / falla" }, new { c = Tema.Gris, t = "Sin configurar" } };
+            int xl = Width - Tema.P(22);
+            for (int i = ley.Length - 1; i >= 0; i--)
+            {
+                var f = Tema.Fuente(8.5f);
+                int w = TextRenderer.MeasureText(ley[i].t, f).Width;
+                xl -= w;
+                TextRenderer.DrawText(g, ley[i].t, f, new Point(xl, yp + Tema.P(4)), Tema.Tenue);
+                using (var b = new SolidBrush(ley[i].c)) g.FillEllipse(b, xl - Tema.P(13), yp + Tema.P(8), Tema.P(8), Tema.P(8));
+                xl -= Tema.P(30);
+            }
+        }
+    }
+
     // ───────────────────────── Ventana principal ─────────────────────────
     class FormPrincipal : Form
     {
@@ -728,6 +905,10 @@ namespace CuartoControl
         readonly Dictionary<string, List<Maquina>> datos = new Dictionary<string, List<Maquina>>();
         readonly Dictionary<string, Control> vistas = new Dictionary<string, Control>();
         readonly List<Tarjeta> tarjetas = new List<Tarjeta>();
+        readonly List<Mapa> mapas = new List<Mapa>();
+        readonly Dictionary<string, KeyValuePair<Control, Control>> modos = new Dictionary<string, KeyValuePair<Control, Control>>();   // planta -> (tarjetas, mapa)
+        bool verMapa;
+        Label bTarjetas, bMapa;
         readonly ListView lvEstaciones;
         readonly ListView lvReportes;
         readonly TextBox txtReporte;
@@ -806,7 +987,9 @@ namespace CuartoControl
                 fase += 0.12;
                 Tarjeta.Pulso = (float)(0.5 + 0.5 * Math.Sin(fase));
                 foreach (Tarjeta t in tarjetas) if (t.Fallas != "") t.Invalidate();
+                foreach (Mapa m in mapas) if (m.Visible && tarjetas.Any(t => t.Fallas != "")) m.Invalidate();
             };
+            verMapa = Program.MapaInicial;
             Shown += (s, e) =>
             {
                 Cargar();
@@ -842,8 +1025,28 @@ namespace CuartoControl
             cuerpo.Controls.Clear();
             cuerpo.Controls.Add(vistas[nombre]);
             cuerpo.ResumeLayout();
-            foreach (Control c in nav.Controls) { c.ForeColor = (string)c.Tag == nombre ? Tema.Texto : Tema.Tenue; c.Invalidate(); }
+            foreach (Control c in nav.Controls) if (c.Tag is string) { c.ForeColor = (string)c.Tag == nombre ? Tema.Texto : Tema.Tenue; c.Invalidate(); }
+            Modo();
             Subtitulo();
+        }
+
+        // Tarjetas o mapa (para las pestañas de planta)
+        void Modo()
+        {
+            bool planta = modos.ContainsKey(vista);
+            if (bTarjetas != null) { bTarjetas.Visible = bMapa.Visible = planta; bTarjetas.ForeColor = !verMapa ? Tema.Azul : Tema.Tenue; bMapa.ForeColor = verMapa ? Tema.Azul : Tema.Tenue; }
+            if (!planta) return;
+            var par = modos[vista];
+            par.Key.Visible = !verMapa;
+            par.Value.Visible = verMapa;
+            if (verMapa) par.Value.Invalidate();
+        }
+
+        Label Interruptor(string texto, bool mapa)
+        {
+            var b = new Label { Text = texto, AutoSize = true, Cursor = Cursors.Hand, Font = Tema.Fuente(9.5f, FontStyle.Bold), Padding = new Padding(Tema.P(10), Tema.P(7), Tema.P(10), Tema.P(7)), Margin = new Padding(0) };
+            b.Click += (s, e) => { verMapa = mapa; Modo(); };
+            return b;
         }
 
         void Cargar()
@@ -857,6 +1060,8 @@ namespace CuartoControl
             nav.Controls.Clear();
             vistas.Clear();
             tarjetas.Clear();
+            mapas.Clear();
+            modos.Clear();
             datos.Clear();
             foreach (Planta p in Datos.Plantas())
             {
@@ -865,7 +1070,17 @@ namespace CuartoControl
                 try { lista = Datos.Maquinas(p); }
                 catch (Exception ex) { lista = new List<Maquina>(); error = ex.Message; }
                 datos[p.Nombre] = lista;
-                vistas[p.Nombre] = VistaPlanta(p, lista, error);
+                int antesT = tarjetas.Count;
+                Control rej = VistaPlanta(p, lista, error);
+                var mapa = new Mapa(p, tarjetas.Skip(antesT).ToList()) { Visible = false };
+                mapa.Abrir += m => Conectar(m);
+                mapa.Menu += (m, pt) => { tarjetaMenu = mapa.TarjetaDe(m); menu.Show(mapa, pt); };
+                mapas.Add(mapa);
+                var cont = new Panel { Dock = DockStyle.Fill, BackColor = Tema.Fondo };
+                cont.Controls.Add(rej);
+                cont.Controls.Add(mapa);
+                modos[p.Nombre] = new KeyValuePair<Control, Control>(rej, mapa);
+                vistas[p.Nombre] = cont;
                 Pestana(p.Nombre);
             }
 
@@ -894,6 +1109,11 @@ namespace CuartoControl
             division.Panel2.Controls.Add(txtReporte);
             vistas["Reportes"] = Envolver(division);
             Pestana("Reportes");
+            nav.Controls.Add(new Label { Width = Tema.P(40), Height = 1, Margin = new Padding(0) });
+            bTarjetas = Interruptor("▦  Tarjetas", false);
+            bMapa = Interruptor("⌖  Mapa", true);
+            nav.Controls.Add(bTarjetas);
+            nav.Controls.Add(bMapa);
 
             Mostrar(vistas.ContainsKey(antes) ? antes : vistas.ContainsKey(Program.VistaInicial) ? Program.VistaInicial : Datos.Plantas()[0].Nombre);
             PintarPuente();
@@ -973,7 +1193,11 @@ namespace CuartoControl
             t.Invalidate();
         }
 
-        void Refrescar(Maquina m) { foreach (Tarjeta t in tarjetas) if (t.M == m) Pintar(t); }
+        void Refrescar(Maquina m)
+        {
+            foreach (Tarjeta t in tarjetas) if (t.M == m) Pintar(t);
+            foreach (Mapa mp in mapas) if (mp.Visible) mp.Invalidate();
+        }
 
         void Subtitulo()
         {
@@ -1092,6 +1316,7 @@ namespace CuartoControl
                                  "   ·   v" + (Puente.Txt(p, "version") == "" ? "?" : Puente.Txt(p, "version"));
             }
             foreach (Tarjeta t in tarjetas) Pintar(t);
+            foreach (Mapa mp in mapas) mp.Invalidate();
             PintarEstaciones();
             PintarReportes();
             Subtitulo();
@@ -1156,12 +1381,14 @@ namespace CuartoControl
     static class Program
     {
         public static string VistaInicial = "";   // "--vista Candados": abre en esa pestaña
+        public static bool MapaInicial;            // "--vista \"Planta 1\" --mapa": abre en el mapa
         [STAThread]
         static int Main(string[] args)
         {
             Cfg.Cargar();
             if (args.Length > 0 && args[0] == "--prueba") return Prueba();
             if (args.Length > 1 && args[0] == "--vista") VistaInicial = args[1];
+            if (args.Length > 2 && args[2] == "--mapa") MapaInicial = true;
             SetProcessDPIAware();   // nítido en pantallas con escala; los tamaños se multiplican por Tema.S
             using (var g = Graphics.FromHwnd(IntPtr.Zero)) Tema.S = g.DpiX / 96f;
             Application.EnableVisualStyles();
